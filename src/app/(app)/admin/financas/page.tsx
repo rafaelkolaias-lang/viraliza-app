@@ -45,6 +45,10 @@ export default async function FinancasPage() {
         <p className="mt-1 text-sm text-muted-foreground">
           Vendas reais da Kiwify (plano de entrada + pacotes). Atualiza a cada abertura.
         </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Contabilizando a partir de <b className="text-foreground">{f.desde}</b> (o histórico de
+          teste anterior não entra nos números).
+        </p>
       </div>
 
       {f.erro && (
@@ -58,8 +62,8 @@ export default async function FinancasPage() {
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <StatCard label="Receita hoje" value={brl(f.hoje.receitaCentavos)} icon={DollarSign} />
         <StatCard label="Vendas hoje" value={f.hoje.pagas} icon={ShoppingCart} />
-        <StatCard label={`Receita ${f.periodo.dias}d`} value={brl(f.periodo.receitaCentavos)} icon={Wallet} />
-        <StatCard label={`Vendas ${f.periodo.dias}d`} value={f.periodo.vendasPagas} icon={Receipt} />
+        <StatCard label="Receita no período" value={brl(f.periodo.receitaCentavos)} icon={Wallet} />
+        <StatCard label="Vendas no período" value={f.periodo.vendasPagas} icon={Receipt} />
         <StatCard label="Clientes" value={f.periodo.clientes} icon={Users} />
         <StatCard label="Ticket médio" value={brl(f.periodo.ticketCentavos)} icon={DollarSign} />
       </div>

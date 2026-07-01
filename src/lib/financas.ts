@@ -14,6 +14,18 @@ import {
 const DIAS = 30;
 const DIA_MS = 86_400_000;
 
+// MARCO ZERO das finanças: só conta venda a partir daqui. O histórico de
+// teste/lançamento (01/07/2026 e antes) NÃO entra nos números. A partir de
+// 02/07/2026 as vendas são reais. Pra mudar o corte, é só ajustar esta data.
+const DESDE_ISO = "2026-07-02T00:00:00-03:00"; // 02/07/2026 00:00 (horário de Brasília)
+const DESDE_MS = new Date(DESDE_ISO).getTime();
+const fmtDesde = new Intl.DateTimeFormat("pt-BR", {
+  timeZone: "America/Sao_Paulo",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
+
 // datas no fuso de São Paulo (pra o "dia" bater com o Brasil)
 const fmtChave = new Intl.DateTimeFormat("en-CA", {
   timeZone: "America/Sao_Paulo",
@@ -51,6 +63,7 @@ export type CompradorHoje = {
 export type PainelFinancas = {
   configurada: boolean;
   erro?: string;
+  desde: string; // marco zero (ex: "02/07/2026") - antes disso não conta
   hoje: { vendas: number; pagas: number; receitaCentavos: number };
   periodo: {
     dias: number;
@@ -69,8 +82,10 @@ function nomeDe(v: VendaLista) {
 }
 
 export async function getPainelFinancas(): Promise<PainelFinancas> {
+  const desdeLabel = fmtDesde.format(new Date(DESDE_MS));
   const vazio: PainelFinancas = {
     configurada: kiwifyConfigurada(),
+    desde: desdeLabel,
     hoje: { vendas: 0, pagas: 0, receitaCentavos: 0 },
     periodo: {
       dias: DIAS,
@@ -97,10 +112,13 @@ export async function getPainelFinancas(): Promise<PainelFinancas> {
     return { ...vazio, erro: "Não consegui buscar as vendas na Kiwify agora." };
   }
 
-  // buckets por dia (últimos DIAS dias, do mais antigo pro mais novo)
+  // buckets por dia: começa no marco zero (nunca mostra dia antes do corte), até
+  // no máximo DIAS dias. Enquanto o marco for recente, mostra só os dias já corridos.
+  const diasDesde = Math.floor((agora - DESDE_MS) / DIA_MS);
+  const nDias = Math.min(DIAS, Math.max(1, diasDesde + 1));
   const buckets = new Map<string, { vendas: number; receitaCentavos: number }>();
-  for (let i = 0; i < DIAS; i++) {
-    const d = new Date(agora - (DIAS - 1 - i) * DIA_MS);
+  for (let i = 0; i < nDias; i++) {
+    const d = new Date(agora - (nDias - 1 - i) * DIA_MS);
     buckets.set(fmtChave.format(d), { vendas: 0, receitaCentavos: 0 });
   }
 
@@ -115,6 +133,8 @@ export async function getPainelFinancas(): Promise<PainelFinancas> {
   for (const v of vendas) {
     const criado = v.created_at ? new Date(v.created_at) : null;
     if (!criado) continue;
+    // MARCO ZERO: ignora tudo que é anterior ao corte (histórico de teste não conta)
+    if (criado.getTime() < DESDE_MS) continue;
     const chave = fmtChave.format(criado);
     const pago = vendaEstaPaga(v);
     const bruto = valorVenda(v);
@@ -162,9 +182,10 @@ export async function getPainelFinancas(): Promise<PainelFinancas> {
 
   return {
     configurada: true,
+    desde: desdeLabel,
     hoje,
     periodo: {
-      dias: DIAS,
+      dias: nDias,
       vendasPagas: periodoPagas,
       receitaCentavos: periodoReceita,
       receitaLiquidaCentavos: periodoLiquido,

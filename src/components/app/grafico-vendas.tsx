@@ -18,7 +18,7 @@ export function GraficoVendas({ dias }: { dias: DiaVenda[] }) {
           Vendas por dia
         </h2>
         <span className="text-xs text-muted-foreground">
-          {brl(totalReceita)} · {totalVendas} venda{totalVendas === 1 ? "" : "s"} nos últimos {dias.length} dias
+          {brl(totalReceita)} · {totalVendas} venda{totalVendas === 1 ? "" : "s"} em {dias.length} dia{dias.length === 1 ? "" : "s"}
         </span>
       </div>
 
