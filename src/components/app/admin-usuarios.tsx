@@ -3,7 +3,7 @@
 import { Fragment, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Coins, Plus, Minus, X } from "lucide-react";
+import { Coins, Plus, Minus, X, BookOpen, Wrench, Check, Ban } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -14,7 +14,11 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ajustarCreditoAdmin } from "@/app/actions/usuarios";
+import {
+  ajustarCreditoAdmin,
+  alterarBiblioteca,
+  alterarFerramentas,
+} from "@/app/actions/usuarios";
 import { cn } from "@/lib/utils";
 import type { LinhaUsuario } from "@/lib/admin";
 
@@ -53,6 +57,32 @@ export function AdminUsuarios({ usuarios }: { usuarios: LinhaUsuario[] }) {
           : `${fmt(creditos)} créditos removidos.`,
       );
       setValor("");
+      router.refresh();
+    });
+  }
+
+  function toggleBiblioteca(u: LinhaUsuario) {
+    startSalvar(async () => {
+      const res = await alterarBiblioteca(u.id, !u.assinante);
+      if (res?.erro) {
+        toast.error(res.erro);
+        return;
+      }
+      toast.success(u.assinante ? "Biblioteca bloqueada." : "Biblioteca liberada.");
+      router.refresh();
+    });
+  }
+
+  function toggleFerramentas(u: LinhaUsuario) {
+    startSalvar(async () => {
+      const res = await alterarFerramentas(u.id, !u.ferramentasLiberadas);
+      if (res?.erro) {
+        toast.error(res.erro);
+        return;
+      }
+      toast.success(
+        u.ferramentasLiberadas ? "Ferramentas bloqueadas." : "Ferramentas liberadas.",
+      );
       router.refresh();
     });
   }
@@ -108,6 +138,20 @@ export function AdminUsuarios({ usuarios }: { usuarios: LinhaUsuario[] }) {
                     >
                       {vistoLabel(u.vistoEm, u.online)}
                     </span>
+                    {(!u.assinante || !u.ferramentasLiberadas) && u.role === "user" && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {!u.assinante && (
+                          <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">
+                            sem biblioteca
+                          </span>
+                        )}
+                        {!u.ferramentasLiberadas && (
+                          <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-medium text-red-600">
+                            sem ferramentas
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell className="hidden text-right text-sm text-muted-foreground sm:table-cell">
                     {fmt(u.jobs)}
@@ -186,6 +230,60 @@ export function AdminUsuarios({ usuarios }: { usuarios: LinhaUsuario[] }) {
                         </Button>
                         <span className="ml-auto text-xs text-muted-foreground">
                           Saldo atual: <b className="text-foreground">{fmt(u.saldoCentavos)}</b> créditos
+                        </span>
+                      </div>
+
+                      {/* Controle de acesso: biblioteca (acervos) + ferramentas */}
+                      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
+                        <span className="text-xs font-medium text-muted-foreground">
+                          Acesso:
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className={cn(
+                            "h-8",
+                            u.assinante
+                              ? "text-red-600 hover:text-red-600"
+                              : "text-emerald-600 hover:text-emerald-600",
+                          )}
+                          disabled={salvando}
+                          onClick={() => toggleBiblioteca(u)}
+                          title="Acervos, virais, produtos e área do membro"
+                        >
+                          <BookOpen className="size-4" />
+                          {u.assinante ? "Tirar biblioteca" : "Liberar biblioteca"}
+                          {u.assinante ? (
+                            <Ban className="size-3.5 opacity-70" />
+                          ) : (
+                            <Check className="size-3.5 opacity-70" />
+                          )}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className={cn(
+                            "h-8",
+                            u.ferramentasLiberadas
+                              ? "text-red-600 hover:text-red-600"
+                              : "text-emerald-600 hover:text-emerald-600",
+                          )}
+                          disabled={salvando}
+                          onClick={() => toggleFerramentas(u)}
+                          title="Editor automático, cortes, em lote e leads"
+                        >
+                          <Wrench className="size-4" />
+                          {u.ferramentasLiberadas ? "Tirar ferramentas" : "Liberar ferramentas"}
+                          {u.ferramentasLiberadas ? (
+                            <Ban className="size-3.5 opacity-70" />
+                          ) : (
+                            <Check className="size-3.5 opacity-70" />
+                          )}
+                        </Button>
+                        <span className="ml-auto text-[11px] text-muted-foreground">
+                          Biblioteca: <b className={u.assinante ? "text-emerald-600" : "text-red-600"}>{u.assinante ? "liberada" : "bloqueada"}</b>
+                          {" · "}
+                          Ferramentas: <b className={u.ferramentasLiberadas ? "text-emerald-600" : "text-red-600"}>{u.ferramentasLiberadas ? "liberadas" : "bloqueadas"}</b>
                         </span>
                       </div>
                     </TableCell>

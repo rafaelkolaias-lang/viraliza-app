@@ -171,6 +171,38 @@ export async function alterarBloqueio(
   return { ok: true };
 }
 
+/** Libera/tira o acesso à BIBLIOTECA (acervos, virais, produtos, membro). SÓ ADMIN.
+ *  Liberar = assinante permanente; tirar = assinante false (perde o acesso na hora). */
+export async function alterarBiblioteca(
+  id: string,
+  liberar: boolean,
+): Promise<UsuarioState> {
+  await requireAdmin();
+  if (!id) return { erro: "Usuário inválido." };
+  await prisma.user.update({
+    where: { id },
+    data: { assinante: liberar, assinaturaAte: null }, // liberar = permanente; tirar = zera
+  });
+  revalidarAdmin();
+  return { ok: true };
+}
+
+/** Libera/tira o acesso às FERRAMENTAS de gerar vídeo (editor, cortes, lote, leads).
+ *  SÓ ADMIN. Tirar = a pessoa continua logada e vê a biblioteca, mas não gera nada. */
+export async function alterarFerramentas(
+  id: string,
+  liberar: boolean,
+): Promise<UsuarioState> {
+  await requireAdmin();
+  if (!id) return { erro: "Usuário inválido." };
+  await prisma.user.update({
+    where: { id },
+    data: { ferramentasLiberadas: liberar },
+  });
+  revalidarAdmin();
+  return { ok: true };
+}
+
 /** Ajusta o crédito de um usuário (admin). creditos > 0 adiciona, < 0 remove.
  *  1 crédito = R$ 0,01, então o valor é em centavos = nº de créditos. */
 export async function ajustarCreditoAdmin(

@@ -17,6 +17,7 @@ model User {
   senhaHash String
   role      String   @default("user") // "admin" | "user" | "demo"
   bloqueado Boolean  @default(false)  // true = derruba a sessão e impede novo login
+  ferramentasLiberadas Boolean @default(true) // false = admin cortou o acesso de gerar (editor/cortes/lote/leads)
   criadoEm  DateTime @default(now())
   vistoEm   DateTime? // última atividade (presença "online/visto há X"); atualizado no layout
 

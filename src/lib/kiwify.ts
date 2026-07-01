@@ -87,6 +87,52 @@ export function vendaEstornada(sale: KiwifySale) {
   return STATUS_ESTORNO.has((sale.status || "").toLowerCase());
 }
 
+// ---- Listagem de vendas (pro painel de finanças) ----
+// A API exige start_date/end_date em ISO (com hora) e end_date > start_date.
+export type VendaLista = {
+  id: string;
+  reference?: string;
+  status: string; // "paid" | "waiting_payment" | "refunded" | ...
+  payment_method?: string;
+  net_amount?: number; // centavos líquidos (o que cai pra você)
+  charge_amount?: number; // centavos brutos (o que o cliente pagou)
+  created_at?: string;
+  product?: { id?: string; name?: string };
+  customer?: { name?: string; full_name?: string; email?: string };
+};
+
+/** Lista TODAS as vendas de um período (pagina sozinho). Datas em ISO. */
+export async function listarVendas(inicioISO: string, fimISO: string): Promise<VendaLista[]> {
+  const token = await getToken();
+  const out: VendaLista[] = [];
+  let page = 1;
+  // teto de segurança: 50 páginas x 100 = 5.000 vendas por consulta
+  for (; page <= 50; page++) {
+    const url =
+      `${API}/sales?start_date=${encodeURIComponent(inicioISO)}` +
+      `&end_date=${encodeURIComponent(fimISO)}&page_size=100&page_number=${page}`;
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}`, "x-kiwify-account-id": ACCOUNT_ID },
+      cache: "no-store",
+    });
+    if (!res.ok) throw new Error(`Kiwify sales list falhou: ${res.status}`);
+    const data = (await res.json()) as { data?: VendaLista[]; pagination?: { count?: number } };
+    const lote = data.data ?? [];
+    out.push(...lote);
+    if (lote.length < 100) break; // última página
+  }
+  return out;
+}
+
+/** Valor da venda (bruto pago pelo cliente) em centavos. */
+export function valorVenda(v: VendaLista): number {
+  return v.charge_amount ?? v.net_amount ?? 0;
+}
+/** Valor líquido (o que cai pra você) em centavos. */
+export function valorLiquido(v: VendaLista): number {
+  return v.net_amount ?? v.charge_amount ?? 0;
+}
+
 /** Extrai o id do pedido do payload do webhook (nomes variam entre eventos). */
 export function orderIdDoPayload(body: unknown): string {
   const b = (body ?? {}) as Record<string, unknown>;

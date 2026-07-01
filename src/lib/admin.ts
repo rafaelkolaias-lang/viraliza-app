@@ -30,6 +30,8 @@ export type LinhaUsuario = {
   jobs: number;
   vistoEm: string | null;
   online: boolean;
+  assinante: boolean; // acesso à biblioteca (acervos, virais, produtos, membro)
+  ferramentasLiberadas: boolean; // acesso às ferramentas de gerar vídeo
 };
 
 export type PainelAdmin = {
@@ -108,6 +110,8 @@ export async function getPainelAdmin(): Promise<PainelAdmin> {
         role: true,
         saldoCentavos: true,
         vistoEm: true,
+        assinante: true,
+        ferramentasLiberadas: true,
       },
     }),
   ]);
@@ -147,6 +151,8 @@ export async function getPainelAdmin(): Promise<PainelAdmin> {
       jobs: jobsPor.get(u.id) ?? 0,
       vistoEm: u.vistoEm ? u.vistoEm.toISOString() : null,
       online: !!u.vistoEm && u.vistoEm.getTime() > agora - ONLINE_MS,
+      assinante: u.assinante,
+      ferramentasLiberadas: u.ferramentasLiberadas,
     }))
     // online primeiro, depois quem foi visto mais recentemente
     .sort((a, b) => {

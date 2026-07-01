@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/dal";
+import { getCurrentUser, ferramentasLiberadas } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { temSaldo } from "@/lib/creditos";
 
@@ -30,6 +30,14 @@ export async function POST(req: Request) {
         { status: 403 },
       );
     }
+  }
+
+  // Trava de acesso: o admin pode suspender as ferramentas deste usuário a qualquer hora.
+  if (user.role !== "admin" && !ehDemo && !(await ferramentasLiberadas(user.id))) {
+    return NextResponse.json(
+      { erro: "Seu acesso às ferramentas foi suspenso pelo administrador." },
+      { status: 403 },
+    );
   }
 
   // Trava de crédito: produção exige crédito (admin passa; demo tratado acima).

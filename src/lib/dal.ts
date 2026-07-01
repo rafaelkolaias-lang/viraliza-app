@@ -49,3 +49,13 @@ export async function requireAssinatura() {
   if (!ativa) redirect("/painel/creditos?bloqueio=biblioteca");
   return user;
 }
+
+/** Ferramentas de geração (editor, cortes, em lote, leads) liberadas pra este user?
+ *  Admin passa sempre. O admin pode cortar isso de qualquer um a qualquer momento. */
+export async function ferramentasLiberadas(userId: string): Promise<boolean> {
+  const u = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { ferramentasLiberadas: true },
+  });
+  return u?.ferramentasLiberadas ?? true;
+}

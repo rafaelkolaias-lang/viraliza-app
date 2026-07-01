@@ -1,7 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { getCurrentUser } from "@/lib/dal";
+import { getCurrentUser, ferramentasLiberadas } from "@/lib/dal";
 import { mapearLead, salvarLeads } from "@/lib/leads";
 import { temSaldo, debitarClamp } from "@/lib/creditos";
 import { CREDITOS_FIXO } from "@/lib/precos";
@@ -18,6 +18,13 @@ export async function POST(req: Request) {
   if (!user) return new Response("Não autorizado", { status: 401 });
   if (user.role === "demo")
     return new Response("Conta demo não roda buscas", { status: 403 });
+
+  // Trava de acesso: o admin pode suspender as ferramentas deste usuário a qualquer hora.
+  if (user.role !== "admin" && !(await ferramentasLiberadas(user.id)))
+    return new Response(
+      "Seu acesso às ferramentas foi suspenso pelo administrador.",
+      { status: 403 },
+    );
 
   // Trava de crédito: produção exige crédito (admin passa direto).
   if (user.role !== "admin" && !(await temSaldo(user.id)))
