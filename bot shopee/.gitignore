@@ -1,0 +1,6 @@
+.env
+temp/
+saida/
+entrada/
+__pycache__/
+*.pyc

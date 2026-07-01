@@ -1,0 +1,21 @@
+node_modules
+.next
+out
+build
+.git
+.gitignore
+*.md
+.env
+.env.*
+!.env.example
+# dados de runtime (vêm de volume, não da imagem)
+data
+public/videos
+public/virais
+public/produtos
+public/downloads
+prisma/*.db
+prisma/*.db-journal
+*.db
+npm-debug.log*
+.DS_Store

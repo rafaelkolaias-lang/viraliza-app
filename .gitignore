@@ -1,0 +1,81 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# banco (NUNCA subir — tem dados de usuários)
+/prisma/*.db
+/prisma/*.db-journal
+*.db
+
+# dados de runtime (uploads, vídeos prontos, virais, produtos, materiais)
+/data
+/public/videos
+/public/virais
+/public/produtos
+/public/downloads
+
+# vercel
+.vercel
+
+# ===== SEGREDOS / DADOS SENSIVEIS (repo publico - NUNCA subir) =====
+# dump/banco de dados (contem dados de usuarios)
+*.sql
+editor.sql
+# sessoes autenticadas do Telegram (credencial de login)
+*.session
+*.session-journal
+
+# ===== Workers Python =====
+__pycache__/
+**/__pycache__/
+*.pyc
+# runtime dos workers (saidas, uploads, temporarios, produtos baixados)
+/bot shopee/temp/
+/bot shopee/saida/
+/bot shopee/entrada/
+/bot shopee/produtos/
+/bot shopee/__pycache__/
+/bot telegram/__pycache__/
+/bot telegram/baixados.json
+/bot telegram/baixados_produtos.json
+/bot telegram/baixados_satisf.json
+# assets de teste pesados
+*.mp4
+
+# settings locais do editor/IA
+/.claude/settings.local.json
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
