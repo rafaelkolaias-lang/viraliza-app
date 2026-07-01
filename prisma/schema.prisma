@@ -174,17 +174,20 @@ model ProdutoShopee {
   @@index([adicionadoEm])
 }
 
-// Vídeos virais Shopee (mp4 hospedado no Drive). Serve player + download.
+// Vídeos virais Shopee. Antigos no Drive; novos (ingest do Telegram) direto no serverrk.
 model VideoShopee {
   id          String   @id // id do telegram (tg_...)
-  driveId     String   @unique // arquivo do vídeo no Drive
+  driveId     String?  @unique // arquivo do vídeo no Drive (null = veio direto pro serverrk)
   thumbDriveId String? // JPG do frame real no Drive (capa instantânea; lh3 não faz poster de vídeo)
   titulo      String   @db.VarChar(500)
   link        String?  @db.VarChar(500)
   duracaoSeg  Int      @default(0)
   canal       String?
+  categoria   String   @default("") @db.VarChar(255) // nicho do vídeo (ex.: "Utilidades")
+  emAlta      Boolean  @default(false)                // 🔥 Em alta agora (veio com nicho)
   migrado     Boolean  @default(false) // true = vídeo+thumb já no serverrk (media.univershoop.com), não usa mais o Drive
   adicionadoEm DateTime @default(now())
 
   @@index([adicionadoEm])
+  @@index([emAlta])
 }

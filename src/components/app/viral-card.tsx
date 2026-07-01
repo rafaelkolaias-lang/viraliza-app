@@ -111,15 +111,22 @@ export function ViralCard({
       <div className="space-y-3 p-3">
         <div>
           <p className="line-clamp-2 text-sm font-medium">{video.titulo}</p>
-          <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-primary/12 px-2 py-0.5 text-[11px] font-semibold text-primary">
-            <TrendingUp className="size-3" />
-            {vendidosLabel(video.id)}
-          </span>
-          {video.categoria && (
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              {video.categoria}
-            </p>
-          )}
+          <div className="mt-1 flex flex-wrap items-center gap-1">
+            <span className="inline-flex items-center gap-1 rounded-full bg-primary/12 px-2 py-0.5 text-[11px] font-semibold text-primary">
+              <TrendingUp className="size-3" />
+              {vendidosLabel(video.id)}
+            </span>
+            {video.emAlta && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/15 px-2 py-0.5 text-[11px] font-semibold text-orange-500">
+                🔥 Em alta
+              </span>
+            )}
+            {video.categoria && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                {video.categoria}
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="flex flex-col gap-2">

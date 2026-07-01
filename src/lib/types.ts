@@ -51,6 +51,8 @@ export interface ViralVideo {
   id: string;
   titulo: string;
   categoria?: string;
+  /** 🔥 Em alta agora (vídeo que veio com nicho definido) */
+  emAlta?: boolean;
   /** link do produto extraído da legenda */
   link?: string;
   /** caminho do arquivo servido pela web (ex: /virais/xxx.mp4) - quando já baixado */

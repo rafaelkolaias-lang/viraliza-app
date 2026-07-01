@@ -16,6 +16,8 @@ export async function getViralVideos(): Promise<ViralVideo[]> {
     const base = {
       id: r.id,
       titulo: r.titulo,
+      categoria: r.categoria || undefined,
+      emAlta: r.emAlta,
       link: r.link ?? undefined,
       duracaoSeg: r.duracaoSeg,
       adicionadoEm: r.adicionadoEm.toISOString(),
@@ -31,7 +33,7 @@ export async function getViralVideos(): Promise<ViralVideo[]> {
     }
     return {
       ...base,
-      driveId: r.driveId,
+      driveId: r.driveId ?? undefined,
       thumbDriveId: r.thumbDriveId ?? undefined,
     };
   });
