@@ -82,6 +82,7 @@ model CreditoTransacao {
   @@index([userId])
   @@index([criadoEm])
   @@index([kiwifyOrderId])
+  @@index([jobId])
 }
 
 // Crédito de uma compra Kiwify de quem AINDA não tem conta (pagou antes de cadastrar).
@@ -124,6 +125,7 @@ model Job {
 
   @@index([userId])
   @@index([status])
+  @@index([userId, status])
 }
 
 model Lead {
@@ -207,4 +209,24 @@ model VideoShopee {
 
   @@index([adicionadoEm])
   @@index([emAlta])
+  @@index([categoria])
+}
+
+// Allowlist de cadastro: só quem comprou na Kiwify (qualquer produto) pode criar
+// conta. Populado pelo webhook quando a compra é aprovada. Fecha o farm de crédito.
+model AcessoPago {
+  email         String   @id
+  kiwifyOrderId String?
+  produto       String?
+  criadoEm      DateTime @default(now())
+}
+
+// Rate limiter simples (janela fixa por banco): 1 linha por tentativa. Conta as
+// tentativas de uma chave (ex.: "login:<ip>") na janela pra travar brute-force/spam.
+model RateHit {
+  id       String   @id @default(cuid())
+  chave    String
+  criadoEm DateTime @default(now())
+
+  @@index([chave, criadoEm])
 }

@@ -45,7 +45,7 @@ export async function criarUsuario(
   const existe = await prisma.user.findUnique({ where: { email } });
   if (existe) return { erro: "Esse e-mail já está cadastrado." };
 
-  const senhaHash = await bcrypt.hash(senha, 10);
+  const senhaHash = await bcrypt.hash(senha, 12);
   await prisma.user.create({ data: { nome, email, senhaHash, role } });
 
   revalidarAdmin();

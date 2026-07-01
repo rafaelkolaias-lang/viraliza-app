@@ -12,6 +12,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const SUBS = new Set(["videos", "imagens", "musica", "template"]);
+const MAX_ARQUIVO = 1024 * 1024 * 1024; // teto por arquivo: 1GB (anti-encher-disco)
 
 function nomeSeguro(nome: string) {
   return path.basename(nome).replace(/[^\w.\- ]+/g, "_").slice(0, 120) || "arquivo";
@@ -77,6 +78,17 @@ export async function POST(
       { erro: "Falha ao gravar o pedaço." },
       { status: 500 },
     );
+  }
+
+  // teto de tamanho: se passou do limite, descarta o arquivo (proteção de disco)
+  try {
+    const { size } = await fs.stat(alvo);
+    if (size > MAX_ARQUIVO) {
+      await fs.rm(alvo, { force: true });
+      return NextResponse.json({ erro: "Arquivo grande demais (máx 1GB)." }, { status: 413 });
+    }
+  } catch {
+    /* ignora erro de stat */
   }
 
   return NextResponse.json({ ok: true, parte });

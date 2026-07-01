@@ -45,7 +45,7 @@ export async function trocarSenha(
 
   await prisma.user.update({
     where: { id: user.id },
-    data: { senhaHash: await bcrypt.hash(parsed.data.nova, 10) },
+    data: { senhaHash: await bcrypt.hash(parsed.data.nova, 12) },
   });
   return { ok: true };
 }

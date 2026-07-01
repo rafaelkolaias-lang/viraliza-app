@@ -14,6 +14,9 @@ function nomeSeguro(nome: string) {
   return path.basename(nome).replace(/[^\w.\- ]+/g, "_").slice(0, 120) || "arquivo";
 }
 
+// teto por arquivo (defesa contra encher o disco). Vídeo grande vai pelo chunked.
+const MAX_ARQUIVO = 300 * 1024 * 1024; // 300MB
+
 async function salvarArquivos(
   jobId: string,
   sub: "videos" | "imagens" | "musica" | "template",
@@ -23,6 +26,9 @@ async function salvarArquivos(
   const dir = path.join(pastaEntrada(jobId), sub);
   await fs.mkdir(dir, { recursive: true });
   for (const file of files) {
+    if (file.size > MAX_ARQUIVO) {
+      throw new Error(`Arquivo grande demais: ${file.name}`);
+    }
     const buf = Buffer.from(await file.arrayBuffer());
     await fs.writeFile(path.join(dir, nomeSeguro(file.name)), buf);
   }

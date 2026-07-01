@@ -47,17 +47,29 @@ export async function POST(req: Request) {
     sale = await buscarVenda(orderId);
   } catch (e) {
     // erro transitório na API da Kiwify: 500 faz a Kiwify reenviar depois
-    return NextResponse.json({ erro: `falha ao verificar: ${e}` }, { status: 500 });
+    console.error("[kiwify] falha ao verificar pedido", orderId, e);
+    return NextResponse.json({ erro: "erro ao verificar pedido" }, { status: 500 });
   }
   if (!sale) return NextResponse.json({ ok: true, ignorado: "pedido não encontrado" });
 
-  const creditos = creditosDoPacote(sale);
-  // não é pacote de crédito (plano de entrada R$19,90, Copa 2026, etc.) -> ignora
-  if (creditos <= 0) {
-    return NextResponse.json({ ok: true, ignorado: "não é pacote de crédito" });
+  const email = (sale.customer?.email || "").trim().toLowerCase();
+
+  // QUALQUER compra aprovada (entrada R$19,90, pacote, etc.) libera o cadastro desse
+  // e-mail (allowlist anti-farm). Independe de creditar ou não.
+  if (vendaEstaPaga(sale) && email) {
+    await prisma.acessoPago.upsert({
+      where: { email },
+      create: { email, kiwifyOrderId: orderId, produto: sale.product?.name ?? null },
+      update: {},
+    });
   }
 
-  const email = (sale.customer?.email || "").trim().toLowerCase();
+  const creditos = creditosDoPacote(sale);
+  // não é pacote de crédito (plano de entrada R$19,90, Copa 2026, etc.) -> só liberou o acesso
+  if (creditos <= 0) {
+    return NextResponse.json({ ok: true, ignorado: "não é pacote (acesso liberado)" });
+  }
+
   const desc = `Compra Kiwify: ${sale.product?.name || "créditos"}`;
 
   // ---- PAGAMENTO APROVADO -> credita ----
