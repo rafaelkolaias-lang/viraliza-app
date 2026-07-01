@@ -8,6 +8,10 @@ import { cadastroSchema, loginSchema } from "@/lib/auth-schemas";
 
 export type AuthState = { erro?: string } | undefined;
 
+// Crédito de boas-vindas: todo cadastro novo já começa com 1.000 créditos (R$ 10,00)
+// pra testar a plataforma sem precisar comprar. 1 crédito = R$ 0,01.
+const CREDITO_INICIAL = 1000;
+
 export async function cadastrar(
   _prev: AuthState,
   formData: FormData,
@@ -28,7 +32,22 @@ export async function cadastrar(
   // O primeiro a se cadastrar vira ADMIN (o dono da plataforma).
   const total = await prisma.user.count();
   const user = await prisma.user.create({
-    data: { nome, email, senhaHash, role: total === 0 ? "admin" : "user" },
+    data: {
+      nome,
+      email,
+      senhaHash,
+      role: total === 0 ? "admin" : "user",
+      saldoCentavos: CREDITO_INICIAL,
+      // registra o crédito de boas-vindas no extrato pra o saldo bater
+      transacoes: {
+        create: {
+          tipo: "ajuste_admin",
+          valor: CREDITO_INICIAL,
+          saldoApos: CREDITO_INICIAL,
+          descricao: "Crédito de boas-vindas (1.000 créditos)",
+        },
+      },
+    },
   });
 
   await createSession(user.id, user.role);
