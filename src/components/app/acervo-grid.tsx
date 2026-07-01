@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Play, Download, X, ExternalLink } from "lucide-react";
+import { Play, Download, X } from "lucide-react";
 import { driveThumb, drivePreview, driveDownload } from "@/lib/drive";
 
 type Item = { id: string; nome: string };
@@ -82,24 +82,12 @@ export function AcervoGrid({ itens }: { itens: Item[] }) {
                 className="size-full"
               />
             </div>
-            <p className="mt-2 text-center text-[11px] text-white/55">
-              No celular o player pode não abrir - toque em “Abrir no Drive”.
-            </p>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <a
-                href={drivePreview(aberto.id)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex h-11 items-center justify-center gap-2 rounded-lg border border-white/20 bg-white/10 text-sm font-semibold text-white transition-colors hover:bg-white/20"
-              >
-                <ExternalLink className="size-4" />
-                Abrir no Drive
-              </a>
+            <div className="mt-2">
               <a
                 href={driveDownload(aberto.id)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex h-11 items-center justify-center gap-2 rounded-lg bg-primary text-sm font-semibold text-primary-foreground"
+                className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary text-sm font-semibold text-primary-foreground"
               >
                 <Download className="size-4" />
                 Baixar

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Play, Download, X, Film, Search, ExternalLink } from "lucide-react";
+import { Play, Download, X, Film, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Paginacao } from "@/components/app/paginacao";
 import { driveThumb, drivePreview, driveDownload } from "@/lib/drive";
@@ -132,24 +132,12 @@ export function AcervoGaleria({ itens }: { itens: Item[] }) {
                 className="size-full"
               />
             </div>
-            <p className="mt-2 text-center text-[11px] text-white/55">
-              No celular o player pode não abrir - toque em “Abrir no Drive”.
-            </p>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <a
-                href={drivePreview(aberto.id)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex h-11 items-center justify-center gap-2 rounded-lg border border-white/20 bg-white/10 text-sm font-semibold text-white transition-colors hover:bg-white/20"
-              >
-                <ExternalLink className="size-4" />
-                Abrir no Drive
-              </a>
+            <div className="mt-2">
               <a
                 href={driveDownload(aberto.id)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex h-11 items-center justify-center gap-2 rounded-lg bg-primary text-sm font-semibold text-primary-foreground"
+                className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary text-sm font-semibold text-primary-foreground"
               >
                 <Download className="size-4" />
                 Baixar

@@ -6,6 +6,11 @@ const MAP: Record<
   VideoStatus,
   { label: string; classes: string; Icon: typeof Clock; spin?: boolean }
 > = {
+  recebendo: {
+    label: "Recebendo",
+    classes: "bg-muted text-muted-foreground",
+    Icon: Clock,
+  },
   na_fila: {
     label: "Na fila",
     classes: "bg-muted text-muted-foreground",
@@ -35,8 +40,16 @@ const MAP: Record<
   },
 };
 
+// fallback pra qualquer status fora do mapa (ex.: valor legado no banco) - nunca quebra
+const FALLBACK = {
+  label: "Desconhecido",
+  classes: "bg-muted text-muted-foreground",
+  Icon: Clock,
+  spin: false,
+} as const;
+
 export function StatusBadge({ status }: { status: VideoStatus }) {
-  const { label, classes, Icon, spin } = MAP[status];
+  const { label, classes, Icon, spin } = MAP[status] ?? FALLBACK;
   return (
     <span
       className={cn(

@@ -1,5 +1,6 @@
 /** Status de um pedido de vídeo na fila de render. */
 export type VideoStatus =
+  | "recebendo"
   | "na_fila"
   | "renderizando"
   | "processando"
