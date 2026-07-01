@@ -1,63 +1,42 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
-  assinaturaValida,
   buscarVenda,
-  creditosDaVenda,
+  creditosDoPacote,
   kiwifyConfigurada,
   orderIdDoPayload,
   vendaEstaPaga,
   vendaEstornada,
 } from "@/lib/kiwify";
-import {
-  debitarClamp,
-  estenderAssinatura,
-  existeTransacaoOrder,
-  lancar,
-} from "@/lib/creditos";
+import { debitarClamp, existeTransacaoOrder, lancar } from "@/lib/creditos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const DIAS_ASSINATURA = 30;
-const DIA_MS = 86_400_000;
-
-/** Recua a assinatura (estorno): tira os dias e desmarca assinante se venceu. */
-async function recuarAssinatura(userId: string, dias: number) {
-  const u = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { assinaturaAte: true },
-  });
-  if (!u?.assinaturaAte) return;
-  const ate = new Date(u.assinaturaAte.getTime() - dias * DIA_MS);
-  await prisma.user.update({
-    where: { id: userId },
-    data: { assinaturaAte: ate, assinante: ate.getTime() > Date.now() },
-  });
-}
-
 /**
- * Webhook da Kiwify. A Kiwify chama aqui quando algo acontece com um pedido; a
- * gente confirma o pedido NA API da Kiwify (valor + status reais) e credita o
- * usuário. Sempre responde 200 (senão a Kiwify fica reenviando pra sempre).
- * Idempotente por pedido: não credita/estorna duas vezes.
+ * Webhook da Kiwify. Só os PACOTES DE CRÉDITO ("Editor automatico N") creditam;
+ * o plano de entrada (R$ 19,90) e outros produtos são ignorados (o acesso vem do
+ * cadastro, que já dá 1.000 créditos de boas-vindas).
+ *
+ * A gente confirma o pedido NA API da Kiwify (valor + status reais) antes de
+ * creditar - ninguém forja crédito. Idempotente por pedido. Sempre responde 200
+ * (senão a Kiwify reenvia pra sempre), menos em erro transitório (500 = reenvia).
  */
 export async function POST(req: Request) {
   if (!kiwifyConfigurada()) {
     return NextResponse.json({ erro: "Kiwify não configurada" }, { status: 503 });
   }
 
+  // Segurança: NÃO confiamos na assinatura do webhook (algoritmo varia). A garantia
+  // é confirmar o pedido na API da Kiwify abaixo - só credita se o pedido existir,
+  // estiver pago e for da SUA conta. Um webhook forjado não passa por essa checagem.
   const raw = await req.text();
-  const signature = new URL(req.url).searchParams.get("signature");
-  if (!assinaturaValida(raw, signature)) {
-    return NextResponse.json({ erro: "assinatura inválida" }, { status: 401 });
-  }
 
   let body: unknown = {};
   try {
     body = JSON.parse(raw);
   } catch {
-    // alguns eventos vêm form-encoded; tenta extrair mesmo assim adiante
+    // alguns eventos podem vir sem JSON válido; segue e tenta extrair o id
   }
   const orderId = orderIdDoPayload(body);
   if (!orderId) return NextResponse.json({ ok: true, ignorado: "sem order_id" });
@@ -72,25 +51,29 @@ export async function POST(req: Request) {
   }
   if (!sale) return NextResponse.json({ ok: true, ignorado: "pedido não encontrado" });
 
+  const creditos = creditosDoPacote(sale);
+  // não é pacote de crédito (plano de entrada R$19,90, Copa 2026, etc.) -> ignora
+  if (creditos <= 0) {
+    return NextResponse.json({ ok: true, ignorado: "não é pacote de crédito" });
+  }
+
   const email = (sale.customer?.email || "").trim().toLowerCase();
-  const creditos = creditosDaVenda(sale);
+  const desc = `Compra Kiwify: ${sale.product?.name || "créditos"}`;
 
   // ---- PAGAMENTO APROVADO -> credita ----
-  if (vendaEstaPaga(sale) && creditos > 0) {
+  if (vendaEstaPaga(sale)) {
     if (await existeTransacaoOrder(orderId, "compra")) {
       return NextResponse.json({ ok: true, jaProcessado: true });
     }
-    const desc = `Compra Kiwify (${sale.product?.name || "crédito"})`;
     const user = email
       ? await prisma.user.findUnique({ where: { email } })
       : null;
 
     if (user) {
       await lancar(user.id, creditos, "compra", { descricao: desc, kiwifyOrderId: orderId });
-      await estenderAssinatura(user.id, DIAS_ASSINATURA);
       return NextResponse.json({ ok: true, creditado: creditos, userId: user.id });
     }
-    // pagou antes de ter conta: guarda pendente pra aplicar no cadastro (mesmo e-mail)
+    // comprou o pacote antes de ter conta: guarda pra aplicar no cadastro (mesmo e-mail)
     if (email) {
       await prisma.creditoPendente.upsert({
         where: { kiwifyOrderId: orderId },
@@ -98,7 +81,7 @@ export async function POST(req: Request) {
           email,
           valorCentavos: creditos,
           kiwifyOrderId: orderId,
-          assinaturaDias: DIAS_ASSINATURA,
+          assinaturaDias: 0, // acesso vem do cadastro; nada de assinatura aqui
           descricao: desc,
         },
         update: {},
@@ -108,7 +91,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, ignorado: "sem e-mail do cliente" });
   }
 
-  // ---- REEMBOLSO / CHARGEBACK -> estorna ----
+  // ---- REEMBOLSO / CHARGEBACK -> estorna os créditos daquele pacote ----
   if (vendaEstornada(sale)) {
     if (await existeTransacaoOrder(orderId, "estorno")) {
       return NextResponse.json({ ok: true, jaEstornado: true });
@@ -121,7 +104,6 @@ export async function POST(req: Request) {
         descricao: "Estorno de compra Kiwify (reembolso/chargeback)",
         kiwifyOrderId: orderId,
       });
-      await recuarAssinatura(compra.userId, DIAS_ASSINATURA);
       return NextResponse.json({ ok: true, estornado: true });
     }
     // ainda estava pendente (nunca aplicado): invalida o pendente
