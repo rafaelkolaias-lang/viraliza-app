@@ -16,6 +16,13 @@ const fmtData = new Intl.DateTimeFormat("pt-BR", {
 
 const fmtNum = new Intl.NumberFormat("pt-BR");
 
+// Só a data (dia/mês) da renovação da cota - fuso fixo pra bater com o BR.
+const fmtReset = new Intl.DateTimeFormat("pt-BR", {
+  day: "2-digit",
+  month: "short",
+  timeZone: "America/Sao_Paulo",
+});
+
 export default async function DiagnosticoPage() {
   const [jobsErro, saldo] = await Promise.all([
     prisma.job.findMany({
@@ -124,6 +131,11 @@ export default async function DiagnosticoPage() {
                         {fmtNum.format(c.usado ?? 0)} / {fmtNum.format(c.limite ?? 0)}
                         {c.tier ? ` · ${c.tier}` : ""}
                       </p>
+                      {c.resetEm && (
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          renova em {fmtReset.format(new Date(c.resetEm))}
+                        </p>
+                      )}
                     </>
                   )}
                 </div>

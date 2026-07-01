@@ -51,6 +51,8 @@ export interface ChaveSaldo {
   restante?: number;
   tier?: string;
   msg?: string;
+  /** ISO da próxima renovação da cota (quando a ElevenLabs zera o contador) */
+  resetEm?: string;
 }
 
 export interface ElevenSaldo {
@@ -90,6 +92,7 @@ export async function elevenSaldo(): Promise<ElevenSaldo> {
           character_count?: number;
           character_limit?: number;
           tier?: string;
+          next_character_count_reset_unix?: number;
         };
         const usado = d.character_count ?? 0;
         const limite = d.character_limit ?? 0;
@@ -100,6 +103,9 @@ export async function elevenSaldo(): Promise<ElevenSaldo> {
           limite,
           restante: Math.max(0, limite - usado),
           tier: d.tier,
+          resetEm: d.next_character_count_reset_unix
+            ? new Date(d.next_character_count_reset_unix * 1000).toISOString()
+            : undefined,
         };
       } catch {
         return { rotulo, ok: false, msg: "sem resposta" };
