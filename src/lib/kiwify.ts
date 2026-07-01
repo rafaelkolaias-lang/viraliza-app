@@ -56,7 +56,11 @@ export async function buscarVenda(orderId: string): Promise<KiwifySale | null> {
   });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`Kiwify sales/${orderId} falhou: ${res.status}`);
-  return (await res.json()) as KiwifySale;
+  const data = (await res.json()) as KiwifySale & { error?: string };
+  // a Kiwify responde 200 com {"error": ...} pra id inexistente (não usa 404).
+  // Sem id/status reais, tratamos como "pedido não encontrado".
+  if (!data || data.error || (!data.id && !data.status)) return null;
+  return data;
 }
 
 // Só os produtos "Editor automatico <número>" são PACOTES DE CRÉDITO. O número no
