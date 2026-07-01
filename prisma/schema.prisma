@@ -1,0 +1,188 @@
+// Banco do app: MySQL (EasyPanel em produção). DATABASE_URL no Environment do app.
+generator client {
+  provider      = "prisma-client-js"
+  // native = Windows (dev) | debian = container Linux do EasyPanel (openssl 3)
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  nome      String
+  email     String   @unique
+  senhaHash String
+  role      String   @default("user") // "admin" | "user" | "demo"
+  bloqueado Boolean  @default(false)  // true = derruba a sessão e impede novo login
+  criadoEm  DateTime @default(now())
+
+  // Carteira de crédito (produção) + assinatura (biblioteca)
+  saldoCentavos   Int       @default(0)     // saldo de crédito em centavos de R$
+  assinante       Boolean   @default(false) // assinatura ativa libera a biblioteca
+  assinaturaAte   DateTime?                 // vencimento da assinatura
+  creditoMensalEm DateTime?                 // última vez que recebeu o 1 min mensal
+
+  // BYO key: chave ElevenLabs do usuário, CIFRADA (AES-256-GCM). null = usa a plataforma.
+  elevenKey String? @db.Text
+
+  jobs         Job[]
+  leads        Lead[]
+  transacoes   CreditoTransacao[]
+  notificacoes Notificacao[]
+}
+
+// Notificação do "sininho": uma linha por usuário (fan-out). Aviso automático de
+// vídeo pronto/erro OU mensagem que o admin manda pra 1 usuário ou pra todos.
+model Notificacao {
+  id       String   @id @default(cuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tipo     String   @default("admin") // "video_pronto" | "video_erro" | "admin"
+  titulo   String   @db.VarChar(255)
+  mensagem String?  @db.Text
+  link     String?  @db.VarChar(500) // pra onde leva ao clicar (ex: /painel/videos/<id>)
+  lida     Boolean  @default(false)
+  loteId   String?  @db.VarChar(40) // agrupa um envio do admin pra todos (permite excluir o lote)
+  jobId    String?  @db.VarChar(40) // liga ao Job (dedup do aviso automático)
+  criadoEm DateTime @default(now())
+
+  @@index([userId, lida])
+  @@index([loteId])
+}
+
+// Barra horizontal no topo do site. Criada pelo admin, some quando desativada.
+model Aviso {
+  id         String   @id @default(cuid())
+  mensagem   String   @db.Text
+  cor        String   @default("azul") // laranja | vermelho | azul | verde
+  link       String?  @db.VarChar(500) // link opcional (ex: promoção)
+  ativo      Boolean  @default(true)
+  alvoUserId String?  @db.VarChar(40) // null = todos; senão só esse usuário vê
+  criadoEm   DateTime @default(now())
+
+  @@index([ativo])
+}
+
+// Extrato da carteira: cada entrada/saída de crédito do usuário.
+model CreditoTransacao {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tipo      String // compra | debito_geracao | debito_processamento | bonus_assinatura | ajuste_admin
+  valor     Int // centavos; positivo = entrada, negativo = saída
+  saldoApos Int // saldo depois desta transação (centavos)
+  descricao String?  @db.Text
+  jobId     String? // liga ao Job quando o débito for de uma geração
+  criadoEm  DateTime @default(now())
+
+  @@index([userId])
+  @@index([criadoEm])
+}
+
+model Job {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  produto   String   @db.VarChar(255)
+  descricao String?  @db.Text
+  tipo      String   @default("produto") // "produto" | "marca" | "cortes" (link YouTube)
+  fonte     String?  @db.Text // link de origem (cortes de qualquer vídeo)
+  opcoes    String?  @db.Text // JSON de opções extras (legenda, cor, posição...)
+  formato   String   @default("legenda") // "legenda" | "voz"
+  vozId     String?  @db.VarChar(64) // voz ElevenLabs escolhida (só no formato "voz"); null = voz padrão
+  tom       String   @default("agressivo")
+  variantes Int      @default(1)
+  preco     String?
+  legendaPos String  @default("baixo") // posição da legenda: "cima" | "meio" | "baixo"
+  status    String   @default("na_fila") // na_fila | renderizando | processando | pronto | erro
+  etapa     String?  @db.VarChar(120) // fase atual do render (ex: "Renderizando 1/2"); null fora do render
+  duracao   Int?
+  saidas    String?  @db.Text // JSON: caminhos web dos vídeos prontos
+  midias    String?  @db.Text // JSON: [{arquivo, thumb, legenda, hashtags}] por variante
+  erro      String?  @db.Text // mensagem quando status = "erro"
+  criadoEm  DateTime @default(now())
+
+  @@index([userId])
+  @@index([status])
+}
+
+model Lead {
+  id              String   @id @default(cuid())
+  userId          String // dono do lead - cada pessoa vê só os seus
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chave           String // lugar_id, ou "nome|cidade" quando não há lugar_id
+  lugarId         String   @default("")
+  nome            String   @db.VarChar(255)
+  categoria       String   @default("") @db.VarChar(255)
+  telefone        String   @default("")
+  site            String?  @db.Text
+  email           String   @default("")
+  instagram       String?  @db.Text
+  whatsapp        String   @default("")
+  redeSocial      String?  @db.Text
+  nota            Float?
+  totalAvaliacoes Int      @default(0)
+  scoreLead       Int      @default(0)
+  oportunidades   String?  @db.Text
+  mensagem        String?  @db.Text
+  endereco        String?  @db.Text
+  googleMaps      String?  @db.Text
+  cidade          String   @default("") @db.VarChar(255)
+  uf              String   @default("") @db.VarChar(2)
+  nicho           String   @default("") @db.VarChar(255)
+  capturadoEm     String   @default("")
+  criadoEm        DateTime @default(now())
+  atualizadoEm    DateTime @updatedAt
+
+  @@unique([userId, chave])
+  @@index([userId])
+  @@index([scoreLead])
+  @@index([uf])
+  @@index([cidade])
+}
+
+model AcervoCategoria {
+  slug  String @id
+  nome  String
+  cover String @default("")
+  ordem Int    @default(0)
+  total Int    @default(0) // contagem de vídeos (denormalizado, rápido pro índice)
+}
+
+model AcervoVideo {
+  id            String @id @default(cuid())
+  driveId       String @unique
+  nome          String @db.VarChar(300)
+  categoriaSlug String
+
+  @@index([categoriaSlug])
+}
+
+// Produtos virais Shopee (imagem hospedada no Drive). Serve thumbnail + link.
+model ProdutoShopee {
+  id          String   @id // id do telegram (tg_...)
+  driveId     String   @unique // arquivo da imagem no Drive
+  titulo      String   @db.VarChar(500)
+  link        String?  @db.VarChar(500)
+  canal       String?
+  adicionadoEm DateTime @default(now())
+
+  @@index([adicionadoEm])
+}
+
+// Vídeos virais Shopee (mp4 hospedado no Drive). Serve player + download.
+model VideoShopee {
+  id          String   @id // id do telegram (tg_...)
+  driveId     String   @unique // arquivo do vídeo no Drive
+  thumbDriveId String? // JPG do frame real no Drive (capa instantânea; lh3 não faz poster de vídeo)
+  titulo      String   @db.VarChar(500)
+  link        String?  @db.VarChar(500)
+  duracaoSeg  Int      @default(0)
+  canal       String?
+  adicionadoEm DateTime @default(now())
+
+  @@index([adicionadoEm])
+}
