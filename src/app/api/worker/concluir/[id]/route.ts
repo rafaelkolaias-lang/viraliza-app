@@ -77,6 +77,7 @@ export async function POST(
   const form = await req.formData();
 
   type Midia = {
+    /** caminho local (/videos/..) OU URL pública direta (https://media...) do vídeo */
     arquivo: string;
     driveId?: string;
     thumbDriveId?: string;
@@ -117,9 +118,12 @@ export async function POST(
     const total = Number(form.get("total") ?? 0) || 0; // 0 = streaming (fecha no finalizar)
     const driveId = String(form.get("driveId") ?? "").trim() || undefined;
     const thumbDriveId = String(form.get("thumbDriveId") ?? "").trim() || undefined;
+    // URL pública direta (serverrk/Cloudflare) - o vídeo já está hospedado, só metadados
+    const urlMidia = String(form.get("url") ?? "").trim() || undefined;
+    const thumbUrl = String(form.get("thumbUrl") ?? "").trim() || undefined;
     const file = form.get("video");
-    // aceita parte com o vídeo (bytes) OU só metadados + driveId (vídeo no Drive)
-    if (!(file instanceof File) && !driveId) {
+    // aceita: bytes do vídeo OU só metadados (driveId do Drive OU url pública direta)
+    if (!(file instanceof File) && !driveId && !urlMidia) {
       return NextResponse.json({ erro: "nenhum vídeo enviado" }, { status: 400 });
     }
 
@@ -138,20 +142,27 @@ export async function POST(
       } catch {}
     }
 
-    // grava o vídeo localmente só se vier nos bytes (quando é Drive, fica vazio)
+    // URL pública direta (serverrk) tem prioridade; senão grava os bytes localmente;
+    // quando é Drive (driveId) o arquivo fica vazio e a mídia toca pelo driveId.
     let arquivo = "";
-    if (file instanceof File) {
+    if (urlMidia) {
+      arquivo = urlMidia;
+    } else if (file instanceof File) {
       const nome = `corte-${parte + 1}.mp4`;
       await fs.writeFile(path.join(dir, nome), Buffer.from(await file.arrayBuffer()));
       arquivo = `/videos/${id}/${nome}`;
     }
 
     let thumb: string | undefined;
-    const t = form.get("thumb");
-    if (t instanceof File) {
-      const tnome = `thumb-${parte}.jpg`;
-      await fs.writeFile(path.join(dir, tnome), Buffer.from(await t.arrayBuffer()));
-      thumb = `/videos/${id}/${tnome}`;
+    if (thumbUrl) {
+      thumb = thumbUrl;
+    } else {
+      const t = form.get("thumb");
+      if (t instanceof File) {
+        const tnome = `thumb-${parte}.jpg`;
+        await fs.writeFile(path.join(dir, tnome), Buffer.from(await t.arrayBuffer()));
+        thumb = `/videos/${id}/${tnome}`;
+      }
     }
 
     saidas[parte] = arquivo;
