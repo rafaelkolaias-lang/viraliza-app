@@ -144,6 +144,9 @@ export async function POST(req: Request) {
   const variantes = Math.max(1, Math.min(5, Number(form.get("variantes") ?? 1) || 1));
   const posRaw = String(form.get("legendaPos") ?? "baixo");
   const legendaPos = ["cima", "meio", "baixo"].includes(posRaw) ? posRaw : "baixo";
+  // som do vídeo original: "manter" (padrão) ou "remover" (Mudo). Guardado em opcoes.
+  const audioVideo = String(form.get("audioVideo") ?? "manter") === "remover" ? "remover" : "manter";
+  const opcoes = JSON.stringify({ audioVideo });
   // voz da narração: só vale no formato "voz"; senão fica null (voz padrão).
   // Com chave própria (BYO) aceita qualquer voz da conta do usuário; sem chave,
   // só as vozes curadas da plataforma.
@@ -180,6 +183,7 @@ export async function POST(req: Request) {
         variantes,
         preco: preco || null,
         legendaPos,
+        opcoes,
         status: "recebendo",
       },
     });
@@ -214,6 +218,7 @@ export async function POST(req: Request) {
       variantes,
       preco: preco || null,
       legendaPos,
+      opcoes,
       status: "na_fila",
     },
   });
