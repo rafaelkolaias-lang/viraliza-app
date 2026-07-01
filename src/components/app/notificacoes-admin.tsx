@@ -243,7 +243,10 @@ function ListaBarras({ avisos }: { avisos: AdminAviso[] }) {
   function toggle(a: AdminAviso) {
     startAcao(async () => {
       const res = await alterarAtivoAviso(a.id, !a.ativo);
-      if (res?.erro) return toast.error(res.erro);
+      if (res?.erro) {
+        toast.error(res.erro);
+        return;
+      }
       toast.success(a.ativo ? "Barra desativada." : "Barra ativada.");
       router.refresh();
     });
@@ -252,7 +255,10 @@ function ListaBarras({ avisos }: { avisos: AdminAviso[] }) {
     if (!confirm("Excluir esta barra de vez?")) return;
     startAcao(async () => {
       const res = await excluirAviso(a.id);
-      if (res?.erro) return toast.error(res.erro);
+      if (res?.erro) {
+        toast.error(res.erro);
+        return;
+      }
       toast.success("Barra excluída.");
       router.refresh();
     });
@@ -334,7 +340,10 @@ function ListaSininho({ lotes }: { lotes: AdminLote[] }) {
     if (!confirm(`Excluir este envio de ${l.total} usuário(s)?`)) return;
     startAcao(async () => {
       const res = await excluirLoteNotificacao(l.loteId);
-      if (res?.erro) return toast.error(res.erro);
+      if (res?.erro) {
+        toast.error(res.erro);
+        return;
+      }
       toast.success("Envio removido.");
       router.refresh();
     });

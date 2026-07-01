@@ -111,7 +111,7 @@ export async function getConfigReuso(userId: string, id: string) {
     nome: j.produto,
     descricao: j.descricao ?? "",
     preco: j.preco ?? "",
-    formato: j.formato === "voz" ? "voz" : "legenda",
+    formato: (j.formato === "voz" ? "voz" : "legenda") as "legenda" | "voz",
     tom: j.tom || "agressivo",
     legendaPos: j.legendaPos || "baixo",
     voz: j.vozId ?? undefined,
