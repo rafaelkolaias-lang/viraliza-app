@@ -7,6 +7,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin, getCurrentUser } from "@/lib/dal";
+import { creditar, debitarClamp } from "@/lib/creditos";
 
 export type UsuarioState =
   | { erro?: string; ok?: boolean; contagem?: number }
@@ -166,6 +167,32 @@ export async function alterarBloqueio(
   if (eu?.id === id) return { erro: "Você não pode bloquear a si mesmo." };
 
   await prisma.user.update({ where: { id }, data: { bloqueado: bloquear } });
+  revalidarAdmin();
+  return { ok: true };
+}
+
+/** Ajusta o crédito de um usuário (admin). creditos > 0 adiciona, < 0 remove.
+ *  1 crédito = R$ 0,01, então o valor é em centavos = nº de créditos. */
+export async function ajustarCreditoAdmin(
+  userId: string,
+  creditos: number,
+  motivo?: string,
+): Promise<{ ok?: boolean; erro?: string }> {
+  await requireAdmin();
+  const c = Math.round(creditos);
+  if (!userId || !Number.isFinite(c) || c === 0) return { erro: "Valor inválido." };
+  if (Math.abs(c) > 1_000_000) return { erro: "Valor alto demais (máx 1.000.000)." };
+  try {
+    if (c > 0) {
+      await creditar(userId, c, "ajuste_admin", motivo || "Crédito adicionado pelo admin");
+    } else {
+      await debitarClamp(userId, -c, "ajuste_admin", {
+        descricao: motivo || "Crédito removido pelo admin",
+      });
+    }
+  } catch {
+    return { erro: "Não consegui ajustar o crédito." };
+  }
   revalidarAdmin();
   return { ok: true };
 }

@@ -1,5 +1,6 @@
 import { AppFrame } from "@/components/app/app-frame";
 import { requireUser } from "@/lib/dal";
+import { tocarPresenca } from "@/lib/presenca";
 import { avisosAtivosPara } from "@/lib/notificacoes";
 import {
   garantirCreditoMensal,
@@ -13,6 +14,7 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const user = await requireUser(); // redireciona pro /login se não estiver logado
+  await tocarPresenca(user.id); // marca presença (online/visto há X) - no máx 1x/min
   await garantirCreditoMensal(user.id); // libera o crédito mensal de brinde do assinante
   const [carteira, entradas, avisos] = await Promise.all([
     getCarteira(user.id),

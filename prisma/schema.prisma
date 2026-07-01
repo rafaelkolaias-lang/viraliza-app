@@ -18,6 +18,7 @@ model User {
   role      String   @default("user") // "admin" | "user" | "demo"
   bloqueado Boolean  @default(false)  // true = derruba a sessão e impede novo login
   criadoEm  DateTime @default(now())
+  vistoEm   DateTime? // última atividade (presença "online/visto há X"); atualizado no layout
 
   // Carteira de crédito (produção) + assinatura (biblioteca)
   saldoCentavos   Int       @default(0)     // saldo de crédito em centavos de R$
@@ -32,6 +33,8 @@ model User {
   leads        Lead[]
   transacoes   CreditoTransacao[]
   notificacoes Notificacao[]
+
+  @@index([vistoEm])
 }
 
 // Notificação do "sininho": uma linha por usuário (fan-out). Aviso automático de
