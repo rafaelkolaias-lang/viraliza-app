@@ -11,25 +11,35 @@ import { excluirViral } from "@/app/actions/virais";
 import { midiaUrl } from "@/lib/utils";
 import type { ViralVideo } from "@/lib/types";
 
-const POR_PAGINA = 30;
-
+/**
+ * Grade paginada NO SERVIDOR: recebe só os itens da página atual + o total. Troca
+ * de página navega pela URL (?page=), então o servidor busca só aquela fatia (nunca
+ * carrega os milhares de uma vez). Seleção/baixar valem pra página atual.
+ */
 export function ViraisGaleria({
-  videos,
+  itens,
+  total,
+  pagina,
+  porPagina,
+  baseHref,
   isAdmin = false,
 }: {
-  videos: ViralVideo[];
+  itens: ViralVideo[];
+  total: number;
+  pagina: number;
+  porPagina: number;
+  baseHref: string;
   isAdmin?: boolean;
 }) {
   const router = useRouter();
   const [excluindo, startExcluir] = useTransition();
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
-  const [pagina, setPagina] = useState(1);
 
-  const totalPaginas = Math.ceil(videos.length / POR_PAGINA);
-  const visiveis = videos.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA);
+  const totalPaginas = Math.max(1, Math.ceil(total / porPagina));
 
   function irPara(p: number) {
-    setPagina(p);
+    const sep = baseHref.includes("?") ? "&" : "?";
+    router.push(`${baseHref}${sep}page=${p}`);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -63,18 +73,17 @@ export function ViraisGaleria({
   }
 
   function selecionarTodos() {
-    if (selecionados.size === videos.length) setSelecionados(new Set());
-    else setSelecionados(new Set(videos.map((v) => v.id)));
+    if (selecionados.size === itens.length) setSelecionados(new Set());
+    else setSelecionados(new Set(itens.map((v) => v.id)));
   }
 
   function baixarSelecionados() {
-    const itens = videos.filter((v) => selecionados.has(v.id) && v.arquivo);
-    if (itens.length === 0) {
-      toast.info("Os vídeos ficam disponíveis quando o bot do Telegram rodar.");
+    const escolhidos = itens.filter((v) => selecionados.has(v.id) && v.arquivo);
+    if (escolhidos.length === 0) {
+      toast.info("Selecione vídeos desta página pra baixar.");
       return;
     }
-    // baixa em sequência (qualidade original, arquivo direto)
-    itens.forEach((v, i) => {
+    escolhidos.forEach((v, i) => {
       setTimeout(() => {
         const a = document.createElement("a");
         a.href = midiaUrl(v.arquivo)!;
@@ -84,16 +93,16 @@ export function ViraisGaleria({
         a.remove();
       }, i * 400);
     });
-    toast.success(`Baixando ${itens.length} vídeo(s) em qualidade total...`);
+    toast.success(`Baixando ${escolhidos.length} vídeo(s) em qualidade total...`);
   }
 
-  const total = selecionados.size;
+  const total_sel = selecionados.size;
 
-  if (videos.length === 0) {
+  if (total === 0) {
     return (
       <div className="grid place-items-center rounded-xl border border-dashed border-border py-20 text-center">
         <Flame className="size-8 text-muted-foreground" />
-        <p className="mt-3 font-medium">Nenhum vídeo viral ainda</p>
+        <p className="mt-3 font-medium">Nenhum vídeo aqui ainda</p>
         <p className="mt-1 max-w-sm text-sm text-muted-foreground">
           Assim que o bot do Telegram baixar vídeos novos, eles aparecem aqui
           automaticamente.
@@ -108,15 +117,15 @@ export function ViraisGaleria({
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="outline" size="sm" onClick={selecionarTodos}>
           <CheckCheck className="size-4" />
-          {selecionados.size === videos.length
+          {selecionados.size === itens.length
             ? "Limpar seleção"
-            : "Selecionar todos"}
+            : "Selecionar a página"}
         </Button>
-        <Button size="sm" disabled={total === 0} onClick={baixarSelecionados}>
+        <Button size="sm" disabled={total_sel === 0} onClick={baixarSelecionados}>
           <DownloadCloud className="size-4" />
-          Baixar selecionados{total > 0 ? ` (${total})` : ""}
+          Baixar selecionados{total_sel > 0 ? ` (${total_sel})` : ""}
         </Button>
-        {total > 0 && (
+        {total_sel > 0 && (
           <Button
             variant="ghost"
             size="sm"
@@ -128,9 +137,9 @@ export function ViraisGaleria({
         )}
       </div>
 
-      {/* Grade (página atual) */}
+      {/* Grade (página atual, vinda do servidor) */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        {visiveis.map((v) => (
+        {itens.map((v) => (
           <ViralCard
             key={v.id}
             video={v}

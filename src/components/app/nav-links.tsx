@@ -127,12 +127,9 @@ function Item({
 export function NavLinks({
   onNavigate,
   isAdmin = false,
-  viraisTimestamps = [],
 }: {
   onNavigate?: () => void;
   isAdmin?: boolean;
-  /** datas (ISO) de todos os vídeos virais - pra contar quantos são novos */
-  viraisTimestamps?: string[];
 }) {
   const pathname = usePathname();
   const isActive = (href: string) =>
@@ -162,15 +159,24 @@ export function NavLinks({
     () => "",
   );
 
-  const [datas, setDatas] = useState<string[]>(viraisTimestamps);
+  // conta os vídeos novos desde a última visita (count leve no servidor, não baixa
+  // as datas). Re-consulta quando a "última visita" muda (após visitar a página).
+  const [novos, setNovos] = useState(0);
   useEffect(() => {
+    if (!visto) {
+      setNovos(0);
+      return;
+    }
     let cancelado = false;
     async function carregar() {
       try {
-        const r = await fetch("/api/virais/timestamps", { cache: "no-store" });
+        const r = await fetch(
+          `/api/virais/timestamps?desde=${encodeURIComponent(visto)}`,
+          { cache: "no-store" },
+        );
         if (!r.ok) return;
-        const data = (await r.json()) as { timestamps?: string[] };
-        if (!cancelado && Array.isArray(data.timestamps)) setDatas(data.timestamps);
+        const data = (await r.json()) as { novos?: number };
+        if (!cancelado && typeof data.novos === "number") setNovos(data.novos);
       } catch {
         /* sem rede - tenta de novo no próximo ciclo */
       }
@@ -181,19 +187,19 @@ export function NavLinks({
       cancelado = true;
       clearInterval(id);
     };
-  }, []);
+  }, [visto]);
 
-  const novosVirais = hidratado ? datas.filter((t) => t > visto).length : 0;
+  const novosVirais = hidratado ? novos : 0;
   const badgeDe = (href: string) =>
     href === "/painel/virais" ? novosVirais : 0;
 
+  // ao entrar na página de virais, marca "visto = agora" (zera o badge)
   useEffect(() => {
-    if (pathname.startsWith("/painel/virais") && datas.length) {
-      const maisNovo = datas.reduce((a, b) => (a > b ? a : b), "");
-      localStorage.setItem("virais_visto", maisNovo);
+    if (pathname.startsWith("/painel/virais")) {
+      localStorage.setItem("virais_visto", new Date().toISOString());
       window.dispatchEvent(new Event("virais-visto"));
     }
-  }, [pathname, datas]);
+  }, [pathname]);
 
   return (
     <div className="flex flex-col gap-6">

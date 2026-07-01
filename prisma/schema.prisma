@@ -210,6 +210,7 @@ model VideoShopee {
   @@index([adicionadoEm])
   @@index([emAlta])
   @@index([categoria])
+  @@index([categoria, adicionadoEm]) // "mais novos do nicho X" (prateleiras + paginação)
 }
 
 // Allowlist de cadastro: só quem comprou na Kiwify (qualquer produto) pode criar

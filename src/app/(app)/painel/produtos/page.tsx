@@ -1,19 +1,24 @@
 import type { Metadata } from "next";
 import { ShoppingBag } from "lucide-react";
 import { ProdutosGaleria } from "@/components/app/produtos-galeria";
-import { getViralProdutos } from "@/lib/produtos";
-import { getCurrentUser, requireAssinatura } from "@/lib/dal";
+import { getProdutosPagina } from "@/lib/produtos";
+import { requireAssinatura } from "@/lib/dal";
 
 export const metadata: Metadata = { title: "Produtos virais" };
-
-// sempre lê fresco (pra aparecer o que o bot acabou de subir)
 export const dynamic = "force-dynamic";
 
-export default async function ProdutosPage() {
-  await requireAssinatura();
-  const produtos = await getViralProdutos();
-  const user = await getCurrentUser();
-  const isAdmin = user?.role === "admin";
+const POR_PAGINA = 30;
+
+export default async function ProdutosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const user = await requireAssinatura();
+  const sp = await searchParams;
+  const pagina = Math.max(1, Number(sp.page) || 1);
+
+  const { itens, total } = await getProdutosPagina({ pagina, porPagina: POR_PAGINA });
 
   return (
     <div className="space-y-6">
@@ -23,12 +28,19 @@ export default async function ProdutosPage() {
           Produtos virais
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Produtos que estão bombando - com a imagem e o link. Copie o link e vá
-          direto pro produto.
+          {total.toLocaleString("pt-BR")} produtos que estão bombando - com a imagem e
+          o link. Copie o link e vá direto pro produto.
         </p>
       </div>
 
-      <ProdutosGaleria produtos={produtos} isAdmin={isAdmin} />
+      <ProdutosGaleria
+        itens={itens}
+        total={total}
+        pagina={pagina}
+        porPagina={POR_PAGINA}
+        baseHref="/painel/produtos"
+        isAdmin={user.role === "admin"}
+      />
     </div>
   );
 }

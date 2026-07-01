@@ -1,6 +1,5 @@
 import { AppFrame } from "@/components/app/app-frame";
 import { requireUser } from "@/lib/dal";
-import { getViraisTimestamps } from "@/lib/virais";
 import { avisosAtivosPara } from "@/lib/notificacoes";
 import {
   garantirCreditoMensal,
@@ -15,8 +14,7 @@ export default async function AppLayout({
 }) {
   const user = await requireUser(); // redireciona pro /login se não estiver logado
   await garantirCreditoMensal(user.id); // libera o crédito mensal de brinde do assinante
-  const [viraisTimestamps, carteira, entradas, avisos] = await Promise.all([
-    getViraisTimestamps(),
+  const [carteira, entradas, avisos] = await Promise.all([
     getCarteira(user.id),
     totalEntradas(user.id),
     avisosAtivosPara(user.id),
@@ -37,7 +35,6 @@ export default async function AppLayout({
       saldoCentavos={carteira.saldoCentavos}
       assinante={carteira.assinante}
       pctNaoGasto={pctNaoGasto}
-      viraisTimestamps={viraisTimestamps}
       avisos={avisos}
     >
       {children}

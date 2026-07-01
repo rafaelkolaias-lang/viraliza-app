@@ -1,29 +1,33 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, Flame } from "lucide-react";
-import { getViralVideos } from "@/lib/virais";
+import { getViralVideosPagina } from "@/lib/virais";
 import { requireAssinatura } from "@/lib/dal";
 import { ViraisGaleria } from "@/components/app/virais-galeria";
 
 export const metadata: Metadata = { title: "Cortes Shopee" };
 export const dynamic = "force-dynamic";
 
-const BUCKET_SEM_NICHO = "Achadinhos";
+const POR_PAGINA = 30;
 
-/** Grade paginada com TODOS os cortes (opcionalmente filtrada por nicho). */
+/** Grade paginada NO SERVIDOR (opcionalmente de um nicho). */
 export default async function ViraisTodosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ nicho?: string }>;
+  searchParams: Promise<{ nicho?: string; page?: string }>;
 }) {
   const user = await requireAssinatura();
   const sp = await searchParams;
   const nicho = (sp.nicho ?? "").trim();
+  const pagina = Math.max(1, Number(sp.page) || 1);
 
-  const todos = await getViralVideos();
-  const videos = nicho
-    ? todos.filter((v) => (v.categoria?.trim() || BUCKET_SEM_NICHO) === nicho)
-    : todos;
+  const { itens, total } = await getViralVideosPagina({
+    nicho: nicho || undefined,
+    pagina,
+    porPagina: POR_PAGINA,
+  });
+
+  const baseHref = `/painel/virais/todos${nicho ? `?nicho=${encodeURIComponent(nicho)}` : ""}`;
 
   return (
     <div className="space-y-5">
@@ -40,12 +44,19 @@ export default async function ViraisTodosPage({
           {nicho || "Todos os cortes"}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          {videos.length.toLocaleString("pt-BR")} cortes
+          {total.toLocaleString("pt-BR")} cortes
           {nicho ? ` no nicho ${nicho}` : ""}. Clique pra assistir e baixe o que quiser.
         </p>
       </div>
 
-      <ViraisGaleria videos={videos} isAdmin={user.role === "admin"} />
+      <ViraisGaleria
+        itens={itens}
+        total={total}
+        pagina={pagina}
+        porPagina={POR_PAGINA}
+        baseHref={baseHref}
+        isAdmin={user.role === "admin"}
+      />
     </div>
   );
 }

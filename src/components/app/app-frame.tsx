@@ -29,7 +29,6 @@ export function AppFrame({
   saldoCentavos = 0,
   assinante = false,
   pctNaoGasto = 0,
-  viraisTimestamps = [],
   avisos = [],
 }: {
   user: AppUser;
@@ -38,7 +37,6 @@ export function AppFrame({
   assinante?: boolean;
   /** % do crédito que ainda NÃO foi gasto (saldo / total que entrou). */
   pctNaoGasto?: number;
-  viraisTimestamps?: string[];
   /** barras coloridas ativas pro usuário (topo do site). */
   avisos?: AvisoDTO[];
 }) {
@@ -67,11 +65,7 @@ export function AppFrame({
   const navInterno = (
     <>
       <div className="flex-1 overflow-y-auto px-3">
-        <NavLinks
-          onNavigate={() => setOpenMenu(false)}
-          isAdmin={isAdmin}
-          viraisTimestamps={viraisTimestamps}
-        />
+        <NavLinks onNavigate={() => setOpenMenu(false)} isAdmin={isAdmin} />
       </div>
       <Separator />
       <div className="space-y-2 p-3">
