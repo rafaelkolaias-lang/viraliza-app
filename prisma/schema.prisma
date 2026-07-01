@@ -71,15 +71,32 @@ model CreditoTransacao {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tipo      String // compra | debito_geracao | debito_processamento | bonus_assinatura | ajuste_admin
+  tipo      String // compra | debito_geracao | debito_processamento | bonus_assinatura | ajuste_admin | estorno
   valor     Int // centavos; positivo = entrada, negativo = saída
   saldoApos Int // saldo depois desta transação (centavos)
   descricao String?  @db.Text
   jobId     String? // liga ao Job quando o débito for de uma geração
+  kiwifyOrderId String? // id do pedido na Kiwify (crédito de compra / estorno) - idempotência
   criadoEm  DateTime @default(now())
 
   @@index([userId])
   @@index([criadoEm])
+  @@index([kiwifyOrderId])
+}
+
+// Crédito de uma compra Kiwify de quem AINDA não tem conta (pagou antes de cadastrar).
+// Aplicado no cadastro (ou no login) quando a pessoa entra com o mesmo e-mail.
+model CreditoPendente {
+  id            String   @id @default(cuid())
+  email         String
+  valorCentavos Int
+  kiwifyOrderId String   @unique
+  assinaturaDias Int     @default(0) // dias de assinatura a conceder junto
+  descricao     String?  @db.Text
+  aplicado      Boolean  @default(false)
+  criadoEm      DateTime @default(now())
+
+  @@index([email, aplicado])
 }
 
 model Job {

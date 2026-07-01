@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { createSession, deleteSession } from "@/lib/session";
 import { cadastroSchema, loginSchema } from "@/lib/auth-schemas";
+import { aplicarCreditosPendentes } from "@/lib/creditos";
 
 export type AuthState = { erro?: string } | undefined;
 
@@ -49,6 +50,13 @@ export async function cadastrar(
       },
     },
   });
+
+  // se a pessoa comprou na Kiwify ANTES de se cadastrar, aplica os créditos agora
+  try {
+    await aplicarCreditosPendentes(user.id, email);
+  } catch {
+    // não trava o cadastro se algo falhar aqui; o webhook/admin pode reprocessar
+  }
 
   await createSession(user.id, user.role);
   redirect("/painel");
