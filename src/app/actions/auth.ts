@@ -65,6 +65,11 @@ export async function cadastrar(
       email,
       senhaHash,
       role: total === 0 ? "admin" : "user",
+      // Todo cadastro já pagou na Kiwify (gate acima), então já nasce assinante:
+      // libera a biblioteca (virais, acervo de cortes, produtos, membro) na hora.
+      // assinaturaAte = null => permanente (não expira).
+      assinante: true,
+      assinaturaAte: null,
       saldoCentavos: CREDITO_INICIAL,
       // registra o crédito de boas-vindas no extrato pra o saldo bater
       transacoes: {
