@@ -28,6 +28,14 @@ export default async function CreditosPage({
   const sp = await searchParams;
   const carteira = await getCarteira(user.id);
 
+  // links de checkout da Kiwify por plano (env, editável no EasyPanel sem mexer no código)
+  const linksKiwify: Partial<Record<number, string>> = {
+    10: process.env.KIWIFY_CHECKOUT_10,
+    20: process.env.KIWIFY_CHECKOUT_20,
+    50: process.env.KIWIFY_CHECKOUT_50,
+    100: process.env.KIWIFY_CHECKOUT_100,
+  };
+
   return (
     <div className="space-y-7">
       {/* aviso quando a pessoa tentou entrar na biblioteca sem assinatura */}
@@ -106,7 +114,7 @@ export default async function CreditosPage({
       )}
 
       {/* ===== PLANOS ===== */}
-      <PlanosCreditos />
+      <PlanosCreditos email={user.email} links={linksKiwify} />
 
       {/* ===== COMO FUNCIONA ===== */}
       <section className="rounded-2xl border border-border bg-card p-6">

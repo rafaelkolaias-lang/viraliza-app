@@ -46,18 +46,33 @@ function brl(n: number) {
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-export function PlanosCreditos() {
+export function PlanosCreditos({
+  email,
+  links,
+}: {
+  /** e-mail do usuário logado - vai no checkout pra o webhook casar a compra */
+  email?: string;
+  /** link de checkout da Kiwify por valor do plano (10, 20, 50, 100) */
+  links?: Partial<Record<number, string>>;
+}) {
   const [carregando, setCarregando] = useState<number | null>(null);
 
   function comprar(valor: number) {
-    // Pagamento ainda não integrado - entra a Kiwify depois.
-    setCarregando(valor);
-    setTimeout(() => {
-      setCarregando(null);
+    const base = links?.[valor];
+    if (!base) {
+      // link ainda não configurado pra esse plano
       toast.info("Pagamento em breve", {
-        description: `A compra de ${brl(valor)} será liberada na integração com a Kiwify. 🛒`,
+        description: `A compra de ${brl(valor)} será liberada assim que o checkout for configurado. 🛒`,
       });
-    }, 600);
+      return;
+    }
+    // abre o checkout da Kiwify com o e-mail do usuário preenchido: ESSENCIAL pra o
+    // webhook creditar a conta certa (o crédito casa pelo e-mail da compra).
+    const sep = base.includes("?") ? "&" : "?";
+    const url = email ? `${base}${sep}email=${encodeURIComponent(email)}` : base;
+    setCarregando(valor);
+    window.open(url, "_blank", "noopener,noreferrer");
+    setTimeout(() => setCarregando(null), 1200);
   }
 
   return (
