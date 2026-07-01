@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { Play, Flame, Check, ExternalLink, Download, Trash2, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { CopyLinkButton } from "@/components/app/copy-link-button";
+import { VideoModal } from "@/components/app/video-modal";
 import { cn, midiaUrl, vendidosLabel } from "@/lib/utils";
 import type { ViralVideo } from "@/lib/types";
 
@@ -28,15 +30,24 @@ export function ViralCard({
   onExcluir?: () => void;
   excluindo?: boolean;
 }) {
+  const [tocando, setTocando] = useState(false);
+  const fonteVideo = video.arquivo ? midiaUrl(video.arquivo) : undefined;
   return (
+    <>
     <div
       className={cn(
         "group overflow-hidden rounded-xl border bg-card transition-colors",
         selected ? "border-primary" : "border-border hover:border-primary/40",
       )}
     >
-      {/* Miniatura 9:16 - prioriza o thumbnail (rápido); só carrega o vídeo se não houver */}
-      <div className="relative aspect-[9/16] bg-gradient-to-b from-primary/15 via-card to-muted">
+      {/* Miniatura 9:16 - prioriza o thumbnail (rápido); clica pra abrir o player */}
+      <div
+        className={cn(
+          "relative aspect-[9/16] bg-gradient-to-b from-primary/15 via-card to-muted",
+          fonteVideo && "cursor-pointer",
+        )}
+        onClick={() => fonteVideo && setTocando(true)}
+      >
         {video.thumb ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -79,7 +90,10 @@ export function ViralCard({
         {/* Seleção */}
         <button
           type="button"
-          onClick={onToggle}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggle();
+          }}
           aria-label={selected ? "Desmarcar" : "Selecionar"}
           aria-pressed={selected}
           className={cn(
@@ -165,5 +179,12 @@ export function ViralCard({
         </div>
       </div>
     </div>
+    <VideoModal
+      src={fonteVideo}
+      titulo={video.titulo}
+      aberto={tocando}
+      onFechar={() => setTocando(false)}
+    />
+    </>
   );
 }

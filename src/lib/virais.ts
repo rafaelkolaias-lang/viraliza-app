@@ -1,26 +1,40 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import { MEDIA_BASE } from "@/lib/midia-shopee";
 import type { ViralVideo } from "@/lib/types";
 
 /**
- * Vídeos virais Shopee - hospedados no Google Drive e catalogados no MySQL
- * (deploy-safe). Player e download são servidos pelo `driveId`.
+ * Vídeos virais Shopee. Migrados => servidos do serverrk (media.univershoop.com,
+ * SSD + Cloudflare: rápido, player nativo). Ainda não migrados => Drive (driveId).
  */
 export async function getViralVideos(): Promise<ViralVideo[]> {
   const rows = await prisma.videoShopee.findMany({
     orderBy: { adicionadoEm: "desc" },
   });
-  return rows.map((r) => ({
-    id: r.id,
-    titulo: r.titulo,
-    link: r.link ?? undefined,
-    driveId: r.driveId,
-    thumbDriveId: r.thumbDriveId ?? undefined,
-    duracaoSeg: r.duracaoSeg,
-    adicionadoEm: r.adicionadoEm.toISOString(),
-    canal: r.canal ?? undefined,
-  }));
+  return rows.map((r) => {
+    const base = {
+      id: r.id,
+      titulo: r.titulo,
+      link: r.link ?? undefined,
+      duracaoSeg: r.duracaoSeg,
+      adicionadoEm: r.adicionadoEm.toISOString(),
+      canal: r.canal ?? undefined,
+    };
+    if (r.migrado) {
+      // serve direto do serverrk (arquivo/thumb são URLs absolutas)
+      return {
+        ...base,
+        arquivo: `${MEDIA_BASE}/virais/${r.id}.mp4`,
+        thumb: `${MEDIA_BASE}/thumbs/${r.id}.jpg`,
+      };
+    }
+    return {
+      ...base,
+      driveId: r.driveId,
+      thumbDriveId: r.thumbDriveId ?? undefined,
+    };
+  });
 }
 
 /** Só a contagem (pro Início/Shopee). */

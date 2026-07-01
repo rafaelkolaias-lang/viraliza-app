@@ -168,6 +168,7 @@ model ProdutoShopee {
   titulo      String   @db.VarChar(500)
   link        String?  @db.VarChar(500)
   canal       String?
+  migrado     Boolean  @default(false) // true = imagem já está no serverrk (media.univershoop.com), não usa mais o Drive
   adicionadoEm DateTime @default(now())
 
   @@index([adicionadoEm])
@@ -182,6 +183,7 @@ model VideoShopee {
   link        String?  @db.VarChar(500)
   duracaoSeg  Int      @default(0)
   canal       String?
+  migrado     Boolean  @default(false) // true = vídeo+thumb já no serverrk (media.univershoop.com), não usa mais o Drive
   adicionadoEm DateTime @default(now())
 
   @@index([adicionadoEm])
