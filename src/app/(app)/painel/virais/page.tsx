@@ -11,13 +11,20 @@ export const metadata: Metadata = { title: "Cortes" };
 // sempre lê o virais.json fresco (pra aparecer o que o bot acabou de baixar)
 export const dynamic = "force-dynamic";
 
-/** "Nicho: Cozinha" -> "Cozinha". Sem padrão, usa o próprio título. */
-function nichoDe(titulo: string): string {
-  const m = /nicho:\s*(.+)/i.exec(titulo || "");
-  return (m ? m[1] : titulo || "Geral").trim();
+// cortes sem nicho (só o link) caem nesse balde
+const BUCKET_SEM_NICHO = "Achadinhos";
+
+/** Usa a categoria REAL do vídeo (vinda do "Nicho: X" da legenda). */
+function nichoDe(v: ViralVideo): string {
+  return v.categoria?.trim() || BUCKET_SEM_NICHO;
 }
 
-const POR_PRATELEIRA = 24;
+function href(nicho: string) {
+  return `/painel/virais/todos?nicho=${encodeURIComponent(nicho)}`;
+}
+
+// quantos aparecem na prateleira antes do "Ver todos" (o resto abre na grade)
+const POR_PRATELEIRA = 20;
 
 export default async function ViraisPage() {
   await requireAssinatura();
@@ -28,10 +35,14 @@ export default async function ViraisPage() {
     (b.adicionadoEm || "").localeCompare(a.adicionadoEm || ""),
   );
 
-  // agrupa por nicho
+  // "em alta" = os que vieram com nicho (🔥); se não houver, os mais novos
+  const emAlta = ordenados.filter((v) => v.emAlta);
+  const destaque = (emAlta.length ? emAlta : ordenados).slice(0, POR_PRATELEIRA);
+
+  // agrupa por nicho (categoria real)
   const porNicho = new Map<string, ViralVideo[]>();
   for (const v of ordenados) {
-    const n = nichoDe(v.titulo);
+    const n = nichoDe(v);
     const lista = porNicho.get(n);
     if (lista) lista.push(v);
     else porNicho.set(n, [v]);
@@ -62,16 +73,20 @@ export default async function ViraisPage() {
         </div>
       ) : (
         <>
-          {/* Cortes em alta (mais novos, de todos os nichos) */}
-          <Prateleira titulo="🔥 Em alta agora">
-            {ordenados.slice(0, POR_PRATELEIRA).map((v) => (
+          {/* Cortes em alta (com nicho / mais novos) */}
+          <Prateleira titulo="🔥 Em alta agora" verTodosHref="/painel/virais/todos">
+            {destaque.map((v) => (
               <CapaCorte key={v.id} video={v} />
             ))}
           </Prateleira>
 
-          {/* Uma prateleira por nicho */}
+          {/* Uma prateleira por nicho - "Ver todos" abre a grade paginada com TUDO */}
           {nichos.map(([nicho, lista]) => (
-            <Prateleira key={nicho} titulo={nicho}>
+            <Prateleira
+              key={nicho}
+              titulo={`${nicho} (${lista.length.toLocaleString("pt-BR")})`}
+              verTodosHref={lista.length > POR_PRATELEIRA ? href(nicho) : undefined}
+            >
               {lista.slice(0, POR_PRATELEIRA).map((v) => (
                 <CapaCorte key={v.id} video={v} />
               ))}
