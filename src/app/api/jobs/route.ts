@@ -161,6 +161,9 @@ export async function POST(req: Request) {
   // som do vídeo original: "manter" (padrão) ou "remover" (Mudo). Guardado em opcoes.
   const audioVideo = String(form.get("audioVideo") ?? "manter") === "remover" ? "remover" : "manter";
   const opcoes = JSON.stringify({ audioVideo });
+  // tipo do job: "marca" = Aplicar marca em lote (só carimba o template, sem fábrica);
+  // "produto" (padrão) = fábrica (copy + voz/legenda + montagem). O worker despacha por isso.
+  const tipoJob = String(form.get("tipo") ?? "produto") === "marca" ? "marca" : "produto";
   // voz da narração: só vale no formato "voz"; senão fica null (voz padrão).
   // Com chave própria (BYO) aceita qualquer voz da conta do usuário; sem chave,
   // só as vozes curadas da plataforma.
@@ -191,6 +194,7 @@ export async function POST(req: Request) {
         userId: user.id,
         produto,
         descricao: descricao || null,
+        tipo: tipoJob,
         formato: formato === "voz" ? "voz" : "legenda",
         vozId,
         tom,
@@ -226,6 +230,7 @@ export async function POST(req: Request) {
       userId: user.id,
       produto,
       descricao: descricao || null,
+      tipo: tipoJob,
       formato: formato === "voz" ? "voz" : "legenda",
       vozId,
       tom,

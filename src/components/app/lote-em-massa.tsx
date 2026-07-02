@@ -107,7 +107,7 @@ export function LoteEmMassa({ demo = false }: { demo?: boolean }) {
       try {
         const base = v.file.name.replace(/\.[^.]+$/, "").slice(0, 80) || "Vídeo";
         // upload em pedaços: aguenta vídeo de qualquer tamanho (Cloudflare 100MB)
-        await enviarJobEmPedacos({ produto: base, variantes: "1", audioVideo }, [
+        await enviarJobEmPedacos({ produto: base, variantes: "1", audioVideo, tipo: "marca" }, [
           { sub: "template", file: template },
           { sub: "videos", file: v.file },
         ]);
