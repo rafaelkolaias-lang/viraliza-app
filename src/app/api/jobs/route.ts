@@ -160,7 +160,16 @@ export async function POST(req: Request) {
   const legendaPos = ["cima", "meio", "baixo"].includes(posRaw) ? posRaw : "baixo";
   // som do vídeo original: "manter" (padrão) ou "remover" (Mudo). Guardado em opcoes.
   const audioVideo = String(form.get("audioVideo") ?? "manter") === "remover" ? "remover" : "manter";
-  const opcoes = JSON.stringify({ audioVideo });
+  // marca em lote: tamanho (% da largura; 100 = moldura/tela cheia) + posição (9 pontos)
+  const POS_MARCA = new Set([
+    "cima-esq", "cima-meio", "cima-dir",
+    "meio-esq", "meio-meio", "meio-dir",
+    "baixo-esq", "baixo-meio", "baixo-dir",
+  ]);
+  const marcaTamanho = Math.max(15, Math.min(100, Number(form.get("marcaTamanho") ?? 100) || 100));
+  const posRawMarca = String(form.get("marcaPosicao") ?? "meio-meio");
+  const marcaPosicao = POS_MARCA.has(posRawMarca) ? posRawMarca : "meio-meio";
+  const opcoes = JSON.stringify({ audioVideo, marcaTamanho, marcaPosicao });
   // tipo do job: "marca" = Aplicar marca em lote (só carimba o template, sem fábrica);
   // "produto" (padrão) = fábrica (copy + voz/legenda + montagem). O worker despacha por isso.
   const tipoJob = String(form.get("tipo") ?? "produto") === "marca" ? "marca" : "produto";

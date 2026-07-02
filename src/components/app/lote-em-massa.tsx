@@ -13,6 +13,8 @@ import {
   VolumeX,
   Layers,
   Info,
+  Move,
+  Maximize,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -35,6 +37,11 @@ export function LoteEmMassa({ demo = false }: { demo?: boolean }) {
   const [templateUrl, setTemplateUrl] = useState("");
   const [videos, setVideos] = useState<Video[]>([]);
   const [audioVideo, setAudioVideo] = useState<"manter" | "remover">("manter");
+  // como a marca é aplicada: "moldura" = PNG preenche a tela (9:16 inteiro);
+  // "logo" = logo menor, com tamanho e posição escolhidos.
+  const [modoMarca, setModoMarca] = useState<"moldura" | "logo">("moldura");
+  const [marcaTamanho, setMarcaTamanho] = useState(40); // % da largura (só no modo logo)
+  const [marcaPos, setMarcaPos] = useState("baixo-dir");
 
   const [enviando, setEnviando] = useState(false);
   const [feito, setFeito] = useState(0);
@@ -107,10 +114,20 @@ export function LoteEmMassa({ demo = false }: { demo?: boolean }) {
       try {
         const base = v.file.name.replace(/\.[^.]+$/, "").slice(0, 80) || "Vídeo";
         // upload em pedaços: aguenta vídeo de qualquer tamanho (Cloudflare 100MB)
-        await enviarJobEmPedacos({ produto: base, variantes: "1", audioVideo, tipo: "marca" }, [
-          { sub: "template", file: template },
-          { sub: "videos", file: v.file },
-        ]);
+        await enviarJobEmPedacos(
+          {
+            produto: base,
+            variantes: "1",
+            audioVideo,
+            tipo: "marca",
+            marcaTamanho: String(tamEfetivo),
+            marcaPosicao: marcaPos,
+          },
+          [
+            { sub: "template", file: template },
+            { sub: "videos", file: v.file },
+          ],
+        );
         ok += 1;
       } catch {
         falhou += 1;
@@ -132,6 +149,8 @@ export function LoteEmMassa({ demo = false }: { demo?: boolean }) {
   }
 
   const previa = videos[0];
+  // tamanho efetivo: moldura sempre preenche (100%); logo usa o slider.
+  const tamEfetivo = modoMarca === "moldura" ? 100 : marcaTamanho;
 
   // ===== MODO DEMO: amostra pronta (moldura + vídeo de exemplo) =====
   if (demo) {
@@ -239,15 +258,24 @@ export function LoteEmMassa({ demo = false }: { demo?: boolean }) {
               </span>
             </div>
           )}
-          {/* template sobreposto (logo/@) */}
-          {templateUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={templateUrl}
-              alt="Template"
-              className="pointer-events-none absolute inset-0 size-full object-contain"
-            />
-          )}
+          {/* template sobreposto (moldura tela cheia OU logo posicionada) */}
+          {templateUrl &&
+            (tamEfetivo >= 100 ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={templateUrl}
+                alt="Template"
+                className="pointer-events-none absolute inset-0 size-full object-contain"
+              />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={templateUrl}
+                alt="Logo"
+                className="pointer-events-none absolute object-contain"
+                style={estiloMarca(tamEfetivo, marcaPos)}
+              />
+            ))}
         </div>
         <p className="text-center text-[11px] text-muted-foreground">
           Prévia de como a sua marca fica por cima do vídeo. O mesmo template vai
@@ -289,9 +317,58 @@ export function LoteEmMassa({ demo = false }: { demo?: boolean }) {
           )}
           <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
             <Info className="mt-0.5 size-3 shrink-0 text-primary" />
-            Use um PNG 9:16 com fundo transparente, só com a logo/@ onde você quer
-            que apareça.
+            {modoMarca === "moldura"
+              ? "Moldura: use um PNG 9:16 com fundo transparente. Ele preenche a tela toda."
+              : "Logo: use um PNG só com a logo/@ (fundo transparente). Você escolhe o tamanho e a posição."}
           </p>
+        </Secao>
+
+        {/* como aplicar a marca: moldura (tela cheia) ou logo (posicionar) */}
+        <Secao icon={Maximize} titulo="Como aplicar a marca">
+          <div className="grid grid-cols-2 gap-2">
+            <BotaoOpcao
+              ativo={modoMarca === "moldura"}
+              onClick={() => setModoMarca("moldura")}
+              icon={Maximize}
+              label="Moldura"
+            />
+            <BotaoOpcao
+              ativo={modoMarca === "logo"}
+              onClick={() => setModoMarca("logo")}
+              icon={Move}
+              label="Logo"
+            />
+          </div>
+
+          {modoMarca === "moldura" ? (
+            <p className="text-[11px] text-muted-foreground">
+              O template preenche o vídeo inteiro (9:16), do jeito que você desenhou.
+            </p>
+          ) : (
+            <div className="space-y-3 rounded-lg border border-border bg-card/50 p-3">
+              {/* tamanho */}
+              <div>
+                <div className="mb-1.5 flex items-center justify-between text-xs">
+                  <span className="font-medium">Tamanho</span>
+                  <span className="text-muted-foreground">{marcaTamanho}% da largura</span>
+                </div>
+                <input
+                  type="range"
+                  min={15}
+                  max={90}
+                  step={5}
+                  value={marcaTamanho}
+                  onChange={(e) => setMarcaTamanho(Number(e.target.value))}
+                  className="w-full accent-primary"
+                />
+              </div>
+              {/* posição */}
+              <div>
+                <p className="mb-1.5 text-xs font-medium">Posição</p>
+                <GradePosicao valor={marcaPos} onPick={setMarcaPos} />
+              </div>
+            </div>
+          )}
         </Secao>
 
         {/* vídeos */}
@@ -355,6 +432,63 @@ export function LoteEmMassa({ demo = false }: { demo?: boolean }) {
 }
 
 /* ---------- auxiliares ---------- */
+
+// as 9 posições (vertical-horizontal). Bate com o worker (carimbar_gpu).
+const POSICOES = [
+  "cima-esq", "cima-meio", "cima-dir",
+  "meio-esq", "meio-meio", "meio-dir",
+  "baixo-esq", "baixo-meio", "baixo-dir",
+] as const;
+
+// estilo inline da logo no preview (espelha o que o worker faz no vídeo).
+function estiloMarca(tam: number, pos: string): React.CSSProperties {
+  const [v, h] = pos.split("-");
+  const s: React.CSSProperties = { width: `${tam}%`, height: "auto" };
+  if (h === "esq") s.left = "5%";
+  else if (h === "dir") s.right = "5%";
+  else s.left = "50%";
+  if (v === "cima") s.top = "5%";
+  else if (v === "baixo") s.bottom = "5%";
+  else s.top = "50%";
+  const tx = h === "meio" ? "-50%" : "0px";
+  const ty = v === "meio" ? "-50%" : "0px";
+  if (tx !== "0px" || ty !== "0px") s.transform = `translate(${tx}, ${ty})`;
+  return s;
+}
+
+function GradePosicao({
+  valor,
+  onPick,
+}: {
+  valor: string;
+  onPick: (p: string) => void;
+}) {
+  return (
+    <div className="grid grid-cols-3 gap-1.5">
+      {POSICOES.map((p) => (
+        <button
+          key={p}
+          type="button"
+          onClick={() => onPick(p)}
+          aria-label={p}
+          className={cn(
+            "grid aspect-square place-items-center rounded-md border transition-colors",
+            valor === p
+              ? "border-primary bg-primary/15"
+              : "border-border hover:border-primary/40",
+          )}
+        >
+          <span
+            className={cn(
+              "size-2.5 rounded-full",
+              valor === p ? "bg-primary" : "bg-muted-foreground/40",
+            )}
+          />
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function Secao({
   icon: Icon,
