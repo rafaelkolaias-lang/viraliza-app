@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { createSession, deleteSession } from "@/lib/session";
 import { cadastroSchema, loginSchema } from "@/lib/auth-schemas";
 import { aplicarCreditosPendentes } from "@/lib/creditos";
+import { emailComprou } from "@/lib/kiwify";
 import { dentroDoLimite, ipDaRequisicao } from "@/lib/ratelimit";
 
 export type AuthState = { erro?: string } | undefined;
@@ -24,7 +25,20 @@ async function podeCadastrar(email: string): Promise<boolean> {
     prisma.acessoPago.findUnique({ where: { email: e } }),
     prisma.creditoPendente.findFirst({ where: { email: e } }),
   ]);
-  return !!acesso || !!pend;
+  if (acesso || pend) return true;
+
+  // Rede de segurança: o webhook pode atrasar/falhar. Confirma AO VIVO na Kiwify se
+  // esse e-mail tem compra paga. Se tiver, grava a allowlist e libera na hora.
+  const kw = await emailComprou(e);
+  if (kw.comprou) {
+    await prisma.acessoPago.upsert({
+      where: { email: e },
+      create: { email: e, kiwifyOrderId: kw.orderId ?? "manual", produto: kw.produto ?? null },
+      update: {},
+    });
+    return true;
+  }
+  return false;
 }
 
 export async function cadastrar(

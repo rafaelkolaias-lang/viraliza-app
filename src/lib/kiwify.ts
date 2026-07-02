@@ -124,6 +124,29 @@ export async function listarVendas(inicioISO: string, fimISO: string): Promise<V
   return out;
 }
 
+/** Confirma AO VIVO na Kiwify se este e-mail tem uma compra PAGA nos últimos N dias.
+ *  Serve de rede de segurança no cadastro quando o webhook atrasa ou falha. */
+export async function emailComprou(
+  email: string,
+  diasAtras = 14,
+): Promise<{ comprou: boolean; orderId?: string; produto?: string }> {
+  const e = email.trim().toLowerCase();
+  if (!e || !kiwifyConfigurada()) return { comprou: false };
+  const ini = new Date(Date.now() - diasAtras * 86_400_000).toISOString();
+  const fim = new Date(Date.now() + 60_000).toISOString();
+  let vendas: VendaLista[];
+  try {
+    vendas = await listarVendas(ini, fim);
+  } catch {
+    return { comprou: false };
+  }
+  const v = vendas.find(
+    (s) => (s.customer?.email || "").toLowerCase() === e && vendaEstaPaga(s),
+  );
+  if (!v) return { comprou: false };
+  return { comprou: true, orderId: v.id, produto: v.product?.name ?? undefined };
+}
+
 /** Valor da venda (bruto pago pelo cliente) em centavos. */
 export function valorVenda(v: VendaLista): number {
   return v.charge_amount ?? v.net_amount ?? 0;
