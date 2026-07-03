@@ -1,36 +1,37 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Viraliza
 
-## Getting Started
+Plataforma web (SaaS) de ferramentas de marketing/conteúdo viral. Carro-chefe: gerar
+vídeos de produto 9:16 (Shopee/TikTok) com IA. Também: acervo de cortes, cortes de
+YouTube, leads do Google Maps, produtos/vídeos virais da Shopee e área de membros.
 
-First, run the development server:
+> **Mapa completo do projeto (para devs e IAs): [`!projeto.md`](./!projeto.md)** -
+> stack, onde está cada coisa, fluxos críticos, armadilhas e pendências.
+
+## Stack
+
+- **Next.js 16** (App Router) + React 19 + TypeScript + Tailwind v4 + shadcn/ui
+- **MySQL** via Prisma; auth caseiro (JWT em cookie httpOnly + bcrypt)
+- **Worker de render** em Python (PC/servidor do dono) - `bot shopee/`
+- **Pagamento:** Kiwify (checkout + webhook com confirmação na API)
+- **Atribuição de vendas:** Meta Conversions API (pixel "Viraliza - Vendas")
+- **Deploy:** Docker → EasyPanel (branch de produção: `v3`)
+
+## Rodar local
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+# criar .env na raiz: DATABASE_URL, SESSION_SECRET, WORKER_TOKEN
+npx prisma generate
+npm run dev   # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+O 1º cadastro vira admin. Integrações (Kiwify, Meta CAPI, ElevenLabs, Gemini) leem
+as chaves do ambiente de produção (EasyPanel); sem elas o código degrada sem quebrar.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Monetização (resumo)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Entrada de R$ 19,90 (Kiwify) libera cadastro + biblioteca + crédito mensal de brinde.
+Créditos (1 crédito = R$ 0,01) pagam a produção de vídeo, debitados pelo custo real
+das APIs. Reembolso tem consequência automática (perda de brinde/assinatura; chargeback
+bloqueia login) e toda venda/estorno vira evento Purchase/Refund no pixel da Meta -
+detalhes em [`!projeto.md`](./!projeto.md).

@@ -9,7 +9,13 @@
 
 **Viraliza** — plataforma web multi-usuário (SaaS, cadastro aberto) que reúne ferramentas de marketing/conteúdo viral. Carro-chefe: **gerar vídeos de produto 9:16** (Shopee/TikTok) com IA. Também: acervo de cortes, cortes de YouTube, leads do Google Maps, produtos/vídeos virais Shopee, área de membros. O render pesado roda **no PC do dono** (worker Python), não no servidor. Papéis: **admin** (dono), **user**, **demo**.
 
-**Monetização "2 em 1"** (ver memória `modelo-monetizacao`): **assinatura R$19,90/mês** libera a **biblioteca** (Acervo, Virais, Shopee, Produtos, Membro) + **crédito mensal de brinde** (hoje `CREDITO_MENSAL_CENTAVOS = 2000` = R$20, oferta de lançamento; era 100); **crédito** (saldo em centavos = nº de créditos, 1 crédito = R$0,01) paga a **produção** (Editor, Lote, Cortes, MapsLeads). Pagamento via **Kiwify** (ainda NÃO integrado — botão "Comprar" é placeholder). Débito é **pós-pago pelo custo real** das APIs (Gemini/ElevenLabs) +20%; ferramentas sem API têm preço fixo. Custo real observado: ~R$1-1,30 por vídeo de voz de ~30s.
+**Monetização "2 em 1"** (ver memória `modelo-monetizacao`): **entrada R$19,90** (produto Kiwify) libera o cadastro e a **biblioteca** (Acervo, Virais, Shopee, Produtos, Membro) + **crédito mensal de brinde** (hoje `CREDITO_MENSAL_CENTAVOS = 2000` = R$20, oferta de lançamento); **crédito** (saldo em centavos = nº de créditos, 1 crédito = R$0,01) paga a **produção** (Editor, Lote, Cortes, MapsLeads). Débito é **pós-pago pelo custo real** das APIs (Gemini/ElevenLabs) +20%; ferramentas sem API têm preço fixo. Custo real observado: ~R$1-1,30 por vídeo de voz de ~30s.
+
+**Pagamento via Kiwify (INTEGRADO):** botão Comprar abre o checkout (`KIWIFY_CHECKOUT_10/20/50/100`); o webhook `/api/kiwify/webhook` recebe o aviso, **confirma o pedido na API da Kiwify** (à prova de forja) e: (a) compra aprovada entra na allowlist `AcessoPago` (gate do cadastro); (b) pacotes "Editor automatico N" creditam N créditos (compra antes do cadastro vira `CreditoPendente`); (c) dispara **Purchase** pro pixel da Meta (atribuição, ver abaixo); (d) estorno aplica as **regras de reembolso**. Rede de segurança do cadastro: `emailComprou()` consulta a Kiwify ao vivo se o webhook atrasar.
+
+**Atribuição Meta Ads (CAPI):** toda venda aprovada vira evento **Purchase** (e estorno vira **Refund**) no pixel "Viraliza - Vendas" via `src/lib/meta-capi.ts` (dados hasheados SHA-256; `event_id` = orderId, idempotente). Assim o Gerenciador de Anúncios mostra compras/custo por campanha. Env: `META_PIXEL_ID` + `META_CAPI_TOKEN` (+ `META_CAPI_TEST_CODE` opcional pra testar). Fase 2 planejada: capturar `ctwa_clid` do Click-to-WhatsApp pra precisão total.
+
+**Regras de reembolso** (`src/lib/reembolsos.ts`): reembolso **SOLICITADO** (detectado por varredura na Kiwify a cada 10 min, agendada em `src/instrumentation.ts`) congela o saldo (zera) e suspende a assinatura; **cancelado** devolve tudo; **aceito da entrada** remove em definitivo os créditos de BRINDE + assinatura (créditos comprados ficam) e tira o e-mail da allowlist; **aceito de pacote** remove só os créditos daquele pacote; **chargeback** = tudo isso + `bloqueado = true` (derruba login).
 
 ---
 
@@ -45,6 +51,12 @@
 | `src/app/api/voices/route.ts` | lista de vozes do seletor do Estúdio: ao vivo da conta do usuário (BYO) ou a lista curada |
 | `src/app/api/notificacoes/**` | sininho: lista/marca lidas (feature de notificações) |
 | `src/app/api/midia/[...slug]/route.ts` | serve mídia gravada em runtime (vídeos/imagens) com Range |
+| **`src/app/api/kiwify/webhook/route.ts`** | webhook da Kiwify: allowlist, créditos, CAPI, reembolsos |
+| **`src/lib/kiwify.ts`** | API da Kiwify (OAuth, `buscarVenda`, `listarVendas`, helpers de status) |
+| **`src/lib/meta-capi.ts`** | eventos Purchase/Refund pro pixel da Meta (atribuição de vendas) |
+| **`src/lib/reembolsos.ts`** | regras de reembolso (suspensão/estorno/chargeback) + varredura periódica |
+| **`src/lib/financas.ts`** + `admin/financas/` | painel Finanças do admin (vendas × reembolsos por dia, filtros) |
+| **`src/instrumentation.ts`** | boot do servidor: agenda a varredura de reembolsos (10 em 10 min) |
 | `src/lib/session.ts` | sessão JWT (cookie `sessao`) |
 | `src/lib/dal.ts` | guardas: `getCurrentUser`, `requireUser`, `requireAdmin`, **`requireAssinatura`** (biblioteca) |
 | **`src/lib/creditos.ts`** | carteira: `getCarteira`, `temSaldo`, `totalEntradas`, `debitarClamp`, `creditar`, `garantirCreditoMensal`, `listarExtrato`, `fmtCreditos`, `jobJaDebitado` |
@@ -71,7 +83,8 @@
 | Tabela | Propósito |
 |---|---|
 | `User` | conta + auth + **carteira**: `saldoCentavos`, `assinante`, `assinaturaAte`, `creditoMensalEm` + **`elevenKey`** (chave ElevenLabs BYO, cifrada) |
-| **`CreditoTransacao`** | extrato: `tipo` (compra/debito_geracao/debito_processamento/bonus_assinatura/ajuste_admin/estorno), `valor` (centavos, +entrada/−saída), `saldoApos`, `jobId` |
+| **`CreditoTransacao`** | extrato: `tipo` (compra/debito_geracao/debito_processamento/bonus_assinatura/ajuste_admin/estorno/**suspensao_reembolso**/**reversao_suspensao**), `valor` (centavos, +entrada/−saída), `saldoApos`, `jobId`, `kiwifyOrderId` (idempotência dos eventos Kiwify) |
+| **`AcessoPago`** / **`CreditoPendente`** | allowlist de cadastro (e-mail que comprou) / crédito comprado antes de ter conta (aplica no cadastro) |
 | `Job` | pedido de vídeo (produto/marca/cortes) + status (`na_fila`→`renderizando`/`processando`→`pronto`/`erro`; `recebendo`=rascunho) + **`vozId`** (voz escolhida) + **`etapa`** (fase atual do render) |
 | **`Notificacao`** / **`Aviso`** | sininho (1 linha por usuário; `video_pronto/erro/admin`) + barra de aviso no topo (feature de notificações) |
 | `Lead`, `AcervoCategoria`/`AcervoVideo`, `ProdutoShopee`/`VideoShopee` | leads + biblioteca (mídia no Drive) |
@@ -136,18 +149,21 @@ Modos: `--historico N`, ao vivo (listener), `--listar`, `--subir-tudo`, `--so-vi
 ## Segurança / CI/CD (resumo)
 
 - Sessão JWT HS256 (`SESSION_SECRET`), cookie httpOnly+secure 7d. Senha bcrypt. Worker por `x-worker-token`. Isolamento por `userId`.
-- Deploy: Dockerfile → EasyPanel (porta 3000). Vars: `DATABASE_URL`, `SESSION_SECRET`, `WORKER_TOKEN`. Volumes: `/app/data`, `/app/public/{videos,virais,downloads}`.
+- Deploy: Dockerfile → EasyPanel (porta 3000). Vars: `DATABASE_URL`, `SESSION_SECRET`, `WORKER_TOKEN`, `KIWIFY_CLIENT_ID/SECRET/ACCOUNT_ID`, `KIWIFY_CHECKOUT_10/20/50/100`, `META_PIXEL_ID`, `META_CAPI_TOKEN`. Volumes: `/app/data`, `/app/public/{videos,virais,downloads}`.
 - `git commit`/`push`/deploy **só com permissão explícita** (`RULES.md`).
 
 ---
 
 ## Pendências grandes (ver reminder.md)
 
-- **Kiwify** (pagamento real): botão "Comprar" + ativar assinatura. — só web (você integra).
+- ~~Kiwify (pagamento real)~~ **FEITO** (03/07): checkout + webhook + allowlist + reembolsos + atribuição Meta.
+- **Atribuição Fase 2:** capturar `ctwa_clid` do Click-to-WhatsApp (proxy Meta→n8n→Chatwoot) pra atribuição 100% precisa + otimizar campanha por compra; etiqueta "COMPROU" no Chatwoot.
+- **Girar chaves** que passaram por chats (EasyPanel, n8n, token CAPI, message.txt).
+- **Verificar em produção** se a Kiwify expõe status de "reembolso solicitado" (a varredura loga status desconhecidos com `[reembolsos]`); se não expuser, a suspensão só acontece no estorno efetivado.
 - **Calibrar preços** (`precos.ts`): estimativa recalibrada com 1 dado real (voz 8→4, legenda 3→2 créditos/seg); custo real ainda PROVISÓRIO. Confirmar tabela atual Gemini/ElevenLabs.
 - **Instrumentar `cortar_youtube.py`** (custo real dos Cortes; hoje cai no preço fixo "Edição").
 - **BYO key (ElevenLabs): PRONTO mas GATED** (`BYO_LIBERADO = false` em `conta/page.tsx` → "Em breve"). Liberar quando quiser; falta **Gemini** (mesma estrutura). **Minimax** adiado.
 - **Prévias de voz em produção:** rodar `gerar_previews_voz.py` após deploy e adicionar `public/voice-previews` aos volumes do EasyPanel (senão redeploy apaga).
 - **Bugs catalogados** em `auditoria.md` (ex.: cortes `videos/[id]` não auto-atualiza no `processando`).
 
-*Última atualização: 2026-06-30*
+*Última atualização: 2026-07-03*
