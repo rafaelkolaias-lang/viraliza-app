@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import {
   DollarSign,
   ShoppingCart,
@@ -6,6 +7,7 @@ import {
   Wallet,
   Receipt,
   AlertTriangle,
+  Undo2,
 } from "lucide-react";
 import {
   Table,
@@ -17,7 +19,7 @@ import {
 } from "@/components/ui/table";
 import { StatCard } from "@/components/app/stat-card";
 import { GraficoVendas } from "@/components/app/grafico-vendas";
-import { getPainelFinancas } from "@/lib/financas";
+import { getPainelFinancas, PERIODOS_FINANCAS } from "@/lib/financas";
 
 export const metadata: Metadata = { title: "Admin · Finanças" };
 export const dynamic = "force-dynamic";
@@ -35,20 +37,45 @@ function statusLabel(s: string, pago: boolean) {
   return { txt: s, cls: "bg-muted text-muted-foreground" };
 }
 
-export default async function FinancasPage() {
-  const f = await getPainelFinancas();
+export default async function FinancasPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ dias?: string }>;
+}) {
+  const sp = await searchParams;
+  const pedido = Number(sp?.dias);
+  const dias = (PERIODOS_FINANCAS as readonly number[]).includes(pedido) ? pedido : 7;
+  const f = await getPainelFinancas(dias);
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Finanças</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Vendas reais da Kiwify (plano de entrada + pacotes). Atualiza a cada abertura.
-        </p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Contabilizando a partir de <b className="text-foreground">{f.desde}</b> (o histórico de
-          teste anterior não entra nos números).
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Finanças</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Vendas reais da Kiwify (plano de entrada + pacotes). Atualiza a cada abertura.
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Contabilizando a partir de <b className="text-foreground">{f.desde}</b> (o histórico de
+            teste anterior não entra nos números).
+          </p>
+        </div>
+        {/* filtro de período */}
+        <div className="flex gap-1 rounded-lg border border-border p-1">
+          {PERIODOS_FINANCAS.map((p) => (
+            <Link
+              key={p}
+              href={`?dias=${p}`}
+              className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                dias === p
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              {p} dias
+            </Link>
+          ))}
+        </div>
       </div>
 
       {f.erro && (
@@ -59,11 +86,13 @@ export default async function FinancasPage() {
       )}
 
       {/* Cards */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
         <StatCard label="Receita hoje" value={brl(f.hoje.receitaCentavos)} icon={DollarSign} />
         <StatCard label="Vendas hoje" value={f.hoje.pagas} icon={ShoppingCart} />
         <StatCard label="Receita no período" value={brl(f.periodo.receitaCentavos)} icon={Wallet} />
         <StatCard label="Vendas no período" value={f.periodo.vendasPagas} icon={Receipt} />
+        <StatCard label="Reembolsos" value={`− ${brl(f.periodo.reembolsoCentavos)}`} icon={Undo2} />
+        <StatCard label="Receita − reembolsos" value={brl(f.periodo.receitaFinalCentavos)} icon={Wallet} />
         <StatCard label="Clientes" value={f.periodo.clientes} icon={Users} />
         <StatCard label="Ticket médio" value={brl(f.periodo.ticketCentavos)} icon={DollarSign} />
       </div>
@@ -72,7 +101,8 @@ export default async function FinancasPage() {
       <GraficoVendas dias={f.grafico} />
 
       <p className="text-[11px] text-muted-foreground">
-        Receita líquida no período (o que cai pra você, já sem a taxa da Kiwify):{" "}
+        No período: <b className="text-red-500">{f.periodo.reembolsos} reembolso{f.periodo.reembolsos === 1 ? "" : "s"}</b>{" "}
+        (−{brl(f.periodo.reembolsoCentavos)}). Receita líquida após a taxa da Kiwify:{" "}
         <b className="text-foreground">{brl(f.periodo.receitaLiquidaCentavos)}</b>.
       </p>
 

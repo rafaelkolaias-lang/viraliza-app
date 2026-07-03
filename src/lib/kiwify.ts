@@ -79,12 +79,30 @@ export function creditosDoPacote(sale: KiwifySale): number {
 
 const STATUS_PAGO = new Set(["paid", "approved", "authorized", "completed"]);
 const STATUS_ESTORNO = new Set(["refunded", "chargedback", "chargeback", "refund"]);
+const STATUS_CHARGEBACK = new Set(["chargedback", "chargeback"]);
+// status que indicam reembolso PEDIDO mas ainda não decidido (nomes variam na
+// Kiwify; casamos por convenção + fallback "tem refund no nome e não é final")
+const STATUS_SOLICITADO = new Set([
+  "refund_requested",
+  "refund_pending",
+  "waiting_refund",
+  "refund_in_progress",
+]);
 
 export function vendaEstaPaga(sale: KiwifySale) {
   return STATUS_PAGO.has((sale.status || "").toLowerCase());
 }
 export function vendaEstornada(sale: KiwifySale) {
   return STATUS_ESTORNO.has((sale.status || "").toLowerCase());
+}
+export function vendaChargeback(sale: KiwifySale) {
+  return STATUS_CHARGEBACK.has((sale.status || "").toLowerCase());
+}
+/** Reembolso foi SOLICITADO (em análise)? Não é o reembolso efetivado. */
+export function statusReembolsoSolicitado(status: string) {
+  const s = (status || "").toLowerCase();
+  if (STATUS_SOLICITADO.has(s)) return true;
+  return s.includes("refund") && !STATUS_ESTORNO.has(s);
 }
 
 // ---- Listagem de vendas (pro painel de finanças) ----
@@ -97,8 +115,9 @@ export type VendaLista = {
   net_amount?: number; // centavos líquidos (o que cai pra você)
   charge_amount?: number; // centavos brutos (o que o cliente pagou)
   created_at?: string;
+  updated_at?: string; // quando mudou de status (ex: data do reembolso)
   product?: { id?: string; name?: string };
-  customer?: { name?: string; full_name?: string; email?: string };
+  customer?: { name?: string; full_name?: string; email?: string; mobile?: string };
 };
 
 /** Lista TODAS as vendas de um período (pagina sozinho). Datas em ISO. */

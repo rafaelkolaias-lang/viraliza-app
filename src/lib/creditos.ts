@@ -19,7 +19,9 @@ export type TipoTransacao =
   | "debito_processamento"
   | "bonus_assinatura"
   | "ajuste_admin"
-  | "estorno";
+  | "estorno"
+  | "suspensao_reembolso" // reembolso SOLICITADO: congela (zera) o saldo até a decisão
+  | "reversao_suspensao"; // reembolso cancelado/decidido: devolve o que foi congelado
 
 /** Já existe uma transação desse tipo pra esse pedido Kiwify? (idempotência). */
 export async function existeTransacaoOrder(

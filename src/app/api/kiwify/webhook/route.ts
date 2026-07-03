@@ -8,8 +8,9 @@ import {
   vendaEstaPaga,
   vendaEstornada,
 } from "@/lib/kiwify";
-import { debitarClamp, existeTransacaoOrder, lancar } from "@/lib/creditos";
-import { enviarCompraMeta } from "@/lib/meta-capi";
+import { existeTransacaoOrder, lancar } from "@/lib/creditos";
+import { enviarCompraMeta, enviarReembolsoMeta } from "@/lib/meta-capi";
+import { aplicarReembolsoAceito, restaurarSuspensao } from "@/lib/reembolsos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,6 +56,22 @@ export async function POST(req: Request) {
 
   const email = (sale.customer?.email || "").trim().toLowerCase();
 
+  // ---- REEMBOLSO / CHARGEBACK -> aplica a perda (entrada: brinde+assinatura;
+  // pacote: só os créditos dele; chargeback: bloqueia login). Idempotente. ----
+  if (vendaEstornada(sale)) {
+    const r = await aplicarReembolsoAceito(sale, orderId);
+    // espelha a perda no pixel da Meta (evento customizado "Refund")
+    await enviarReembolsoMeta({
+      orderId,
+      email,
+      telefone: sale.customer?.mobile,
+      nome: sale.customer?.full_name,
+      valorCentavos: sale.payment?.charge_amount ?? sale.net_amount ?? 0,
+      produto: sale.product?.name,
+    });
+    return NextResponse.json({ ok: true, reembolso: r });
+  }
+
   // QUALQUER compra aprovada (entrada R$19,90, pacote, etc.) libera o cadastro desse
   // e-mail (allowlist anti-farm). Independe de creditar ou não.
   if (vendaEstaPaga(sale) && email) {
@@ -63,6 +80,8 @@ export async function POST(req: Request) {
       create: { email, kiwifyOrderId: orderId, produto: sale.product?.name ?? null },
       update: {},
     });
+    // se havia reembolso solicitado e o pedido voltou a "pago", devolve o congelado
+    await restaurarSuspensao(orderId);
   }
 
   // Atribuição Meta Ads: compra confirmada -> evento Purchase via CAPI (dados
@@ -116,29 +135,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, pendente: true, email });
     }
     return NextResponse.json({ ok: true, ignorado: "sem e-mail do cliente" });
-  }
-
-  // ---- REEMBOLSO / CHARGEBACK -> estorna os créditos daquele pacote ----
-  if (vendaEstornada(sale)) {
-    if (await existeTransacaoOrder(orderId, "estorno")) {
-      return NextResponse.json({ ok: true, jaEstornado: true });
-    }
-    const compra = await prisma.creditoTransacao.findFirst({
-      where: { kiwifyOrderId: orderId, tipo: "compra" },
-    });
-    if (compra) {
-      await debitarClamp(compra.userId, compra.valor, "estorno", {
-        descricao: "Estorno de compra Kiwify (reembolso/chargeback)",
-        kiwifyOrderId: orderId,
-      });
-      return NextResponse.json({ ok: true, estornado: true });
-    }
-    // ainda estava pendente (nunca aplicado): invalida o pendente
-    await prisma.creditoPendente.updateMany({
-      where: { kiwifyOrderId: orderId, aplicado: false },
-      data: { aplicado: true, descricao: "cancelado por estorno" },
-    });
-    return NextResponse.json({ ok: true, pendenteCancelado: true });
   }
 
   return NextResponse.json({ ok: true, ignorado: `status ${sale.status}` });

@@ -29,6 +29,9 @@ const TIPO_LABEL: Record<string, string> = {
   debito_processamento: "Processamento",
   bonus_assinatura: "Bônus da assinatura",
   ajuste_admin: "Ajuste",
+  estorno: "Estorno (reembolso)",
+  suspensao_reembolso: "Créditos suspensos (reembolso em análise)",
+  reversao_suspensao: "Créditos devolvidos (reembolso cancelado)",
 };
 
 const PERIODOS = [

@@ -6,13 +6,15 @@ import {
   valorVenda,
   valorLiquido,
   vendaEstaPaga,
+  vendaEstornada,
   type VendaLista,
 } from "@/lib/kiwify";
 
 /** Painel financeiro: vendas reais da Kiwify (o plano de entrada e os pacotes). */
 
-const DIAS = 30;
 const DIA_MS = 86_400_000;
+export const PERIODOS_FINANCAS = [7, 14, 30] as const;
+const DIAS_PADRAO = 7;
 
 // MARCO ZERO das finanças: só conta venda a partir daqui. O histórico de
 // teste/lançamento (01/07/2026 e antes) NÃO entra nos números. A partir de
@@ -48,7 +50,9 @@ export type DiaVenda = {
   chave: string;
   label: string;
   vendas: number;
-  receitaCentavos: number; // bruto pago pelos clientes
+  receitaCentavos: number; // bruto pago pelos clientes (linha verde)
+  reembolsos: number;
+  reembolsoCentavos: number; // perdido em reembolso/chargeback (linha vermelha)
 };
 
 export type CompradorHoje = {
@@ -68,8 +72,11 @@ export type PainelFinancas = {
   periodo: {
     dias: number;
     vendasPagas: number;
-    receitaCentavos: number; // bruto
-    receitaLiquidaCentavos: number; // o que cai pra você
+    receitaCentavos: number; // bruto (tudo que entrou pago, mesmo que reembolsado depois)
+    receitaLiquidaCentavos: number; // após a taxa da Kiwify
+    reembolsos: number;
+    reembolsoCentavos: number; // perda: o que saiu em reembolso/chargeback
+    receitaFinalCentavos: number; // bruto − reembolsos (o número que importa)
     clientes: number; // e-mails distintos que pagaram
     ticketCentavos: number; // ticket médio bruto
   };
@@ -81,7 +88,10 @@ function nomeDe(v: VendaLista) {
   return v.customer?.name || v.customer?.full_name || "Sem nome";
 }
 
-export async function getPainelFinancas(): Promise<PainelFinancas> {
+export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFinancas> {
+  const DIAS = (PERIODOS_FINANCAS as readonly number[]).includes(diasFiltro ?? 0)
+    ? (diasFiltro as number)
+    : DIAS_PADRAO;
   const desdeLabel = fmtDesde.format(new Date(DESDE_MS));
   const vazio: PainelFinancas = {
     configurada: kiwifyConfigurada(),
@@ -92,6 +102,9 @@ export async function getPainelFinancas(): Promise<PainelFinancas> {
       vendasPagas: 0,
       receitaCentavos: 0,
       receitaLiquidaCentavos: 0,
+      reembolsos: 0,
+      reembolsoCentavos: 0,
+      receitaFinalCentavos: 0,
       clientes: 0,
       ticketCentavos: 0,
     },
@@ -116,10 +129,18 @@ export async function getPainelFinancas(): Promise<PainelFinancas> {
   // no máximo DIAS dias. Enquanto o marco for recente, mostra só os dias já corridos.
   const diasDesde = Math.floor((agora - DESDE_MS) / DIA_MS);
   const nDias = Math.min(DIAS, Math.max(1, diasDesde + 1));
-  const buckets = new Map<string, { vendas: number; receitaCentavos: number }>();
+  const buckets = new Map<
+    string,
+    { vendas: number; receitaCentavos: number; reembolsos: number; reembolsoCentavos: number }
+  >();
   for (let i = 0; i < nDias; i++) {
     const d = new Date(agora - (nDias - 1 - i) * DIA_MS);
-    buckets.set(fmtChave.format(d), { vendas: 0, receitaCentavos: 0 });
+    buckets.set(fmtChave.format(d), {
+      vendas: 0,
+      receitaCentavos: 0,
+      reembolsos: 0,
+      reembolsoCentavos: 0,
+    });
   }
 
   const hojeChave = fmtChave.format(new Date(agora));
@@ -127,6 +148,8 @@ export async function getPainelFinancas(): Promise<PainelFinancas> {
   let periodoReceita = 0;
   let periodoLiquido = 0;
   let periodoPagas = 0;
+  let periodoReembolsos = 0;
+  let periodoReembolsoCentavos = 0;
   const compradoresHoje: CompradorHoje[] = [];
   const hoje = { vendas: 0, pagas: 0, receitaCentavos: 0 };
 
@@ -137,10 +160,13 @@ export async function getPainelFinancas(): Promise<PainelFinancas> {
     if (criado.getTime() < DESDE_MS) continue;
     const chave = fmtChave.format(criado);
     const pago = vendaEstaPaga(v);
+    const estornada = vendaEstornada(v);
     const bruto = valorVenda(v);
 
-    // só vendas pagas contam pra receita/gráfico
-    if (pago) {
+    // vendas pagas contam pra receita/linha verde. Venda depois reembolsada
+    // TAMBÉM conta como venda no dia em que entrou (o dinheiro entrou) - a
+    // perda aparece na linha vermelha no dia do reembolso.
+    if (pago || estornada) {
       const b = buckets.get(chave);
       if (b) {
         b.vendas++;
@@ -151,6 +177,19 @@ export async function getPainelFinancas(): Promise<PainelFinancas> {
       periodoPagas++;
       const email = (v.customer?.email || "").toLowerCase();
       if (email) clientesPagos.add(email);
+    }
+
+    // reembolso/chargeback: perda no dia em que o estorno aconteceu
+    if (estornada) {
+      const quando = v.updated_at ? new Date(v.updated_at) : criado;
+      const chaveEstorno = fmtChave.format(quando);
+      const b = buckets.get(chaveEstorno) ?? buckets.get(chave);
+      if (b) {
+        b.reembolsos++;
+        b.reembolsoCentavos += bruto;
+      }
+      periodoReembolsos++;
+      periodoReembolsoCentavos += bruto;
     }
 
     // "entraram hoje": toda venda de hoje (paga ou aguardando), pra você acompanhar
@@ -178,6 +217,8 @@ export async function getPainelFinancas(): Promise<PainelFinancas> {
     label: fmtLabel.format(new Date(chave + "T12:00:00")),
     vendas: v.vendas,
     receitaCentavos: v.receitaCentavos,
+    reembolsos: v.reembolsos,
+    reembolsoCentavos: v.reembolsoCentavos,
   }));
 
   return {
@@ -189,6 +230,9 @@ export async function getPainelFinancas(): Promise<PainelFinancas> {
       vendasPagas: periodoPagas,
       receitaCentavos: periodoReceita,
       receitaLiquidaCentavos: periodoLiquido,
+      reembolsos: periodoReembolsos,
+      reembolsoCentavos: periodoReembolsoCentavos,
+      receitaFinalCentavos: periodoReceita - periodoReembolsoCentavos,
       clientes: clientesPagos.size,
       ticketCentavos: periodoPagas > 0 ? Math.round(periodoReceita / periodoPagas) : 0,
     },

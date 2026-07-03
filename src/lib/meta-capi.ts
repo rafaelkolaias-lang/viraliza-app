@@ -34,16 +34,32 @@ function hashEmail(raw?: string | null): string | null {
   return e.includes("@") ? sha256(e) : null;
 }
 
-/** Compra confirmada na Kiwify -> evento Purchase no pixel. Idempotente na
- *  Meta via event_id = orderId (reenvios do webhook não duplicam). */
-export async function enviarCompraMeta(p: {
+type DadosVenda = {
   orderId: string;
   email?: string | null;
   telefone?: string | null;
   nome?: string | null;
   valorCentavos: number;
   produto?: string | null;
-}): Promise<void> {
+};
+
+/** Compra confirmada na Kiwify -> evento Purchase no pixel. Idempotente na
+ *  Meta via event_id = orderId (reenvios do webhook não duplicam). */
+export function enviarCompraMeta(p: DadosVenda) {
+  return enviarEventoVenda("Purchase", `kiwify_${p.orderId}`, p);
+}
+
+/** Reembolso/chargeback -> evento customizado "Refund" no pixel (não desconta
+ *  das compras no Ads, mas fica visível como coluna personalizada). */
+export function enviarReembolsoMeta(p: DadosVenda) {
+  return enviarEventoVenda("Refund", `kiwify_refund_${p.orderId}`, p);
+}
+
+async function enviarEventoVenda(
+  eventName: "Purchase" | "Refund",
+  eventId: string,
+  p: DadosVenda,
+): Promise<void> {
   if (!metaCapiConfigurada()) return;
 
   const user_data: Record<string, string[]> = {};
@@ -63,9 +79,9 @@ export async function enviarCompraMeta(p: {
   user_data.country = [sha256("br")];
 
   const evento = {
-    event_name: "Purchase",
+    event_name: eventName,
     event_time: Math.floor(Date.now() / 1000),
-    event_id: `kiwify_${p.orderId}`,
+    event_id: eventId,
     action_source: "website", // a compra acontece no checkout web da Kiwify
     user_data,
     custom_data: {
@@ -91,11 +107,11 @@ export async function enviarCompraMeta(p: {
     });
     if (!res.ok) {
       const txt = await res.text().catch(() => "");
-      console.error("[meta-capi] falha ao enviar Purchase", p.orderId, res.status, txt.slice(0, 300));
+      console.error(`[meta-capi] falha ao enviar ${eventName}`, p.orderId, res.status, txt.slice(0, 300));
       return;
     }
-    console.log("[meta-capi] Purchase enviado", p.orderId, TEST_CODE ? "(teste)" : "");
+    console.log(`[meta-capi] ${eventName} enviado`, p.orderId, TEST_CODE ? "(teste)" : "");
   } catch (e) {
-    console.error("[meta-capi] erro de rede ao enviar Purchase", p.orderId, e);
+    console.error(`[meta-capi] erro de rede ao enviar ${eventName}`, p.orderId, e);
   }
 }
