@@ -10,7 +10,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { midiaUrl } from "@/lib/utils";
+import { midiaUrl, linkBaixar } from "@/lib/utils";
 import type { Material, MaterialTipo } from "@/lib/types";
 
 const ICONE: Record<MaterialTipo, typeof Package> = {
@@ -76,7 +76,7 @@ export function MaterialCard({
             externo ? (
               <a href={material.url} target="_blank" rel="noopener noreferrer" />
             ) : (
-              <a href={midiaUrl(material.url)} download />
+              <a href={linkBaixar(midiaUrl(material.url), material.titulo)} download />
             )
           }
         >

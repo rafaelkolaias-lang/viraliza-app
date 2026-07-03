@@ -55,6 +55,20 @@ export async function GET(
   const ext = path.extname(alvo).toLowerCase();
   const contentType = CONTENT_TYPE[ext] ?? "application/octet-stream";
 
+  // ?dl=1 força o download (Content-Disposition: attachment) - faz o mobile baixar
+  // em vez de só abrir. ?nome define o nome do arquivo salvo.
+  const url = new URL(req.url);
+  let disposition: string | undefined;
+  if (url.searchParams.get("dl")) {
+    const bruto =
+      (url.searchParams.get("nome") || path.basename(alvo))
+        .replace(/[^\w.\- ]+/g, "_")
+        .replace(/\s+/g, "_")
+        .slice(0, 80) || "arquivo";
+    const nomeFinal = bruto.includes(".") ? bruto : `${bruto}${ext || ".mp4"}`;
+    disposition = `attachment; filename="${nomeFinal}"`;
+  }
+
   // Range: necessário pra vídeo (preview/seek) e pra arquivos grandes
   const range = req.headers.get("range");
   if (range) {
@@ -76,6 +90,7 @@ export async function GET(
         "accept-ranges": "bytes",
         "content-length": String(end - start + 1),
         "cache-control": "public, max-age=3600",
+        ...(disposition ? { "content-disposition": disposition } : {}),
       },
     });
   }
@@ -87,6 +102,7 @@ export async function GET(
       "content-length": String(size),
       "accept-ranges": "bytes",
       "cache-control": "public, max-age=3600",
+      ...(disposition ? { "content-disposition": disposition } : {}),
     },
   });
 }

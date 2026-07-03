@@ -30,6 +30,22 @@ export function midiaUrl(p?: string): string | undefined {
 }
 
 /**
+ * Link que FORÇA o download e funciona no celular (iOS/Android).
+ * O `download` de um <a> é ignorado quando o link é de outro domínio, então:
+ *  - link externo (http, ex.: media.univershoop.com) -> passa pelo proxy /api/baixar
+ *  - arquivo local (/api/midia/...) -> usa ?dl=1 (Content-Disposition: attachment)
+ * `src` já deve vir de midiaUrl()/driveDownload(). `nome` = nome do arquivo salvo.
+ */
+export function linkBaixar(src?: string, nome = "video"): string | undefined {
+  if (!src) return undefined
+  const q = `nome=${encodeURIComponent(nome)}`
+  if (/^https?:\/\//i.test(src)) {
+    return `/api/baixar?u=${encodeURIComponent(src)}&${q}`
+  }
+  return `${src}${src.includes("?") ? "&" : "?"}dl=1&${q}`
+}
+
+/**
  * Capa (thumbnail) de um corte. Como ainda não geramos um frame por vídeo,
  * usamos uma capa fixa por plataforma (imagens estáticas em /public/capas).
  * Detecta a origem pelo link; padrão = Shopee (todo o acervo atual é Shopee).

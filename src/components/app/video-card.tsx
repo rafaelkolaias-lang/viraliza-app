@@ -6,7 +6,7 @@ import { CortesCard } from "@/components/app/cortes-card";
 import { CorteThumb } from "@/components/hub/corte-thumb";
 import { CopyLinkButton } from "@/components/app/copy-link-button";
 import { Button } from "@/components/ui/button";
-import { midiaUrl } from "@/lib/utils";
+import { midiaUrl, linkBaixar } from "@/lib/utils";
 import { driveDownload, drivePreview } from "@/lib/drive";
 import type { VideoJob, VideoMidia } from "@/lib/types";
 
@@ -137,7 +137,15 @@ export function VideoCard({ video }: { video: VideoJob }) {
             <Button
               key={url}
               size="sm"
-              render={<a href={midiaUrl(url)} download />}
+              render={
+                <a
+                  href={linkBaixar(
+                    midiaUrl(url),
+                    saidas.length > 1 ? `${video.produto}-${i + 1}` : video.produto,
+                  )}
+                  download
+                />
+              }
             >
               <Download className="size-4" />
               {saidas.length > 1 ? `Baixar v${i + 1}` : "Baixar vídeo"}
@@ -233,10 +241,11 @@ function VarianteBloco({
           size="sm"
           render={
             <a
-              href={midia.driveId ? driveDownload(midia.driveId) : midiaUrl(midia.arquivo)}
+              href={linkBaixar(
+                midiaUrl(midia.arquivo) ?? (midia.driveId ? driveDownload(midia.driveId) : undefined),
+                produto,
+              )}
               download
-              target={midia.driveId ? "_blank" : undefined}
-              rel={midia.driveId ? "noreferrer" : undefined}
             />
           }
         >

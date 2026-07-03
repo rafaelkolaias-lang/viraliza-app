@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { midiaUrl } from "@/lib/utils";
+import { midiaUrl, linkBaixar } from "@/lib/utils";
 
 /** Baixa vários arquivos de uma vez (dispara um download por arquivo, espaçados). */
 export function BaixarTodos({
@@ -21,8 +21,9 @@ export function BaixarTodos({
     if (baixando || arquivos.length === 0) return;
     setBaixando(true);
     try {
-      for (const arq of arquivos) {
-        const url = midiaUrl(arq);
+      for (let i = 0; i < arquivos.length; i++) {
+        // força download same-origin (funciona no celular), com nome sequencial
+        const url = linkBaixar(midiaUrl(arquivos[i]), `corte-${i + 1}`);
         if (!url) continue;
         const a = document.createElement("a");
         a.href = url;

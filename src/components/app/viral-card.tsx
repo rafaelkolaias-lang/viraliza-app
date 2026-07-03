@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { CopyLinkButton } from "@/components/app/copy-link-button";
 import { VideoModal } from "@/components/app/video-modal";
-import { cn, midiaUrl, vendidosLabel } from "@/lib/utils";
+import { cn, midiaUrl, linkBaixar, vendidosLabel } from "@/lib/utils";
 import type { ViralVideo } from "@/lib/types";
 
 function duracao(seg: number) {
@@ -152,7 +152,7 @@ export function ViralCard({
               variant="outline"
               size="sm"
               className="w-full"
-              render={<a href={midiaUrl(video.arquivo)} download />}
+              render={<a href={linkBaixar(midiaUrl(video.arquivo), "viral")} download />}
             >
               <Download className="size-4" />
               Baixar

@@ -10,7 +10,7 @@ import { AutoAtualizar } from "@/components/app/auto-atualizar";
 import { StatusBadge } from "@/components/app/status-badge";
 import { requireUser } from "@/lib/dal";
 import { getJobDoUsuario } from "@/lib/jobs";
-import { midiaUrl } from "@/lib/utils";
+import { midiaUrl, linkBaixar } from "@/lib/utils";
 import { drivePreview, driveDownload } from "@/lib/drive";
 
 export const metadata: Metadata = { title: "Cortes do vídeo" };
@@ -127,10 +127,11 @@ export default async function CortesDetalhePage({
                     variant="outline"
                     render={
                       <a
-                        href={m.driveId ? driveDownload(m.driveId) : midiaUrl(m.arquivo)}
+                        href={linkBaixar(
+                          midiaUrl(m.arquivo) ?? (m.driveId ? driveDownload(m.driveId) : undefined),
+                          `corte-${i + 1}`,
+                        )}
                         download
-                        target={m.driveId ? "_blank" : undefined}
-                        rel={m.driveId ? "noreferrer" : undefined}
                       />
                     }
                   >
