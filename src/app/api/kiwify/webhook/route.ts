@@ -9,6 +9,7 @@ import {
   vendaEstornada,
 } from "@/lib/kiwify";
 import { debitarClamp, existeTransacaoOrder, lancar } from "@/lib/creditos";
+import { enviarCompraMeta } from "@/lib/meta-capi";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -61,6 +62,20 @@ export async function POST(req: Request) {
       where: { email },
       create: { email, kiwifyOrderId: orderId, produto: sale.product?.name ?? null },
       update: {},
+    });
+  }
+
+  // Atribuição Meta Ads: compra confirmada -> evento Purchase via CAPI (dados
+  // hasheados; a Meta liga a venda à campanha). Nunca quebra o fluxo: erro só loga.
+  // Reenvios do webhook não duplicam (event_id = orderId).
+  if (vendaEstaPaga(sale)) {
+    await enviarCompraMeta({
+      orderId,
+      email,
+      telefone: sale.customer?.mobile,
+      nome: sale.customer?.full_name,
+      valorCentavos: sale.payment?.charge_amount ?? sale.net_amount ?? 0,
+      produto: sale.product?.name,
     });
   }
 

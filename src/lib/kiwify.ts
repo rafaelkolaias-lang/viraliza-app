@@ -40,7 +40,7 @@ export type KiwifySale = {
   status: string; // "paid" | "refunded" | ...
   net_amount?: number; // centavos (líquido)
   payment?: { charge_amount?: number }; // centavos (o que o cliente pagou)
-  customer?: { email?: string; full_name?: string };
+  customer?: { email?: string; full_name?: string; mobile?: string };
   product?: { id?: string; name?: string };
 };
 
