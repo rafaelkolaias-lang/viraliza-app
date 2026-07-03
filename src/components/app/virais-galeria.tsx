@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ViralCard } from "@/components/app/viral-card";
 import { Paginacao } from "@/components/app/paginacao";
 import { excluirViral } from "@/app/actions/virais";
-import { midiaUrl } from "@/lib/utils";
+import { midiaUrl, linkBaixar } from "@/lib/utils";
 import type { ViralVideo } from "@/lib/types";
 
 /**
@@ -86,7 +86,8 @@ export function ViraisGaleria({
     escolhidos.forEach((v, i) => {
       setTimeout(() => {
         const a = document.createElement("a");
-        a.href = midiaUrl(v.arquivo)!;
+        // linkBaixar força o download de verdade (funciona no celular)
+        a.href = linkBaixar(midiaUrl(v.arquivo), v.titulo)!;
         a.download = "";
         document.body.appendChild(a);
         a.click();

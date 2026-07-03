@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Play, Download, TrendingUp, Flame, ExternalLink, Pencil, X } from "lucide-react";
-import { midiaUrl, vendidosLabel, capaCorte } from "@/lib/utils";
+import { midiaUrl, linkBaixar, vendidosLabel, capaCorte } from "@/lib/utils";
 import { drivePreview, driveDownload } from "@/lib/drive";
 import { CorteThumb } from "@/components/hub/corte-thumb";
 import type { ViralVideo } from "@/lib/types";
@@ -34,8 +34,11 @@ function duracao(seg: number) {
 export function CapaCorte({ video }: { video: ViralVideo }) {
   const [aberto, setAberto] = useState(false);
 
-  // Baixar: link direto (Drive) ou arquivo local.
-  const baixar = video.driveId ? driveDownload(video.driveId) : midiaUrl(video.arquivo);
+  // Baixar: Drive segue direto (abre em nova aba); arquivo nosso passa pelo
+  // linkBaixar, que força o download de verdade no celular (iOS/Android).
+  const baixar = video.driveId
+    ? driveDownload(video.driveId)
+    : linkBaixar(midiaUrl(video.arquivo), video.titulo);
   // Player inline (modal): iframe do Drive, ou o próprio arquivo local.
   const preview = video.driveId ? drivePreview(video.driveId) : undefined;
   const arquivoLocal = !video.driveId && video.arquivo ? midiaUrl(video.arquivo) : undefined;
