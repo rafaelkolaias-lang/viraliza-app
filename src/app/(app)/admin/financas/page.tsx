@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/table";
 import { StatCard } from "@/components/app/stat-card";
 import { GraficoVendas } from "@/components/app/grafico-vendas";
-import { getPainelFinancas, PERIODOS_FINANCAS } from "@/lib/financas";
+import { getPainelFinancas, PERIODOS_FINANCAS, DIAS_PADRAO } from "@/lib/financas";
 
 export const metadata: Metadata = { title: "Admin · Finanças" };
 export const dynamic = "force-dynamic";
@@ -44,8 +44,13 @@ export default async function FinancasPage({
 }) {
   const sp = await searchParams;
   const pedido = Number(sp?.dias);
-  const dias = (PERIODOS_FINANCAS as readonly number[]).includes(pedido) ? pedido : 7;
+  const dias = PERIODOS_FINANCAS.some((p) => p.v === pedido) ? pedido : DIAS_PADRAO;
   const f = await getPainelFinancas(dias);
+
+  const labelPeriodo =
+    PERIODOS_FINANCAS.find((p) => p.v === dias)?.label ?? `${dias} dias`;
+  const tituloLista =
+    dias === 1 ? "Entraram hoje" : dias === 0 ? "Todas as vendas" : `Vendas · últimos ${f.periodo.dias} dias`;
 
   return (
     <div className="space-y-6">
@@ -60,19 +65,19 @@ export default async function FinancasPage({
             teste anterior não entra nos números).
           </p>
         </div>
-        {/* filtro de período */}
+        {/* filtro de período: TODOS os números da página seguem ele */}
         <div className="flex gap-1 rounded-lg border border-border p-1">
           {PERIODOS_FINANCAS.map((p) => (
             <Link
-              key={p}
-              href={`?dias=${p}`}
+              key={p.v}
+              href={`?dias=${p.v}`}
               className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-                dias === p
+                dias === p.v
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:bg-muted"
               }`}
             >
-              {p} dias
+              {p.label}
             </Link>
           ))}
         </div>
@@ -85,12 +90,12 @@ export default async function FinancasPage({
         </div>
       )}
 
-      {/* Cards */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
+      {/* Cards - todos do PERÍODO selecionado (+ os 2 primeiros fixos de hoje) */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
         <StatCard label="Receita hoje" value={brl(f.hoje.receitaCentavos)} icon={DollarSign} />
         <StatCard label="Vendas hoje" value={f.hoje.pagas} icon={ShoppingCart} />
-        <StatCard label="Receita no período" value={brl(f.periodo.receitaCentavos)} icon={Wallet} />
-        <StatCard label="Vendas no período" value={f.periodo.vendasPagas} icon={Receipt} />
+        <StatCard label={`Receita · ${labelPeriodo}`} value={brl(f.periodo.receitaCentavos)} icon={Wallet} />
+        <StatCard label={`Vendas · ${labelPeriodo}`} value={f.periodo.vendasPagas} icon={Receipt} />
         <StatCard label="Reembolsos" value={`− ${brl(f.periodo.reembolsoCentavos)}`} icon={Undo2} />
         <StatCard label="Receita − reembolsos" value={brl(f.periodo.receitaFinalCentavos)} icon={Wallet} />
         <StatCard label="Clientes" value={f.periodo.clientes} icon={Users} />
@@ -106,15 +111,15 @@ export default async function FinancasPage({
         <b className="text-foreground">{brl(f.periodo.receitaLiquidaCentavos)}</b>.
       </p>
 
-      {/* Entraram hoje */}
+      {/* Vendas do período */}
       <div>
         <h2 className="mb-3 text-sm font-semibold">
-          Entraram hoje ({f.compradoresHoje.length})
+          {tituloLista} ({f.vendasPeriodo.length})
         </h2>
-        {f.compradoresHoje.length === 0 ? (
+        {f.vendasPeriodo.length === 0 ? (
           <div className="grid place-items-center rounded-xl border border-dashed border-border py-12 text-center">
             <ShoppingCart className="size-7 text-muted-foreground" />
-            <p className="mt-3 font-medium">Nenhuma venda hoje ainda</p>
+            <p className="mt-3 font-medium">Nenhuma venda no período</p>
             <p className="text-sm text-muted-foreground">Assim que alguém comprar, aparece aqui.</p>
           </div>
         ) : (
@@ -123,13 +128,13 @@ export default async function FinancasPage({
               <TableHeader>
                 <TableRow>
                   <TableHead>Cliente</TableHead>
-                  <TableHead className="hidden sm:table-cell">Hora</TableHead>
+                  <TableHead className="hidden sm:table-cell">Quando</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Valor</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {f.compradoresHoje.map((c, i) => {
+                {f.vendasPeriodo.map((c, i) => {
                   const st = statusLabel(c.status, c.pago);
                   return (
                     <TableRow key={`${c.email}-${i}`}>
@@ -138,7 +143,7 @@ export default async function FinancasPage({
                         <p className="text-xs text-muted-foreground">{c.email}</p>
                       </TableCell>
                       <TableCell className="hidden text-sm text-muted-foreground sm:table-cell">
-                        {c.hora}
+                        {c.quando}
                       </TableCell>
                       <TableCell>
                         <span className={`rounded px-2 py-0.5 text-xs font-medium ${st.cls}`}>

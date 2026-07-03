@@ -5,7 +5,7 @@ const brl = (centavos: number) =>
   (centavos / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 /** Gráfico de LINHAS por dia (SVG puro, sem lib): verde = vendas (receita),
- *  vermelho = reembolsos. Tooltip por dia no hover (title). */
+ *  vermelho = reembolsos. Bolinhas nos pontos + tooltip animado no hover. */
 export function GraficoVendas({ dias }: { dias: DiaVenda[] }) {
   const max = Math.max(
     1,
@@ -15,10 +15,11 @@ export function GraficoVendas({ dias }: { dias: DiaVenda[] }) {
   const totalVendas = dias.reduce((s, d) => s + d.vendas, 0);
   const totalReembolso = dias.reduce((s, d) => s + d.reembolsoCentavos, 0);
 
-  // pontos numa viewBox 0..100 x 0..100 (y invertido: 100 = zero)
+  // pontos numa viewBox 0..100 x 0..100 (y invertido: 100 = zero). O x fica no
+  // CENTRO da coluna de cada dia, pra bolinha/tooltip alinharem com a linha.
   const n = dias.length;
-  const x = (i: number) => (n === 1 ? 50 : (i / (n - 1)) * 100);
-  const y = (v: number) => 100 - (v / max) * 92 - 4; // 4% de folga em cima/embaixo
+  const x = (i: number) => ((i + 0.5) / n) * 100;
+  const y = (v: number) => 100 - (v / max) * 86 - 7; // folga em cima/embaixo
   const linha = (get: (d: DiaVenda) => number) =>
     dias.map((d, i) => `${x(i).toFixed(2)},${y(get(d)).toFixed(2)}`).join(" ");
 
@@ -41,7 +42,7 @@ export function GraficoVendas({ dias }: { dias: DiaVenda[] }) {
         </div>
       </div>
 
-      <div className="relative mt-5 h-44">
+      <div className="relative mt-5 h-48">
         <svg
           viewBox="0 0 100 100"
           preserveAspectRatio="none"
@@ -82,19 +83,43 @@ export function GraficoVendas({ dias }: { dias: DiaVenda[] }) {
             strokeLinecap="round"
           />
         </svg>
-        {/* colunas invisíveis por dia: tooltip + marcador no hover */}
+
+        {/* uma coluna interativa por dia: bolinhas + guia + tooltip animado */}
         <div className="absolute inset-0 flex">
-          {dias.map((d) => (
-            <div
-              key={d.chave}
-              className="group/dia relative flex-1 border-transparent hover:bg-foreground/[0.04]"
-              title={`${d.label}: ${brl(d.receitaCentavos)} em ${d.vendas} venda${d.vendas === 1 ? "" : "s"}${
-                d.reembolsos
-                  ? ` · ${brl(d.reembolsoCentavos)} em ${d.reembolsos} reembolso${d.reembolsos === 1 ? "" : "s"}`
-                  : ""
-              }`}
-            />
-          ))}
+          {dias.map((d) => {
+            const yVenda = y(d.receitaCentavos);
+            const yReemb = y(d.reembolsoCentavos);
+            return (
+              <div key={d.chave} className="group/dia relative flex-1">
+                {/* guia vertical no hover */}
+                <div className="absolute inset-y-0 left-1/2 hidden w-px -translate-x-1/2 bg-foreground/15 group-hover/dia:block" />
+
+                {/* bolinha: vendas */}
+                <span
+                  className="absolute left-1/2 z-[1] size-2 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-emerald-500 bg-card transition-transform duration-150 group-hover/dia:scale-150 group-hover/dia:bg-emerald-500"
+                  style={{ top: `${yVenda}%` }}
+                />
+                {/* bolinha: reembolsos */}
+                <span
+                  className="absolute left-1/2 z-[1] size-2 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-red-500 bg-card transition-transform duration-150 group-hover/dia:scale-150 group-hover/dia:bg-red-500"
+                  style={{ top: `${yReemb}%` }}
+                />
+
+                {/* tooltip animado */}
+                <div className="pointer-events-none absolute left-1/2 top-1 z-10 w-max -translate-x-1/2 translate-y-1 rounded-lg border border-border bg-popover px-3 py-2 text-xs opacity-0 shadow-lg transition-all duration-150 group-hover/dia:translate-y-0 group-hover/dia:opacity-100">
+                  <p className="mb-1 font-semibold text-foreground">{d.label}</p>
+                  <p className="flex items-center gap-1.5 text-emerald-500">
+                    <span className="inline-block size-1.5 rounded-full bg-emerald-500" />
+                    {brl(d.receitaCentavos)} · {d.vendas} venda{d.vendas === 1 ? "" : "s"}
+                  </p>
+                  <p className="flex items-center gap-1.5 text-red-500">
+                    <span className="inline-block size-1.5 rounded-full bg-red-500" />
+                    −{brl(d.reembolsoCentavos)} · {d.reembolsos} reembolso{d.reembolsos === 1 ? "" : "s"}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
