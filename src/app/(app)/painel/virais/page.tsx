@@ -23,15 +23,21 @@ export default async function ViraisPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-          <Flame className="size-6 text-orange-400" />
-          Cortes Shopee
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {total.toLocaleString("pt-BR")} cortes prontos pra postar - separados por
-          nicho. Arraste de lado e baixe o que quiser.
-        </p>
+      <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-primary/12 via-card to-background p-5 sm:p-6">
+        <div className="pointer-events-none absolute -right-8 -top-10 size-40 rounded-full bg-orange-500/15 blur-3xl" />
+        <div className="relative">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-orange-500 to-rose-500 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm">
+            <Flame className="size-3.5 fill-white" />
+            Atualiza sozinho, todo dia
+          </span>
+          <h1 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">
+            Cortes Shopee virais
+          </h1>
+          <p className="mt-1.5 max-w-xl text-sm text-muted-foreground">
+            {total.toLocaleString("pt-BR")} cortes prontos pra postar, separados por
+            nicho. Passe o mouse pra assistir, baixe ou edite com um clique.
+          </p>
+        </div>
       </div>
 
       {total === 0 ? (

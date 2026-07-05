@@ -117,8 +117,9 @@ export function ViralCard({
               {vendidosLabel(video.id)}
             </span>
             {video.emAlta && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/15 px-2 py-0.5 text-[11px] font-semibold text-orange-500">
-                🔥 Em alta
+              <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-orange-500 to-rose-500 px-2 py-0.5 text-[11px] font-semibold text-white">
+                <Flame className="size-3 fill-white" />
+                Em alta
               </span>
             )}
             {video.categoria && (

@@ -1,28 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Play, Download, TrendingUp, Flame, ExternalLink, Pencil, X } from "lucide-react";
+import { Play, Download, TrendingUp, Flame, ExternalLink, Pencil, X, Tag } from "lucide-react";
 import { midiaUrl, linkBaixar, vendidosLabel, capaCorte } from "@/lib/utils";
 import { drivePreview, driveDownload } from "@/lib/drive";
 import { CorteThumb } from "@/components/hub/corte-thumb";
 import type { ViralVideo } from "@/lib/types";
-
-/** 6 gradientes pra dar vida à parede mesmo sem thumbnail (escolhido pelo id). */
-const GRADIENTES = [
-  "from-emerald-500/30 via-card to-background",
-  "from-cyan-500/30 via-card to-background",
-  "from-fuchsia-500/30 via-card to-background",
-  "from-amber-500/30 via-card to-background",
-  "from-rose-500/30 via-card to-background",
-  "from-violet-500/30 via-card to-background",
-];
-
-function gradDe(id: string) {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  return GRADIENTES[h % GRADIENTES.length];
-}
 
 function duracao(seg: number) {
   const m = Math.floor(seg / 60);
@@ -30,9 +14,10 @@ function duracao(seg: number) {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-/** Capa grande de um corte (estilo Netflix), 9:16. Hover destaca + revela as ações. */
+/** Capa grande de um corte (estilo Netflix), 9:16. Passa o mouse: o vídeo toca sozinho. */
 export function CapaCorte({ video }: { video: ViralVideo }) {
   const [aberto, setAberto] = useState(false);
+  const vidRef = useRef<HTMLVideoElement>(null);
 
   // Baixar: Drive segue direto (abre em nova aba); arquivo nosso passa pelo
   // linkBaixar, que força o download de verdade no celular (iOS/Android).
@@ -43,8 +28,13 @@ export function CapaCorte({ video }: { video: ViralVideo }) {
   const preview = video.driveId ? drivePreview(video.driveId) : undefined;
   const arquivoLocal = !video.driveId && video.arquivo ? midiaUrl(video.arquivo) : undefined;
   const podeAssistir = !!(preview || arquivoLocal);
+  // Preview que toca no hover: arquivo do serverrk direto, ou proxy do Drive (mesma-origem).
+  const previewSrc = video.arquivo
+    ? midiaUrl(video.arquivo)
+    : video.driveId
+      ? `/api/drive-video/${video.driveId}`
+      : null;
   // "Editar esse": abre o Editor com uma CÓPIA (URL mesma-origem, sem CORS).
-  // Drive passa pelo proxy /api/drive-video; arquivo local já é mesma-origem.
   const editUrl = video.driveId
     ? `/api/drive-video/${video.driveId}`
     : video.arquivo
@@ -53,6 +43,23 @@ export function CapaCorte({ video }: { video: ViralVideo }) {
   const editorHref = editUrl
     ? `/painel/novo?video=${encodeURIComponent(editUrl)}&nome=${encodeURIComponent(video.titulo)}`
     : null;
+
+  // hover no desktop: começa a tocar (mudo, em loop); sai: pausa e volta pro início
+  function tocarHover() {
+    const v = vidRef.current;
+    if (!v) return;
+    v.play().catch(() => {});
+  }
+  function pararHover() {
+    const v = vidRef.current;
+    if (!v) return;
+    v.pause();
+    try {
+      v.currentTime = 0;
+    } catch {
+      /* alguns navegadores reclamam antes de carregar; ignora */
+    }
+  }
 
   // fecha o modal com ESC + trava o scroll do fundo
   useEffect(() => {
@@ -69,10 +76,11 @@ export function CapaCorte({ video }: { video: ViralVideo }) {
   return (
     <div className="group relative w-[150px] shrink-0 sm:w-[170px]">
       <div
-        className={`relative aspect-[9/16] overflow-hidden rounded-xl border border-border bg-gradient-to-b ${gradDe(
-          video.id,
-        )} shadow-sm ring-1 ring-inset ring-white/5 transition-all duration-200 group-hover:scale-[1.04] group-hover:border-primary/60 group-hover:shadow-xl group-hover:shadow-primary/20`}
+        onMouseEnter={tocarHover}
+        onMouseLeave={pararHover}
+        className="relative aspect-[9/16] overflow-hidden rounded-xl border border-border bg-card shadow-sm ring-1 ring-inset ring-white/5 transition-all duration-200 group-hover:scale-[1.04] group-hover:border-primary/60 group-hover:shadow-xl group-hover:shadow-primary/20"
       >
+        {/* base: thumbnail (paint instantâneo) */}
         <CorteThumb
           thumbId={video.thumbDriveId}
           fallback={capaCorte(video)}
@@ -80,13 +88,35 @@ export function CapaCorte({ video }: { video: ViralVideo }) {
           className="size-full object-cover"
         />
 
-        {/* selo Viral (foguinho) */}
-        <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-bold text-orange-400 backdrop-blur-sm">
-          <Flame className="size-3 fill-orange-400" />
-          Viral
-        </span>
+        {/* vídeo que aparece e toca no hover (por cima do thumb) */}
+        {previewSrc && (
+          // eslint-disable-next-line jsx-a11y/media-has-caption
+          <video
+            ref={vidRef}
+            src={previewSrc}
+            muted
+            loop
+            playsInline
+            preload="none"
+            className="absolute inset-0 size-full object-cover opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+          />
+        )}
 
-        {/* play central - abre o player inline (modal), sem sair da plataforma */}
+        {/* badge: Em alta (foguinho, degradê) quando bombando; senão Viral discreto */}
+        {video.emAlta ? (
+          <span className="absolute left-2 top-2 z-20 inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-orange-500 to-rose-500 px-2 py-0.5 text-[11px] font-bold text-white shadow-sm">
+            <Flame className="size-3 fill-white" />
+            Em alta
+          </span>
+        ) : (
+          <span className="absolute left-2 top-2 z-20 inline-flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-bold text-orange-400 backdrop-blur-sm">
+            <Flame className="size-3 fill-orange-400" />
+            Viral
+          </span>
+        )}
+
+        {/* play central - abre o player inline (modal), sem sair da plataforma.
+            Some no hover pra não tapar o preview em vídeo. */}
         {podeAssistir ? (
           <button
             type="button"
@@ -94,13 +124,13 @@ export function CapaCorte({ video }: { video: ViralVideo }) {
             aria-label="Assistir"
             className="absolute inset-0 z-10 grid cursor-pointer place-items-center"
           >
-            <span className="grid size-11 place-items-center rounded-full bg-background/55 backdrop-blur-sm transition-transform group-hover:scale-110">
+            <span className="grid size-11 place-items-center rounded-full bg-background/55 backdrop-blur-sm transition-all duration-200 group-hover:scale-90 group-hover:opacity-0">
               <Play className="size-5 fill-white text-white" />
             </span>
           </button>
         ) : (
           <div className="pointer-events-none absolute inset-0 grid place-items-center">
-            <span className="grid size-11 place-items-center rounded-full bg-background/55 backdrop-blur-sm transition-transform group-hover:scale-110">
+            <span className="grid size-11 place-items-center rounded-full bg-background/55 backdrop-blur-sm">
               <Play className="size-5 fill-white text-white" />
             </span>
           </div>
@@ -112,11 +142,11 @@ export function CapaCorte({ video }: { video: ViralVideo }) {
         </span>
 
         {/* rodapé com ações (revela no hover no desktop; sempre visível no mobile) */}
-        <div className="absolute inset-x-0 bottom-0 z-20 flex translate-y-0 flex-col gap-1.5 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-2 pt-6 opacity-100 transition-all duration-200 md:translate-y-2 md:opacity-0 md:group-hover:translate-y-0 md:group-hover:opacity-100">
+        <div className="absolute inset-x-0 bottom-0 z-30 flex flex-col gap-1.5 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-2 pt-6 opacity-100 transition-all duration-200 md:translate-y-2 md:opacity-0 md:group-hover:translate-y-0 md:group-hover:opacity-100">
           {editorHref && (
             <Link
               href={editorHref}
-              className="flex h-8 w-full items-center justify-center gap-1.5 rounded-md bg-primary text-xs font-semibold text-primary-foreground"
+              className="flex h-8 w-full items-center justify-center gap-1.5 rounded-md bg-primary text-xs font-semibold text-primary-foreground transition-transform hover:scale-[1.02]"
             >
               <Pencil className="size-3.5" />
               Editar esse
@@ -127,7 +157,7 @@ export function CapaCorte({ video }: { video: ViralVideo }) {
               href={baixar}
               download
               {...(video.driveId ? { target: "_blank", rel: "noreferrer" } : {})}
-              className="flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-white/25 bg-black/40 text-xs font-semibold text-white backdrop-blur-sm hover:border-primary/60"
+              className="flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-white/25 bg-black/40 text-xs font-semibold text-white backdrop-blur-sm transition-colors hover:border-primary/60"
             >
               <Download className="size-3.5" />
               Baixar
@@ -138,7 +168,7 @@ export function CapaCorte({ video }: { video: ViralVideo }) {
               href={video.link}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-white/25 bg-black/40 text-xs font-semibold text-white backdrop-blur-sm hover:border-primary/60"
+              className="flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-white/25 bg-black/40 text-xs font-semibold text-white backdrop-blur-sm transition-colors hover:border-primary/60"
             >
               <ExternalLink className="size-3.5" />
               Ver produto
@@ -147,12 +177,22 @@ export function CapaCorte({ video }: { video: ViralVideo }) {
         </div>
       </div>
 
-      {/* título + prova social */}
-      <p className="mt-1.5 line-clamp-1 text-xs font-medium">{video.titulo}</p>
-      <span className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium text-primary">
-        <TrendingUp className="size-3" />
-        {vendidosLabel(video.id)}
-      </span>
+      {/* título (2 linhas, cabe o nome do produto) + nicho + prova social */}
+      <p className="mt-1.5 line-clamp-2 min-h-[2.25rem] text-xs font-medium leading-snug">
+        {video.titulo}
+      </p>
+      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-primary">
+          <TrendingUp className="size-3" />
+          {vendidosLabel(video.id)}
+        </span>
+        {video.categoria && (
+          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+            <Tag className="size-3" />
+            {video.categoria}
+          </span>
+        )}
+      </div>
 
       {/* ===== MODAL PLAYER (só monta quando aberto) ===== */}
       {aberto && (
@@ -170,7 +210,7 @@ export function CapaCorte({ video }: { video: ViralVideo }) {
                 type="button"
                 onClick={() => setAberto(false)}
                 aria-label="Fechar"
-                className="grid size-8 shrink-0 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20"
+                className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
               >
                 <X className="size-4" />
               </button>
