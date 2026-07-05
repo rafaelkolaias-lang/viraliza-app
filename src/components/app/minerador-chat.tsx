@@ -181,7 +181,7 @@ export function MineradorChat() {
           <div className="hidden shrink-0 lg:block">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/minerador/heroi.webp"
+              src="/minerador/heroi.webp?v=2"
               alt=""
               className="size-64 object-contain drop-shadow-[0_10px_40px_rgba(16,185,129,0.35)]"
               style={{ animation: "mineradorFloat 4s ease-in-out infinite" }}
@@ -207,7 +207,7 @@ export function MineradorChat() {
             />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/minerador/lupa.webp"
+              src="/minerador/lupa.webp?v=2"
               alt="Garimpando"
               className="relative size-48 object-contain"
               style={{ animation: "mineradorFloat 3s ease-in-out infinite" }}
