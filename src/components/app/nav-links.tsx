@@ -20,6 +20,7 @@ import {
   Clapperboard,
   Bell,
   DollarSign,
+  Pickaxe,
   ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -48,6 +49,7 @@ const ferramentasSub = [
 
 export const adminItems = [
   { href: "/admin", label: "Visão geral", icon: Gauge },
+  { href: "/admin/minerador", label: "Minerador", icon: Pickaxe },
   { href: "/admin/financas", label: "Finanças", icon: DollarSign },
   { href: "/admin/usuarios", label: "Usuários", icon: Users },
   { href: "/admin/notificacoes", label: "Notificações", icon: Bell },

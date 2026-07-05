@@ -155,3 +155,21 @@
     animation: none;
   }
 }
+
+/* Minerador: entrada suave dos cards de produto */
+@keyframes mineradorIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [style*="mineradorIn"] {
+    animation: none !important;
+  }
+}
