@@ -25,10 +25,9 @@ export const PERIODOS_FINANCAS = [
 export const DIAS_PADRAO = 7;
 const MAX_DIAS_GRAFICO = 90; // teto de buckets do "Tudo" (sanidade)
 
-// MARCO ZERO das finanças: só conta venda a partir daqui. O histórico de
-// teste/lançamento (01/07/2026 e antes) NÃO entra nos números. A partir de
-// 02/07/2026 as vendas são reais. Pra mudar o corte, é só ajustar esta data.
-const DESDE_ISO = "2026-07-02T00:00:00-03:00"; // 02/07/2026 00:00 (horário de Brasília)
+// MARCO ZERO das finanças: só conta venda a partir daqui. Pra mudar o corte, é
+// só ajustar esta data. Passou pra 29/06/2026 a pedido (pega mais dias atrás).
+const DESDE_ISO = "2026-06-29T00:00:00-03:00"; // 29/06/2026 00:00 (horário de Brasília)
 const DESDE_MS = new Date(DESDE_ISO).getTime();
 const fmtDesde = new Intl.DateTimeFormat("pt-BR", {
   timeZone: "America/Sao_Paulo",
