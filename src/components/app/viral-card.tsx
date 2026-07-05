@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Play, Flame, Check, ExternalLink, Download, Trash2, TrendingUp } from "lucide-react";
+import Link from "next/link";
+import { Play, Flame, Check, ExternalLink, Download, Trash2, TrendingUp, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { CopyLinkButton } from "@/components/app/copy-link-button";
@@ -32,6 +33,15 @@ export function ViralCard({
 }) {
   const [tocando, setTocando] = useState(false);
   const fonteVideo = video.arquivo ? midiaUrl(video.arquivo) : undefined;
+  // "Editar esse": abre o Editor com uma cópia mesma-origem (Drive via proxy).
+  const editUrl = video.driveId
+    ? `/api/drive-video/${video.driveId}`
+    : video.arquivo
+      ? midiaUrl(video.arquivo)
+      : null;
+  const editorHref = editUrl
+    ? `/painel/novo?video=${encodeURIComponent(editUrl)}&nome=${encodeURIComponent(video.titulo)}`
+    : null;
   return (
     <>
     <div
@@ -131,6 +141,17 @@ export function ViralCard({
         </div>
 
         <div className="flex flex-col gap-2">
+          {editorHref && (
+            <Button
+              size="sm"
+              className="w-full"
+              render={<Link href={editorHref} />}
+            >
+              <Pencil className="size-4" />
+              Editar esse
+            </Button>
+          )}
+
           {video.link && (
             <>
               <Button

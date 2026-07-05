@@ -64,13 +64,14 @@ function filtroCategoria(nicho?: string) {
   return { categoria: nicho === BUCKET_SEM_NICHO ? "" : nicho };
 }
 
-/** Página de vídeos (opcionalmente de um nicho). Só carrega `porPagina` linhas. */
+/** Página de vídeos (por nicho ou "Em alta"). Só carrega `porPagina` linhas. */
 export async function getViralVideosPagina(opts: {
   nicho?: string;
+  emAlta?: boolean;
   pagina: number;
   porPagina: number;
 }): Promise<{ itens: ViralVideo[]; total: number }> {
-  const where = filtroCategoria(opts.nicho);
+  const where = opts.emAlta ? { emAlta: true } : filtroCategoria(opts.nicho);
   const pagina = Math.max(1, opts.pagina);
   const [rows, total] = await Promise.all([
     prisma.videoShopee.findMany({
@@ -95,7 +96,7 @@ export type Prateleira = { nicho: string; total: number; itens: ViralVideo[] };
 export async function getPrateleirasVirais(
   porPrateleira = 20,
   maxNichos = 14,
-): Promise<{ emAlta: ViralVideo[]; nichos: Prateleira[] }> {
+): Promise<{ emAlta: ViralVideo[]; emAltaTotal: number; nichos: Prateleira[] }> {
   const grupos = await prisma.videoShopee.groupBy({
     by: ["categoria"],
     _count: { _all: true },
@@ -105,13 +106,14 @@ export async function getPrateleirasVirais(
     .sort((a, b) => b.total - a.total)
     .slice(0, maxNichos);
 
-  const [emAltaRows, ...porNicho] = await Promise.all([
+  const [emAltaRows, emAltaCount, ...porNicho] = await Promise.all([
     prisma.videoShopee.findMany({
       where: { emAlta: true },
       select: SELECT,
       orderBy: { adicionadoEm: "desc" },
       take: porPrateleira,
     }),
+    prisma.videoShopee.count({ where: { emAlta: true } }),
     ...ordenados.map((g) =>
       prisma.videoShopee.findMany({
         where: { categoria: g.cat },
@@ -123,14 +125,19 @@ export async function getPrateleirasVirais(
   ]);
 
   let emAlta = emAltaRows.map(mapear);
+  let emAltaTotal = emAltaCount;
   if (!emAlta.length) {
     // ninguém marcado "em alta" ainda -> usa os mais novos de todos
-    const recent = await prisma.videoShopee.findMany({
-      select: SELECT,
-      orderBy: { adicionadoEm: "desc" },
-      take: porPrateleira,
-    });
+    const [recent, todos] = await Promise.all([
+      prisma.videoShopee.findMany({
+        select: SELECT,
+        orderBy: { adicionadoEm: "desc" },
+        take: porPrateleira,
+      }),
+      prisma.videoShopee.count(),
+    ]);
     emAlta = recent.map(mapear);
+    emAltaTotal = todos;
   }
 
   const nichos: Prateleira[] = ordenados.map((g, i) => ({
@@ -139,7 +146,7 @@ export async function getPrateleirasVirais(
     itens: porNicho[i].map(mapear),
   }));
 
-  return { emAlta, nichos };
+  return { emAlta, emAltaTotal, nichos };
 }
 
 /** Só a contagem (pro Início/Shopee). */

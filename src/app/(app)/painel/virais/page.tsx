@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Flame } from "lucide-react";
-import { Prateleira } from "@/components/hub/prateleira";
-import { CapaCorte } from "@/components/hub/capa-corte";
+import { PrateleiraVirais } from "@/components/hub/prateleira-virais";
 import { getPrateleirasVirais, getTotalVirais } from "@/lib/virais";
 import { requireAssinatura } from "@/lib/dal";
 
@@ -16,7 +15,7 @@ const POR_PRATELEIRA = 20;
 
 export default async function ViraisPage() {
   await requireAssinatura();
-  const [{ emAlta, nichos }, total] = await Promise.all([
+  const [{ emAlta, emAltaTotal, nichos }, total] = await Promise.all([
     getPrateleirasVirais(POR_PRATELEIRA),
     getTotalVirais(),
   ]);
@@ -50,22 +49,25 @@ export default async function ViraisPage() {
         </div>
       ) : (
         <>
-          <Prateleira titulo="🔥 Em alta agora" verTodosHref="/painel/virais/todos">
-            {emAlta.map((v) => (
-              <CapaCorte key={v.id} video={v} />
-            ))}
-          </Prateleira>
+          <PrateleiraVirais
+            titulo="Em alta agora"
+            verTodosHref="/painel/virais/todos"
+            itensIniciais={emAlta}
+            total={emAltaTotal}
+            emAlta
+            porPagina={POR_PRATELEIRA}
+          />
 
           {nichos.map((n) => (
-            <Prateleira
+            <PrateleiraVirais
               key={n.nicho}
               titulo={`${n.nicho} (${n.total.toLocaleString("pt-BR")})`}
               verTodosHref={n.total > n.itens.length ? href(n.nicho) : undefined}
-            >
-              {n.itens.map((v) => (
-                <CapaCorte key={v.id} video={v} />
-              ))}
-            </Prateleira>
+              itensIniciais={n.itens}
+              total={n.total}
+              nicho={n.nicho}
+              porPagina={POR_PRATELEIRA}
+            />
           ))}
         </>
       )}

@@ -3,10 +3,30 @@
 import fs from "node:fs";
 import path from "node:path";
 import { revalidatePath } from "next/cache";
-import { requireAdmin } from "@/lib/dal";
+import { requireAdmin, requireAssinatura } from "@/lib/dal";
+import { getViralVideosPagina } from "@/lib/virais";
 import type { ViralVideo } from "@/lib/types";
 
 export type ViralActionState = { erro?: string; ok?: boolean } | undefined;
+
+/**
+ * Carrega mais vídeos de uma prateleira (scroll infinito). Recebe a próxima página
+ * de um nicho ou da faixa "Em alta". Só pra quem tem acesso à biblioteca.
+ */
+export async function maisVirais(opts: {
+  nicho?: string;
+  emAlta?: boolean;
+  pagina: number;
+  porPagina?: number;
+}): Promise<{ itens: ViralVideo[]; total: number }> {
+  await requireAssinatura();
+  return getViralVideosPagina({
+    nicho: opts.nicho,
+    emAlta: opts.emAlta,
+    pagina: Math.max(1, opts.pagina),
+    porPagina: Math.min(40, Math.max(1, opts.porPagina ?? 20)),
+  });
+}
 
 /**
  * Exclui um vídeo viral da galeria. SÓ ADMIN.
