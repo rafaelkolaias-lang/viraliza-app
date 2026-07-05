@@ -136,5 +136,12 @@ export async function buscarVideos(
       duracaoSeg: true, adicionadoEm: true, migrado: true, driveId: true, thumbDriveId: true,
     },
   });
-  return rows.map(mapear);
+  // "Em alta agora": vídeo já marcado no banco, OU adicionado nos últimos 14 dias
+  // (fresco = bombando), OU entre os 3 primeiros (mais relevantes do nicho).
+  const corte = Date.now() - 14 * 86_400_000;
+  return rows.map((r, i) => {
+    const v = mapear(r);
+    v.emAlta = r.emAlta || r.adicionadoEm.getTime() >= corte || i < 3;
+    return v;
+  });
 }

@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { CorteThumb } from "@/components/hub/corte-thumb";
-import { cn, midiaUrl, linkBaixar } from "@/lib/utils";
+import { midiaUrl, linkBaixar } from "@/lib/utils";
 import { driveDownload, drivePreview } from "@/lib/drive";
 import type { ViralVideo } from "@/lib/types";
 
@@ -29,7 +29,6 @@ const SUGESTOES = [
   "coisas pra criança",
 ];
 
-// frases que giram durante o "garimpo"
 const FASES = [
   "Descendo na mina dos virais...",
   "Passando a lupa nos campeões de venda...",
@@ -37,6 +36,10 @@ const FASES = [
   "Separando os que estão em alta...",
   "Lapidando sua vitrine...",
 ];
+
+const REVEAL_MS = 320; // tempo entre um card e outro (devagar, elegante)
+const MIN_GARIMPO_MS = 3400; // tempo mínimo de "mineração" pra dar a sensação
+const ALVO_CONTADOR = 1477; // vídeos "analisados" (efeito)
 
 type Resposta = {
   termo: string;
@@ -49,17 +52,29 @@ export function MineradorChat() {
   const [texto, setTexto] = useState("");
   const [buscando, setBuscando] = useState(false);
   const [fase, setFase] = useState(0);
+  const [contador, setContador] = useState(0);
   const [res, setRes] = useState<Resposta | null>(null);
   const [visiveis, setVisiveis] = useState(0);
   const fimRef = useRef<HTMLDivElement>(null);
 
+  // frases + contador de "vídeos analisados" durante o garimpo
   useEffect(() => {
     if (!buscando) return;
-    const t = setInterval(() => setFase((f) => (f + 1) % FASES.length), 1300);
-    return () => clearInterval(t);
+    setContador(0);
+    const tFase = setInterval(() => setFase((f) => (f + 1) % FASES.length), 1400);
+    const tNum = setInterval(() => {
+      setContador((c) => {
+        const passo = Math.max(7, Math.round((ALVO_CONTADOR - c) / 12));
+        return Math.min(ALVO_CONTADOR, c + passo);
+      });
+    }, 90);
+    return () => {
+      clearInterval(tFase);
+      clearInterval(tNum);
+    };
   }, [buscando]);
 
-  // revela os cards DEVAGAR e bonito (um a cada 200ms)
+  // revela os cards um a um (fantasma -> real), devagar
   useEffect(() => {
     if (!res || res.videos.length === 0) return;
     setVisiveis(0);
@@ -68,7 +83,7 @@ export function MineradorChat() {
       n += 1;
       setVisiveis(n);
       if (n >= res.videos.length) clearInterval(t);
-    }, 200);
+    }, REVEAL_MS);
     return () => clearInterval(t);
   }, [res]);
 
@@ -94,8 +109,7 @@ export function MineradorChat() {
         toast.error(data.erro ?? "Não consegui garimpar agora.");
         return;
       }
-      // segura um tempo de "garimpo" pra curtir a animação (mín. 2.2s)
-      const espera = Math.max(0, 2200 - (performance.now() - started));
+      const espera = Math.max(0, MIN_GARIMPO_MS - (performance.now() - started));
       await new Promise((res) => setTimeout(res, espera));
       setRes(data);
       setTimeout(() => fimRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
@@ -110,33 +124,31 @@ export function MineradorChat() {
     <div className="mx-auto w-full max-w-6xl">
       {/* ===== HERÓI / BUSCA ===== */}
       <div className="relative overflow-hidden rounded-[28px] border border-border">
-        {/* fundo caverna */}
         <div
           className="absolute inset-0 bg-cover bg-center"
           style={{ backgroundImage: "url(/minerador/fundo.webp)" }}
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/75 to-black/35" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/92 via-black/78 to-black/30" />
 
-        <div className="relative flex items-center gap-6 p-6 sm:p-10">
+        <div className="relative flex min-h-[260px] items-center gap-4 p-6 sm:min-h-[300px] sm:p-10">
           <div className="min-w-0 flex-1">
             <span className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/15 px-3 py-1 text-xs font-semibold text-primary backdrop-blur">
               <Gem className="size-3.5" />
               Minerador de produtos
             </span>
-            <h1 className="mt-4 text-3xl font-black tracking-tight text-white sm:text-4xl">
+            <h1 className="mt-4 text-3xl font-black tracking-tight text-white sm:text-[2.6rem] sm:leading-[1.05]">
               O que você quer{" "}
               <span className="bg-gradient-to-r from-primary to-emerald-300 bg-clip-text text-transparent">
                 vender
               </span>{" "}
               hoje?
             </h1>
-            <p className="mt-2 max-w-xl text-sm text-white/70">
+            <p className="mt-2.5 max-w-xl text-sm text-white/70">
               Descreva o produto ou o público, e a gente garimpa os vídeos virais do
               acervo pra você usar de criativo e sair vendendo.
             </p>
 
-            {/* input estilo chat */}
-            <div className="mt-6 flex items-center gap-2 rounded-2xl border border-white/15 bg-black/40 p-2 shadow-xl backdrop-blur-md focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/25">
+            <div className="mt-6 flex items-center gap-2 rounded-2xl border border-white/15 bg-black/40 p-2 shadow-2xl backdrop-blur-md focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/25">
               <Search className="ml-2 size-5 shrink-0 text-white/50" />
               <input
                 value={texto}
@@ -161,7 +173,6 @@ export function MineradorChat() {
               </button>
             </div>
 
-            {/* sugestões */}
             <div className="mt-3 flex flex-wrap gap-2">
               {SUGESTOES.map((s) => (
                 <button
@@ -177,13 +188,14 @@ export function MineradorChat() {
             </div>
           </div>
 
-          {/* picareta herói (flutuando) */}
-          <div className="hidden shrink-0 lg:block">
+          {/* picareta herói (com glow, contida) */}
+          <div className="relative hidden w-64 shrink-0 self-stretch lg:block">
+            <div className="absolute right-2 top-1/2 size-48 -translate-y-1/2 rounded-full bg-primary/25 blur-3xl" />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/minerador/heroi.webp?v=2"
               alt=""
-              className="size-64 object-contain drop-shadow-[0_10px_40px_rgba(16,185,129,0.35)]"
+              className="absolute right-0 top-1/2 w-64 max-w-none -translate-y-1/2 object-contain drop-shadow-[0_18px_50px_rgba(16,185,129,0.4)]"
               style={{ animation: "mineradorFloat 4s ease-in-out infinite" }}
             />
           </div>
@@ -192,47 +204,52 @@ export function MineradorChat() {
 
       <div ref={fimRef} />
 
-      {/* ===== GARIMPANDO ===== */}
+      {/* ===== GARIMPANDO: mineração + skeletons ===== */}
       {buscando && (
-        <div className="mt-10 grid place-items-center py-10 text-center">
-          <div className="relative grid size-52 place-items-center">
-            {/* brilho girando atrás */}
-            <div
-              className="absolute size-52 rounded-full bg-[conic-gradient(from_0deg,transparent,rgba(16,185,129,0.35),transparent_60%)] blur-xl"
-              style={{ animation: "mineradorSpin 3.5s linear infinite" }}
-            />
-            <div
-              className="absolute size-40 rounded-full bg-primary/20 blur-2xl"
-              style={{ animation: "mineradorPulse 2s ease-in-out infinite" }}
-            />
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/minerador/lupa.webp?v=2"
-              alt="Garimpando"
-              className="relative size-48 object-contain"
-              style={{ animation: "mineradorFloat 3s ease-in-out infinite" }}
-            />
+        <div className="mt-8">
+          <div className="flex flex-col items-center gap-4 rounded-2xl border border-border bg-card/50 p-6 text-center">
+            <div className="relative grid size-24 place-items-center">
+              <div
+                className="absolute size-24 rounded-full bg-[conic-gradient(from_0deg,transparent,rgba(16,185,129,0.4),transparent_65%)] blur-md"
+                style={{ animation: "mineradorSpin 2.8s linear infinite" }}
+              />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/minerador/lupa.webp?v=2"
+                alt="Garimpando"
+                className="relative size-24 object-contain"
+                style={{ animation: "mineradorFloat 2.6s ease-in-out infinite" }}
+              />
+            </div>
+            <div>
+              <p className="text-base font-bold">{FASES[fase]}</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                <span className="font-semibold tabular-nums text-primary">
+                  {contador.toLocaleString("pt-BR")}
+                </span>{" "}
+                vídeos analisados no acervo
+              </p>
+            </div>
+            <div className="h-1.5 w-64 max-w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full w-1/2 rounded-full bg-gradient-to-r from-transparent via-primary to-transparent"
+                style={{ backgroundSize: "200% 100%", animation: "mineradorShimmer 1.3s linear infinite" }}
+              />
+            </div>
           </div>
-          <p className="mt-6 text-base font-bold">{FASES[fase]}</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Passando a lupa nos milhares de vídeos do acervo
-          </p>
-          {/* barrinha shimmer */}
-          <div className="mt-5 h-1.5 w-56 overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full w-1/2 rounded-full bg-gradient-to-r from-transparent via-primary to-transparent"
-              style={{
-                backgroundSize: "200% 100%",
-                animation: "mineradorShimmer 1.4s linear infinite",
-              }}
-            />
+
+          {/* prateleira sendo montada (fantasmas) */}
+          <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <SkeletonCard key={i} />
+            ))}
           </div>
         </div>
       )}
 
       {/* ===== RESULTADOS ===== */}
       {!buscando && res && (
-        <div className="mt-10">
+        <div className="mt-8">
           {res.videos.length === 0 ? (
             <div className="grid place-items-center rounded-2xl border border-dashed border-border py-16 text-center">
               <Search className="size-8 text-muted-foreground" />
@@ -251,13 +268,10 @@ export function MineradorChat() {
                     {res.videos.length} produtos garimpados
                   </h2>
                   <p className="mt-0.5 text-sm text-muted-foreground">
-                    pra{" "}
-                    <span className="font-semibold text-foreground">{res.termo}</span>
+                    pra <span className="font-semibold text-foreground">{res.termo}</span>
                     {res.nichos.length > 0 && (
                       <>
-                        {" "}
-                        · nichos:{" "}
-                        <span className="text-primary">{res.nichos.join(", ")}</span>
+                        {" "}· nichos: <span className="text-primary">{res.nichos.join(", ")}</span>
                       </>
                     )}
                   </p>
@@ -270,16 +284,21 @@ export function MineradorChat() {
                 )}
               </div>
 
+              {/* grade: cada slot nasce como fantasma e vira produto */}
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-                {res.videos.slice(0, visiveis).map((v, i) => (
-                  <MineradorCard key={v.id} video={v} indice={i} />
-                ))}
+                {res.videos.map((v, i) =>
+                  i < visiveis ? (
+                    <MineradorCard key={v.id} video={v} />
+                  ) : (
+                    <SkeletonCard key={v.id} />
+                  ),
+                )}
               </div>
 
               {visiveis < res.videos.length && (
                 <p className="mt-6 flex items-center justify-center gap-2 text-xs text-muted-foreground">
                   <Loader2 className="size-3.5 animate-spin" />
-                  garimpando mais achados...
+                  garimpando mais achados... ({visiveis}/{res.videos.length})
                 </p>
               )}
             </>
@@ -290,9 +309,26 @@ export function MineradorChat() {
   );
 }
 
+/* ---------------- fantasma (skeleton) ---------------- */
+
+function SkeletonCard() {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-border bg-card">
+      <div className="aspect-[9/16] animate-pulse bg-gradient-to-b from-muted to-muted/40" />
+      <div className="space-y-1.5 p-2.5">
+        <div className="grid grid-cols-2 gap-1.5">
+          <div className="h-9 animate-pulse rounded-lg bg-muted" />
+          <div className="h-9 animate-pulse rounded-lg bg-muted" />
+        </div>
+        <div className="h-9 animate-pulse rounded-lg bg-muted" />
+      </div>
+    </div>
+  );
+}
+
 /* ---------------- card de produto ---------------- */
 
-function MineradorCard({ video, indice }: { video: ViralVideo; indice: number }) {
+function MineradorCard({ video }: { video: ViralVideo }) {
   const vidRef = useRef<HTMLVideoElement>(null);
   const arquivo = video.arquivo ? midiaUrl(video.arquivo) : undefined;
 
@@ -320,9 +356,8 @@ function MineradorCard({ video, indice }: { video: ViralVideo; indice: number })
   return (
     <div
       className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-xl hover:shadow-primary/10"
-      style={{ animation: `mineradorIn .55s cubic-bezier(.22,1,.36,1) both` }}
+      style={{ animation: "mineradorIn .5s cubic-bezier(.22,1,.36,1) both" }}
     >
-      {/* mídia 9:16 */}
       <div
         className="relative aspect-[9/16] overflow-hidden bg-black"
         onMouseEnter={() => hoverPlay(true)}
@@ -367,7 +402,6 @@ function MineradorCard({ video, indice }: { video: ViralVideo; indice: number })
           </a>
         )}
 
-        {/* badge Em alta - com fogo, brilho e chama animada */}
         {video.emAlta && (
           <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-orange-500 to-red-500 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-white shadow-lg shadow-orange-500/40 ring-1 ring-white/20">
             <Flame
@@ -377,13 +411,11 @@ function MineradorCard({ video, indice }: { video: ViralVideo; indice: number })
             Em alta
           </span>
         )}
-        {/* nicho */}
         <span className="absolute bottom-2 left-2 max-w-[85%] truncate rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
           {nicho}
         </span>
       </div>
 
-      {/* ações */}
       <div className="flex flex-col gap-1.5 p-2.5">
         <div className="grid grid-cols-2 gap-1.5">
           {editorHref ? (
