@@ -7,6 +7,10 @@ import type { ViralVideo } from "@/lib/types";
 // cortes sem nicho (só o link) caem nesse balde
 export const BUCKET_SEM_NICHO = "Achadinhos";
 
+// títulos "genéricos" = vídeo sem nome de produto (candidato ao enriquecimento por visão).
+// A trava do enriquecedor só escreve nome novo por cima de um destes (nunca pisa num real).
+export const TITULOS_GENERICOS = ["Achadinho viral", "Vídeo viral", "Video viral", ""];
+
 // só as colunas que a UI precisa (evita puxar linha inteira)
 const SELECT = {
   id: true,
