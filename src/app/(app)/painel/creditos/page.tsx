@@ -28,12 +28,13 @@ export default async function CreditosPage({
   const sp = await searchParams;
   const carteira = await getCarteira(user.id);
 
-  // links de checkout da Kiwify por plano (env, editável no EasyPanel sem mexer no código)
-  const linksKiwify: Partial<Record<number, string>> = {
-    10: process.env.KIWIFY_CHECKOUT_10,
-    20: process.env.KIWIFY_CHECKOUT_20,
-    50: process.env.KIWIFY_CHECKOUT_50,
-    100: process.env.KIWIFY_CHECKOUT_100,
+  // links de checkout por plano (env, editável no EasyPanel sem mexer no código).
+  // Cakto (atual); cai pro link antigo da Kiwify se o da Cakto ainda não foi setado.
+  const linksCheckout: Partial<Record<number, string>> = {
+    10: process.env.CAKTO_CHECKOUT_10 || process.env.KIWIFY_CHECKOUT_10,
+    20: process.env.CAKTO_CHECKOUT_20 || process.env.KIWIFY_CHECKOUT_20,
+    50: process.env.CAKTO_CHECKOUT_50 || process.env.KIWIFY_CHECKOUT_50,
+    100: process.env.CAKTO_CHECKOUT_100 || process.env.KIWIFY_CHECKOUT_100,
   };
 
   return (
@@ -114,7 +115,7 @@ export default async function CreditosPage({
       )}
 
       {/* ===== PLANOS ===== */}
-      <PlanosCreditos email={user.email} links={linksKiwify} />
+      <PlanosCreditos email={user.email} links={linksCheckout} />
 
       {/* ===== COMO FUNCIONA ===== */}
       <section className="rounded-2xl border border-border bg-card p-6">

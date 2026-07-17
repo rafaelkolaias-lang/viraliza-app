@@ -6,7 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { createSession, deleteSession } from "@/lib/session";
 import { cadastroSchema, loginSchema } from "@/lib/auth-schemas";
 import { aplicarCreditosPendentes } from "@/lib/creditos";
-import { emailComprou } from "@/lib/kiwify";
+import { emailComprou as emailComprouCakto } from "@/lib/cakto";
+import { emailComprou as emailComprouKiwify } from "@/lib/kiwify";
 import { dentroDoLimite, ipDaRequisicao } from "@/lib/ratelimit";
 
 export type AuthState = { erro?: string } | undefined;
@@ -15,8 +16,8 @@ export type AuthState = { erro?: string } | undefined;
 // pra testar a plataforma sem precisar comprar. 1 crédito = R$ 0,01.
 const CREDITO_INICIAL = 1000;
 
-// Só quem comprou na Kiwify (qualquer produto) pode criar conta - fecha o farm de
-// crédito grátis por bots. O 1º cadastro (dono) e quem tem crédito pendente passam.
+// Só quem comprou (qualquer produto) pode criar conta - fecha o farm de crédito
+// grátis por bots. O 1º cadastro (dono) e quem tem crédito pendente passam.
 async function podeCadastrar(email: string): Promise<boolean> {
   const total = await prisma.user.count();
   if (total === 0) return true; // primeiro usuário = admin (dono da plataforma)
@@ -27,13 +28,20 @@ async function podeCadastrar(email: string): Promise<boolean> {
   ]);
   if (acesso || pend) return true;
 
-  // Rede de segurança: o webhook pode atrasar/falhar. Confirma AO VIVO na Kiwify se
-  // esse e-mail tem compra paga. Se tiver, grava a allowlist e libera na hora.
-  const kw = await emailComprou(e);
-  if (kw.comprou) {
+  // Rede de segurança: o webhook pode atrasar/falhar. Confirma AO VIVO se esse
+  // e-mail tem compra paga. Cakto (atual) primeiro; Kiwify (legado) como fallback,
+  // pra quem comprou lá antes da migração ainda conseguir se cadastrar. Se achar,
+  // grava a allowlist e libera na hora.
+  const ck = await emailComprouCakto(e);
+  const compra = ck.comprou ? ck : await emailComprouKiwify(e);
+  if (compra.comprou) {
     await prisma.acessoPago.upsert({
       where: { email: e },
-      create: { email: e, kiwifyOrderId: kw.orderId ?? "manual", produto: kw.produto ?? null },
+      create: {
+        email: e,
+        kiwifyOrderId: compra.orderId ?? "manual",
+        produto: compra.produto ?? null,
+      },
       update: {},
     });
     return true;
@@ -63,10 +71,10 @@ export async function cadastrar(
   const existe = await prisma.user.findUnique({ where: { email } });
   if (existe) return { erro: "Esse e-mail já está cadastrado." };
 
-  // gate: precisa ter comprado na Kiwify com este e-mail
+  // gate: precisa ter comprado com este e-mail
   if (!(await podeCadastrar(email))) {
     return {
-      erro: "Não achamos uma compra com este e-mail. Faça a compra na Kiwify com o mesmo e-mail e tente de novo (leva alguns segundos após o pagamento).",
+      erro: "Não achamos uma compra com este e-mail. Faça a compra com o mesmo e-mail e tente de novo (leva alguns segundos após o pagamento).",
     };
   }
 

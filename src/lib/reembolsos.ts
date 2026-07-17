@@ -13,6 +13,14 @@ import {
   vendaEstornada,
   type KiwifySale,
 } from "@/lib/kiwify";
+import {
+  buscarPedido,
+  caktoConfigurada,
+  listarPedidos,
+  pedidoEstaPago,
+  pedidoEstornado,
+  statusReembolsoSolicitado as statusReembolsoSolicitadoCakto,
+} from "@/lib/cakto";
 
 /**
  * Regras de reembolso:
@@ -261,6 +269,61 @@ export async function verificarReembolsos() {
       }
     } catch (e) {
       console.error("[reembolsos] erro processando venda", v.id, e);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Mesma varredura, agora na Cakto: a Cakto tem o status "refund_requested" mas
+// NÃO manda webhook desse estado, então conferimos periodicamente pra congelar o
+// saldo enquanto o reembolso está em análise (e restaurar se for cancelado).
+// ---------------------------------------------------------------------------
+
+const STATUS_CAKTO_CONHECIDOS = new Set([
+  "paid", "authorized", "processing", "waiting_payment", "refused",
+  "refunded", "refund", "refund_requested", "chargedback", "chargeback",
+  "canceled", "cancelled", "expired", "in_protest", "prechargeback",
+  "partially_paid", "scheduled", "retrying", "blocked", "med",
+]);
+
+export async function verificarReembolsosCakto() {
+  if (!caktoConfigurada()) return;
+  const ini = new Date(Date.now() - 30 * DIA_MS).toISOString();
+  const fim = new Date(Date.now() + 60_000).toISOString();
+  let pedidos;
+  try {
+    pedidos = await listarPedidos(ini, fim);
+  } catch (e) {
+    console.error("[reembolsos] falha ao listar pedidos Cakto", e);
+    return;
+  }
+
+  for (const p of pedidos) {
+    const st = (p.status || "").toLowerCase();
+    const email = (p.customer?.email || "").trim().toLowerCase();
+    try {
+      if (statusReembolsoSolicitadoCakto(st)) {
+        await suspenderPorReembolso(email, p.id);
+        continue;
+      }
+      if (pedidoEstaPago({ id: p.id, status: p.status })) {
+        // pedido pago que tinha suspensão pendente -> reembolso foi cancelado
+        await restaurarSuspensao(p.id);
+        continue;
+      }
+      if (pedidoEstornado({ id: p.id, status: p.status })) {
+        // rede de segurança: se o webhook do estorno falhou, aplica por aqui
+        if (!(await existeTransacaoOrder(p.id, "estorno"))) {
+          const ped = await buscarPedido(p.id);
+          if (ped) await aplicarReembolsoAceito(ped, p.id);
+        }
+        continue;
+      }
+      if (!STATUS_CAKTO_CONHECIDOS.has(st)) {
+        console.log("[reembolsos] status Cakto desconhecido (ignorado):", st, p.id);
+      }
+    } catch (e) {
+      console.error("[reembolsos] erro processando pedido Cakto", p.id, e);
     }
   }
 }

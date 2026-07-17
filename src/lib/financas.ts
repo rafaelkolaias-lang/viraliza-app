@@ -4,13 +4,92 @@ import {
   kiwifyConfigurada,
   listarVendas,
   valorVenda,
-  valorLiquido,
+  valorLiquido as liquidoKiwify,
   vendaEstaPaga,
   vendaEstornada,
   type VendaLista,
 } from "@/lib/kiwify";
+import {
+  caktoConfigurada,
+  listarPedidos,
+  valorPedido,
+  valorLiquido as liquidoCakto,
+  pedidoEstaPago,
+  pedidoEstornado,
+  type PedidoLista,
+} from "@/lib/cakto";
 
-/** Painel financeiro: vendas reais da Kiwify (o plano de entrada e os pacotes). */
+/** Painel financeiro: vendas reais da Cakto (atual) + Kiwify (histórico), somadas. */
+
+/** Venda normalizada, agnóstica de gateway - já com pago/estornada e valores em centavos. */
+type VendaNorm = {
+  created_at?: string;
+  updated_at?: string;
+  status: string;
+  pago: boolean;
+  estornada: boolean;
+  brutoCentavos: number;
+  liquidoCentavos: number;
+  nome: string;
+  email: string;
+};
+
+function deCakto(p: PedidoLista): VendaNorm {
+  return {
+    created_at: p.created_at,
+    updated_at: p.updated_at,
+    status: p.status,
+    pago: pedidoEstaPago({ id: p.id, status: p.status }),
+    estornada: pedidoEstornado({ id: p.id, status: p.status }),
+    brutoCentavos: valorPedido(p),
+    liquidoCentavos: liquidoCakto(p),
+    nome: p.customer?.name || p.customer?.full_name || "Sem nome",
+    email: p.customer?.email || "",
+  };
+}
+
+function deKiwify(v: VendaLista): VendaNorm {
+  return {
+    created_at: v.created_at,
+    updated_at: v.updated_at,
+    status: v.status,
+    pago: vendaEstaPaga({ id: v.id, status: v.status }),
+    estornada: vendaEstornada({ id: v.id, status: v.status }),
+    brutoCentavos: valorVenda(v),
+    liquidoCentavos: liquidoKiwify(v),
+    nome: v.customer?.name || v.customer?.full_name || "Sem nome",
+    email: v.customer?.email || "",
+  };
+}
+
+/** Busca as vendas do período nos dois gateways (o que estiver configurado) e junta. */
+async function listarTodasVendas(inicioISO: string, fimISO: string): Promise<VendaNorm[]> {
+  const out: VendaNorm[] = [];
+  const erros: string[] = [];
+  if (caktoConfigurada()) {
+    try {
+      const ck = await listarPedidos(inicioISO, fimISO);
+      out.push(...ck.map(deCakto));
+    } catch (e) {
+      console.error("[financas] falha ao listar pedidos Cakto", e);
+      erros.push("Cakto");
+    }
+  }
+  if (kiwifyConfigurada()) {
+    try {
+      const kw = await listarVendas(inicioISO, fimISO);
+      out.push(...kw.map(deKiwify));
+    } catch (e) {
+      console.error("[financas] falha ao listar vendas Kiwify", e);
+      erros.push("Kiwify");
+    }
+  }
+  // se TODOS os gateways configurados falharam, propaga o erro
+  if (erros.length > 0 && out.length === 0) {
+    throw new Error(`Falha ao buscar vendas: ${erros.join(", ")}`);
+  }
+  return out;
+}
 
 const DIA_MS = 86_400_000;
 
@@ -84,7 +163,7 @@ export type PainelFinancas = {
     dias: number; // dias efetivamente exibidos no gráfico
     vendasPagas: number;
     receitaCentavos: number; // bruto (tudo que entrou pago, mesmo que reembolsado depois)
-    receitaLiquidaCentavos: number; // após a taxa da Kiwify
+    receitaLiquidaCentavos: number; // após a taxa da processadora
     reembolsos: number;
     reembolsoCentavos: number; // perda: o que saiu em reembolso/chargeback
     receitaFinalCentavos: number; // bruto − reembolsos (o número que importa)
@@ -94,10 +173,6 @@ export type PainelFinancas = {
   grafico: DiaVenda[];
   vendasPeriodo: VendaLinha[]; // lista de vendas DO PERÍODO filtrado (mais recentes primeiro)
 };
-
-function nomeDe(v: VendaLista) {
-  return v.customer?.name || v.customer?.full_name || "Sem nome";
-}
 
 export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFinancas> {
   const valido = PERIODOS_FINANCAS.some((p) => p.v === diasFiltro);
@@ -114,7 +189,7 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
 
   const desdeLabel = fmtDesde.format(new Date(DESDE_MS));
   const vazio: PainelFinancas = {
-    configurada: kiwifyConfigurada(),
+    configurada: caktoConfigurada() || kiwifyConfigurada(),
     desde: desdeLabel,
     dias: filtro,
     hoje: { vendas: 0, pagas: 0, receitaCentavos: 0 },
@@ -132,19 +207,21 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
     grafico: [],
     vendasPeriodo: [],
   };
-  if (!kiwifyConfigurada()) return { ...vazio, erro: "Kiwify não configurada." };
+  if (!caktoConfigurada() && !kiwifyConfigurada()) {
+    return { ...vazio, erro: "Nenhum gateway de pagamento configurado." };
+  }
 
   // busca com 1 dia de margem pra trás (o "dia" é no fuso de SP, o instante ISO não)
   const inicioMs = Math.max(DESDE_MS, agora - nDias * DIA_MS);
   const inicioISO = new Date(inicioMs).toISOString();
   const fimISO = new Date(agora + 60_000).toISOString(); // um tiquinho no futuro
 
-  let vendas: VendaLista[];
+  let vendas: VendaNorm[];
   try {
-    vendas = await listarVendas(inicioISO, fimISO);
+    vendas = await listarTodasVendas(inicioISO, fimISO);
   } catch (e) {
     console.error("[financas] falha ao listar vendas", e);
-    return { ...vazio, erro: "Não consegui buscar as vendas na Kiwify agora." };
+    return { ...vazio, erro: "Não consegui buscar as vendas agora." };
   }
 
   // buckets por dia (só os dias visíveis do filtro)
@@ -179,9 +256,9 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
     if (criado.getTime() < DESDE_MS) continue;
     const chave = fmtChave.format(criado);
     const noPeriodo = buckets.has(chave);
-    const pago = vendaEstaPaga(v);
-    const estornada = vendaEstornada(v);
-    const bruto = valorVenda(v);
+    const pago = v.pago;
+    const estornada = v.estornada;
+    const bruto = v.brutoCentavos;
 
     // vendas pagas contam pra receita/linha verde. Venda depois reembolsada
     // TAMBÉM conta como venda no dia em que entrou (o dinheiro entrou) - a
@@ -191,9 +268,9 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
       b.vendas++;
       b.receitaCentavos += bruto;
       periodoReceita += bruto;
-      periodoLiquido += valorLiquido(v);
+      periodoLiquido += v.liquidoCentavos;
       periodoPagas++;
-      const email = (v.customer?.email || "").toLowerCase();
+      const email = v.email.toLowerCase();
       if (email) clientesPagos.add(email);
     }
 
@@ -222,8 +299,8 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
     // lista do período: toda venda (paga, aguardando, estornada) dos dias exibidos
     if (noPeriodo) {
       vendasPeriodo.push({
-        nome: nomeDe(v),
-        email: v.customer?.email || "?",
+        nome: v.nome,
+        email: v.email || "?",
         quando: fmtQuando.format(criado),
         status: v.status,
         pago,

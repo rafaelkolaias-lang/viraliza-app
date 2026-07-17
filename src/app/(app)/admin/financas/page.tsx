@@ -58,7 +58,7 @@ export default async function FinancasPage({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Finanças</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Vendas reais da Kiwify (plano de entrada + pacotes). Atualiza a cada abertura.
+            Vendas reais da Cakto + Kiwify (plano de entrada + pacotes). Atualiza a cada abertura.
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             Contabilizando a partir de <b className="text-foreground">{f.desde}</b> (o histórico de
@@ -107,7 +107,7 @@ export default async function FinancasPage({
 
       <p className="text-[11px] text-muted-foreground">
         No período: <b className="text-red-500">{f.periodo.reembolsos} reembolso{f.periodo.reembolsos === 1 ? "" : "s"}</b>{" "}
-        (−{brl(f.periodo.reembolsoCentavos)}). Receita líquida após a taxa da Kiwify:{" "}
+        (−{brl(f.periodo.reembolsoCentavos)}). Receita líquida após a taxa da processadora:{" "}
         <b className="text-foreground">{brl(f.periodo.receitaLiquidaCentavos)}</b>.
       </p>
 

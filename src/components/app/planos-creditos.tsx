@@ -50,9 +50,10 @@ export function PlanosCreditos({
   email,
   links,
 }: {
-  /** e-mail do usuário logado - vai no checkout pra o webhook casar a compra */
+  /** e-mail do usuário logado - vai no checkout como sugestão (o crédito casa pelo
+   *  e-mail que a pessoa usar na compra, então ela deve pagar com o mesmo e-mail) */
   email?: string;
-  /** link de checkout da Kiwify por valor do plano (10, 20, 50, 100) */
+  /** link de checkout (Cakto) por valor do plano (10, 20, 50, 100) */
   links?: Partial<Record<number, string>>;
 }) {
   const [carregando, setCarregando] = useState<number | null>(null);
@@ -66,8 +67,9 @@ export function PlanosCreditos({
       });
       return;
     }
-    // abre o checkout da Kiwify com o e-mail do usuário preenchido: ESSENCIAL pra o
-    // webhook creditar a conta certa (o crédito casa pelo e-mail da compra).
+    // abre o checkout da Cakto passando o e-mail do usuário como sugestão. O crédito
+    // casa pelo e-mail que a pessoa realmente usar na compra (o webhook confirma na
+    // API), então o ideal é ela pagar com o mesmo e-mail da conta.
     const sep = base.includes("?") ? "&" : "?";
     const url = email ? `${base}${sep}email=${encodeURIComponent(email)}` : base;
     setCarregando(valor);

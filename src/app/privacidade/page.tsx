@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   description: "Como o Viraliza coleta, usa e protege os seus dados.",
 };
 
-const ATUALIZADA_EM = "4 de julho de 2026";
+const ATUALIZADA_EM = "17 de julho de 2026";
 
 export default function PrivacidadePage() {
   return (
@@ -36,7 +36,7 @@ export default function PrivacidadePage() {
             </li>
             <li>
               <b>Dados de pagamento:</b> as compras são processadas pela{" "}
-              <b>Kiwify</b> (processadora independente). Recebemos da Kiwify a
+              <b>Cakto</b> (processadora independente). Recebemos da Cakto a
               confirmação da compra com nome, e-mail, telefone e valor pago. Nós NÃO
               recebemos nem armazenamos números de cartão.
             </li>
@@ -55,7 +55,7 @@ export default function PrivacidadePage() {
           <h2 className="mb-2 text-lg font-semibold">3. Como usamos os dados</h2>
           <ul className="list-disc space-y-1 pl-5">
             <li>Prestar o serviço: login, créditos, geração e entrega de vídeos.</li>
-            <li>Processar e confirmar compras e reembolsos feitos na Kiwify.</li>
+            <li>Processar e confirmar compras e reembolsos feitos na Cakto.</li>
             <li>Atendimento e suporte (incluindo WhatsApp).</li>
             <li>
               <b>Mensuração de anúncios:</b> quando há uma compra, enviamos à Meta
@@ -71,7 +71,7 @@ export default function PrivacidadePage() {
           <h2 className="mb-2 text-lg font-semibold">4. Com quem compartilhamos</h2>
           <p>
             Não vendemos os seus dados. Compartilhamos apenas com operadores necessários
-            ao serviço: <b>Kiwify</b> (pagamentos), <b>Meta</b> (mensuração de anúncios,
+            ao serviço: <b>Cakto</b> (pagamentos), <b>Meta</b> (mensuração de anúncios,
             com dados hasheados), provedores de infraestrutura (hospedagem e banco de
             dados) e provedores de IA usados na geração dos vídeos (que recebem o
             conteúdo do vídeo, não os seus dados pessoais).
