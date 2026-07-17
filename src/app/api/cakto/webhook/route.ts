@@ -13,6 +13,7 @@ import {
 import { existeTransacaoOrder, lancar } from "@/lib/creditos";
 import { enviarCompraMeta, enviarReembolsoMeta } from "@/lib/meta-capi";
 import { aplicarReembolsoAceito, restaurarSuspensao } from "@/lib/reembolsos";
+import { enviarBoasVindas } from "@/lib/email";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -83,6 +84,8 @@ export async function POST(req: Request) {
   // e-mail (allowlist anti-farm). É isto que deixa a pessoa se cadastrar com o mesmo
   // e-mail da compra. Independe de creditar ou não.
   if (pedidoEstaPago(pedido) && email) {
+    // 1ª vez que vemos este e-mail pagar? (define se manda o e-mail de boas-vindas)
+    const jaTinhaAcesso = await prisma.acessoPago.findUnique({ where: { email } });
     await prisma.acessoPago.upsert({
       where: { email },
       create: { email, kiwifyOrderId: orderId, produto: pedido.product?.name ?? null },
@@ -90,6 +93,19 @@ export async function POST(req: Request) {
     });
     // se havia reembolso solicitado e o pedido voltou a "pago", devolve o congelado
     await restaurarSuspensao(orderId);
+    // primeira compra deste e-mail -> e-mail de boas-vindas (onboarding).
+    // Nunca quebra o webhook: erro só loga.
+    if (!jaTinhaAcesso) {
+      try {
+        await enviarBoasVindas({
+          para: email,
+          nome: pedido.customer?.full_name,
+          produto: pedido.product?.name,
+        });
+      } catch (e) {
+        console.error("[cakto] falha ao enviar boas-vindas", orderId, e);
+      }
+    }
   }
 
   // Atribuição Meta Ads: compra confirmada -> evento Purchase via CAPI. Nunca
