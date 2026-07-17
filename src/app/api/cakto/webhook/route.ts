@@ -13,7 +13,7 @@ import {
 import { existeTransacaoOrder, lancar } from "@/lib/creditos";
 import { enviarCompraMeta, enviarReembolsoMeta } from "@/lib/meta-capi";
 import { aplicarReembolsoAceito, restaurarSuspensao } from "@/lib/reembolsos";
-import { enviarBoasVindas } from "@/lib/email";
+import { enviarBoasVindas, enviarCreditosConfirmados } from "@/lib/email";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -137,7 +137,23 @@ export async function POST(req: Request) {
     const user = email ? await prisma.user.findUnique({ where: { email } }) : null;
 
     if (user) {
-      await lancar(user.id, creditos, "compra", { descricao: desc, kiwifyOrderId: orderId });
+      const saldoApos = await lancar(user.id, creditos, "compra", {
+        descricao: desc,
+        kiwifyOrderId: orderId,
+      });
+      // cliente que JÁ tem conta comprou pacote -> e-mail de créditos (toda compra).
+      // Idempotente por pedido: o guard existeTransacaoOrder acima não deixa reenviar.
+      try {
+        await enviarCreditosConfirmados({
+          para: email,
+          nome: pedido.customer?.full_name,
+          creditos,
+          saldoApos,
+          produto: pedido.product?.name,
+        });
+      } catch (e) {
+        console.error("[cakto] falha ao enviar e-mail de créditos", orderId, e);
+      }
       return NextResponse.json({ ok: true, creditado: creditos, userId: user.id });
     }
     // comprou o pacote antes de ter conta: guarda pra aplicar no cadastro (mesmo e-mail)
