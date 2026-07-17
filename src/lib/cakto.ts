@@ -67,8 +67,10 @@ type OrderApi = {
   id?: string;
   refId?: string;
   status?: string;
-  amount?: string | number;
-  fees?: string | number;
+  amount?: string | number; // bruto pago pelo cliente (pode incluir taxa do comprador)
+  baseAmount?: string | number; // preço do produto antes de taxas/desconto
+  fees?: string | number; // taxa da Cakto
+  commissions?: Array<{ type?: string; commissionValue?: string | number }>;
   paymentMethod?: string;
   createdAt?: string;
   paidAt?: string | null;
@@ -81,16 +83,34 @@ type OrderApi = {
   detail?: string;
 };
 
+/**
+ * Líquido REAL que a conta recebe (em centavos). A Cakto informa isso na comissão
+ * do produtor (`commissions[].commissionValue`) - é o número do "Valor líquido" do
+ * painel. NÃO é `amount - fees`, porque o `amount` pode trazer uma taxa que o
+ * comprador paga por cima. Fallback (se não vier comissão): bruto - taxa.
+ */
+function liquidoCentavos(o: OrderApi): number {
+  const coms = o.commissions;
+  if (Array.isArray(coms) && coms.length) {
+    const doProdutor = coms
+      .filter((c) => (c?.type || "").toLowerCase() === "producer")
+      .reduce((soma, c) => soma + reaisParaCentavos(c?.commissionValue), 0);
+    if (doProdutor > 0) return doProdutor;
+  }
+  const bruto = reaisParaCentavos(o.amount);
+  const taxa = reaisParaCentavos(o.fees);
+  return Math.max(0, bruto - taxa);
+}
+
 /** Normaliza o objeto cru da API da Cakto para o nosso CaktoPedido (em centavos). */
 function normalizarPedido(o: OrderApi): CaktoPedido {
   const bruto = reaisParaCentavos(o.amount);
-  const taxa = reaisParaCentavos(o.fees);
   return {
     id: String(o.id ?? ""),
     refId: o.refId,
     status: (o.status || "").toLowerCase(),
     payment: { charge_amount: bruto },
-    net_amount: Math.max(0, bruto - taxa),
+    net_amount: liquidoCentavos(o),
     customer: {
       email: o.customer?.email,
       full_name: o.customer?.name,
@@ -171,14 +191,13 @@ export type PedidoLista = {
 
 function normalizarLista(o: OrderApi): PedidoLista {
   const bruto = reaisParaCentavos(o.amount);
-  const taxa = reaisParaCentavos(o.fees);
   return {
     id: String(o.id ?? ""),
     refId: o.refId,
     status: (o.status || "").toLowerCase(),
     payment_method: o.paymentMethod,
     charge_amount: bruto,
-    net_amount: Math.max(0, bruto - taxa),
+    net_amount: liquidoCentavos(o),
     created_at: o.createdAt,
     updated_at:
       o.refundedAt || o.chargedbackAt || o.canceledAt || o.paidAt || o.createdAt || undefined,

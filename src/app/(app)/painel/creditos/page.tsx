@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Link from "next/link";
 import {
   Coins,
@@ -15,6 +16,7 @@ import { getCarteira, fmtCreditos } from "@/lib/creditos";
 import { Button } from "@/components/ui/button";
 import { PlanosCreditos } from "@/components/app/planos-creditos";
 import { AdminCreditosTeste } from "@/components/app/admin-creditos-teste";
+import { ModalCompraSucesso } from "@/components/app/modal-compra-sucesso";
 
 export const metadata: Metadata = { title: "Créditos" };
 export const dynamic = "force-dynamic";
@@ -39,6 +41,11 @@ export default async function CreditosPage({
 
   return (
     <div className="space-y-7">
+      {/* modal de "pagamento aprovado" ao voltar do checkout da Cakto (?compra=sucesso) */}
+      <Suspense fallback={null}>
+        <ModalCompraSucesso saldoCentavos={carteira.saldoCentavos} />
+      </Suspense>
+
       {/* aviso quando a pessoa tentou entrar na biblioteca sem assinatura */}
       {sp.bloqueio === "biblioteca" && (
         <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
