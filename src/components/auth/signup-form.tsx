@@ -16,11 +16,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/auth/password-input";
+import { GoogleButton, DivisoriaOu } from "@/components/auth/google-button";
 import { cn } from "@/lib/utils";
 
 const MIN_SENHA = 6;
 
-export function SignupForm() {
+export function SignupForm({ googleAtivo = false }: { googleAtivo?: boolean }) {
   const [state, action, pending] = useActionState(cadastrar, undefined);
   const [senha, setSenha] = useState("");
   const senhaOk = senha.length >= MIN_SENHA;
@@ -35,6 +36,12 @@ export function SignupForm() {
       </CardHeader>
       <form action={action}>
         <CardContent className="space-y-4">
+          {googleAtivo && (
+            <>
+              <GoogleButton texto="Criar conta com Google" />
+              <DivisoriaOu />
+            </>
+          )}
           <div className="space-y-2">
             <Label htmlFor="nome">Nome</Label>
             <Input

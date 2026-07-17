@@ -14,7 +14,8 @@ model User {
   id        String   @id @default(cuid())
   nome      String
   email     String   @unique
-  senhaHash String
+  senhaHash String?  // null = conta só com Google (sem senha local)
+  googleId  String?  @unique // id do Google (sub) quando entra com Google
   role      String   @default("user") // "admin" | "user" | "demo"
   bloqueado Boolean  @default(false)  // true = derruba a sessão e impede novo login
   ferramentasLiberadas Boolean @default(true) // false = admin cortou o acesso de gerar (editor/cortes/lote/leads)
@@ -224,6 +225,21 @@ model AcessoPago {
   kiwifyOrderId String?
   produto       String?
   criadoEm      DateTime @default(now())
+}
+
+// Pedido de redefinição de senha: guarda só o HASH do token (nunca o token cru).
+// O link enviado por e-mail leva o token cru; a gente confere pelo hash. Expira em
+// ~30 min e vira "usado" após redefinir (uso único).
+model PasswordReset {
+  id        String   @id @default(cuid())
+  email     String   // e-mail que pediu o reset (minúsculo)
+  tokenHash String   @unique // SHA-256 do token enviado no link
+  expiraEm  DateTime
+  usado     Boolean  @default(false)
+  criadoEm  DateTime @default(now())
+
+  @@index([email])
+  @@index([expiraEm])
 }
 
 // Rate limiter simples (janela fixa por banco): 1 linha por tentativa. Conta as

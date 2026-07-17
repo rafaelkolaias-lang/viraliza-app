@@ -5,49 +5,10 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { createSession, deleteSession } from "@/lib/session";
 import { cadastroSchema, loginSchema } from "@/lib/auth-schemas";
-import { aplicarCreditosPendentes } from "@/lib/creditos";
-import { emailComprou as emailComprouCakto } from "@/lib/cakto";
-import { emailComprou as emailComprouKiwify } from "@/lib/kiwify";
+import { criarContaLiberada, podeCriarConta } from "@/lib/registro";
 import { dentroDoLimite, ipDaRequisicao } from "@/lib/ratelimit";
 
 export type AuthState = { erro?: string } | undefined;
-
-// Crédito de boas-vindas: todo cadastro novo já começa com 1.000 créditos (R$ 10,00)
-// pra testar a plataforma sem precisar comprar. 1 crédito = R$ 0,01.
-const CREDITO_INICIAL = 1000;
-
-// Só quem comprou (qualquer produto) pode criar conta - fecha o farm de crédito
-// grátis por bots. O 1º cadastro (dono) e quem tem crédito pendente passam.
-async function podeCadastrar(email: string): Promise<boolean> {
-  const total = await prisma.user.count();
-  if (total === 0) return true; // primeiro usuário = admin (dono da plataforma)
-  const e = email.trim().toLowerCase();
-  const [acesso, pend] = await Promise.all([
-    prisma.acessoPago.findUnique({ where: { email: e } }),
-    prisma.creditoPendente.findFirst({ where: { email: e } }),
-  ]);
-  if (acesso || pend) return true;
-
-  // Rede de segurança: o webhook pode atrasar/falhar. Confirma AO VIVO se esse
-  // e-mail tem compra paga. Cakto (atual) primeiro; Kiwify (legado) como fallback,
-  // pra quem comprou lá antes da migração ainda conseguir se cadastrar. Se achar,
-  // grava a allowlist e libera na hora.
-  const ck = await emailComprouCakto(e);
-  const compra = ck.comprou ? ck : await emailComprouKiwify(e);
-  if (compra.comprou) {
-    await prisma.acessoPago.upsert({
-      where: { email: e },
-      create: {
-        email: e,
-        kiwifyOrderId: compra.orderId ?? "manual",
-        produto: compra.produto ?? null,
-      },
-      update: {},
-    });
-    return true;
-  }
-  return false;
-}
 
 export async function cadastrar(
   _prev: AuthState,
@@ -72,45 +33,14 @@ export async function cadastrar(
   if (existe) return { erro: "Esse e-mail já está cadastrado." };
 
   // gate: precisa ter comprado com este e-mail
-  if (!(await podeCadastrar(email))) {
+  if (!(await podeCriarConta(email))) {
     return {
       erro: "Não achamos uma compra com este e-mail. Faça a compra com o mesmo e-mail e tente de novo (leva alguns segundos após o pagamento).",
     };
   }
 
   const senhaHash = await bcrypt.hash(senha, 12);
-  // O primeiro a se cadastrar vira ADMIN (o dono da plataforma).
-  const total = await prisma.user.count();
-  const user = await prisma.user.create({
-    data: {
-      nome,
-      email,
-      senhaHash,
-      role: total === 0 ? "admin" : "user",
-      // Todo cadastro já pagou na Kiwify (gate acima), então já nasce assinante:
-      // libera a biblioteca (virais, acervo de cortes, produtos, membro) na hora.
-      // assinaturaAte = null => permanente (não expira).
-      assinante: true,
-      assinaturaAte: null,
-      saldoCentavos: CREDITO_INICIAL,
-      // registra o crédito de boas-vindas no extrato pra o saldo bater
-      transacoes: {
-        create: {
-          tipo: "ajuste_admin",
-          valor: CREDITO_INICIAL,
-          saldoApos: CREDITO_INICIAL,
-          descricao: "Crédito de boas-vindas (1.000 créditos)",
-        },
-      },
-    },
-  });
-
-  // se a pessoa comprou na Kiwify ANTES de se cadastrar, aplica os créditos agora
-  try {
-    await aplicarCreditosPendentes(user.id, email);
-  } catch {
-    // não trava o cadastro se algo falhar aqui; o webhook/admin pode reprocessar
-  }
+  const user = await criarContaLiberada({ nome, email, senhaHash });
 
   await createSession(user.id, user.role);
   redirect("/painel");
@@ -139,7 +69,14 @@ export async function entrar(
   }
 
   const user = await prisma.user.findUnique({ where: { email } });
-  if (!user || !(await bcrypt.compare(senha, user.senhaHash))) {
+  // senhaHash null = conta criada só com Google -> não entra por senha
+  if (!user || !user.senhaHash) {
+    if (user && !user.senhaHash) {
+      return { erro: "Essa conta entra com o Google. Use o botão \"Entrar com Google\"." };
+    }
+    return { erro: "E-mail ou senha incorretos." };
+  }
+  if (!(await bcrypt.compare(senha, user.senhaHash))) {
     return { erro: "E-mail ou senha incorretos." };
   }
   if (user.bloqueado) {

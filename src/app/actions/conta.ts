@@ -39,6 +39,12 @@ export async function trocarSenha(
     select: { senhaHash: true },
   });
   if (!u) return { erro: "Usuário não encontrado." };
+  // conta criada só com Google ainda não tem senha local: usa "Esqueci minha senha"
+  if (!u.senhaHash) {
+    return {
+      erro: 'Sua conta entra com o Google e ainda não tem senha. Use "Esqueci minha senha" na tela de login pra criar uma.',
+    };
+  }
 
   const confere = await bcrypt.compare(parsed.data.atual, u.senhaHash);
   if (!confere) return { erro: "Senha atual incorreta." };
