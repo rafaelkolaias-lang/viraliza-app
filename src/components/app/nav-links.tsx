@@ -25,19 +25,27 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+type NavItem = {
+  href: string;
+  label: string;
+  icon: typeof Home;
+  novidade?: boolean; // mostra a badge "Novo"
+};
+
 // Itens do topo (antes do grupo Ferramentas)
-const navTopo = [
+const navTopo: NavItem[] = [
   { href: "/painel/inicio", label: "Início", icon: Home },
   { href: "/painel", label: "Meus vídeos", icon: LayoutGrid },
   { href: "/painel/shopee", label: "Shopee", icon: ShoppingBag },
   { href: "/painel/acervo", label: "Acervo de cortes", icon: Film },
-] as const;
+  { href: "/painel/minerador", label: "Minerador", icon: Pickaxe, novidade: true },
+];
 
 // Itens depois do grupo Ferramentas
-const navFim = [
+const navFim: NavItem[] = [
   { href: "/painel/membro", label: "Membro", icon: Gem },
   { href: "/painel/creditos", label: "Créditos", icon: Coins },
-] as const;
+];
 
 // Sub-itens do grupo "Ferramentas" (expansível)
 const ferramentasSub = [
@@ -49,7 +57,6 @@ const ferramentasSub = [
 
 export const adminItems = [
   { href: "/admin", label: "Visão geral", icon: Gauge },
-  { href: "/admin/minerador", label: "Minerador", icon: Pickaxe },
   { href: "/admin/financas", label: "Finanças", icon: DollarSign },
   { href: "/admin/usuarios", label: "Usuários", icon: Users },
   { href: "/admin/notificacoes", label: "Notificações", icon: Bell },
@@ -91,6 +98,7 @@ function Item({
   Icon,
   active,
   badge = 0,
+  novidade = false,
   onNavigate,
   sub = false,
 }: {
@@ -99,6 +107,7 @@ function Item({
   Icon: typeof Home;
   active: boolean;
   badge?: number;
+  novidade?: boolean;
   onNavigate?: () => void;
   sub?: boolean;
 }) {
@@ -116,14 +125,21 @@ function Item({
     >
       <Icon className={sub ? "size-4" : "size-4.5"} />
       {label}
-      {badge > 0 && (
+      {badge > 0 ? (
         <span
           className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-orange-500 px-1.5 text-[11px] font-bold text-white shadow-sm"
           aria-label={`${badge} novo(s)`}
         >
           {badge > 9 ? "9+" : badge}
         </span>
-      )}
+      ) : novidade ? (
+        <span
+          className="ml-auto rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary"
+          aria-label="Novidade"
+        >
+          Novo
+        </span>
+      ) : null}
     </Link>
   );
 }
@@ -208,7 +224,7 @@ export function NavLinks({
   return (
     <div className="flex flex-col gap-6">
       <nav className="flex flex-col gap-1">
-        {navTopo.map(({ href, label, icon: Icon }) => (
+        {navTopo.map(({ href, label, icon: Icon, novidade }) => (
           <Item
             key={href}
             href={href}
@@ -216,6 +232,7 @@ export function NavLinks({
             Icon={Icon}
             active={isActive(href)}
             badge={badgeDe(href)}
+            novidade={novidade}
             onNavigate={onNavigate}
           />
         ))}
@@ -266,7 +283,7 @@ export function NavLinks({
           </div>
         )}
 
-        {navFim.map(({ href, label, icon: Icon }) => (
+        {navFim.map(({ href, label, icon: Icon, novidade }) => (
           <Item
             key={href}
             href={href}
@@ -274,6 +291,7 @@ export function NavLinks({
             Icon={Icon}
             active={isActive(href)}
             badge={badgeDe(href)}
+            novidade={novidade}
             onNavigate={onNavigate}
           />
         ))}

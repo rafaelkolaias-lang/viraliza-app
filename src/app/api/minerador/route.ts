@@ -5,14 +5,11 @@ import { interpretarPedido, buscarVideos } from "@/lib/minerador";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** Minerador de produtos (SÓ ADMIN por enquanto). Recebe o texto do afiliado,
- *  o LLM próprio mapeia pros nichos e devolve os vídeos virais do acervo. */
+/** Minerador de produtos (liberado pra todo usuário logado). Recebe o texto do
+ *  afiliado, o LLM próprio mapeia pros nichos e devolve os vídeos virais do acervo. */
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ erro: "Faça login." }, { status: 401 });
-  if (user.role !== "admin") {
-    return NextResponse.json({ erro: "Acesso restrito." }, { status: 403 });
-  }
 
   let texto = "";
   try {

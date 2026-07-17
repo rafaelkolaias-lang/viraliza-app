@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { MineradorChat } from "@/components/app/minerador-chat";
 
-export const metadata: Metadata = { title: "Admin · Minerador" };
+export const metadata: Metadata = { title: "Minerador de produtos" };
 export const dynamic = "force-dynamic";
 
 export default function MineradorPage() {
