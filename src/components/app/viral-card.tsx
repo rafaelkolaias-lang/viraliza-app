@@ -2,12 +2,18 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Play, Flame, Check, ExternalLink, Download, Trash2, TrendingUp, Pencil } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Play, Flame, Check, ExternalLink, Download, Trash2, TrendingUp, Pencil, Stamp } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { CopyLinkButton } from "@/components/app/copy-link-button";
 import { VideoModal } from "@/components/app/video-modal";
 import { cn, midiaUrl, linkBaixar, vendidosLabel } from "@/lib/utils";
+import {
+  guardarFontesMarca,
+  podeColocarMarca,
+  ROTA_MARCA_LOTE,
+} from "@/lib/marca-lote-client";
 import type { ViralVideo } from "@/lib/types";
 
 function duracao(seg: number) {
@@ -31,8 +37,22 @@ export function ViralCard({
   onExcluir?: () => void;
   excluindo?: boolean;
 }) {
+  const router = useRouter();
   const [tocando, setTocando] = useState(false);
   const fonteVideo = video.arquivo ? midiaUrl(video.arquivo) : undefined;
+  // "Colocar marca": leva o vídeo pra ferramenta de marca em lote (só serverrk).
+  const podeMarca = podeColocarMarca(video.arquivo);
+  function colocarMarca() {
+    if (!video.arquivo) return;
+    guardarFontesMarca([
+      {
+        url: video.arquivo,
+        nome: video.titulo,
+        thumb: video.thumb ? midiaUrl(video.thumb) : undefined,
+      },
+    ]);
+    router.push(ROTA_MARCA_LOTE);
+  }
   // "Editar esse": abre o Editor com uma cópia mesma-origem (Drive via proxy).
   const editUrl = video.driveId
     ? `/api/drive-video/${video.driveId}`
@@ -149,6 +169,18 @@ export function ViralCard({
             >
               <Pencil className="size-4" />
               Editar esse
+            </Button>
+          )}
+
+          {podeMarca && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={colocarMarca}
+            >
+              <Stamp className="size-4" />
+              Colocar marca
             </Button>
           )}
 

@@ -2,13 +2,18 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { DownloadCloud, CheckCheck, X, Flame } from "lucide-react";
+import { DownloadCloud, CheckCheck, X, Flame, Stamp } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ViralCard } from "@/components/app/viral-card";
 import { Paginacao } from "@/components/app/paginacao";
 import { excluirViral } from "@/app/actions/virais";
 import { midiaUrl, linkBaixar } from "@/lib/utils";
+import {
+  guardarFontesMarca,
+  podeColocarMarca,
+  ROTA_MARCA_LOTE,
+} from "@/lib/marca-lote-client";
 import type { ViralVideo } from "@/lib/types";
 
 /**
@@ -97,6 +102,28 @@ export function ViraisGaleria({
     toast.success(`Baixando ${escolhidos.length} vídeo(s) em qualidade total...`);
   }
 
+  function colocarMarcaSelecionados() {
+    const escolhidos = itens.filter(
+      (v) => selecionados.has(v.id) && podeColocarMarca(v.arquivo),
+    );
+    if (escolhidos.length === 0) {
+      toast.info("Selecione vídeos desta página pra colocar a marca.");
+      return;
+    }
+    const cortados = escolhidos.slice(0, 12);
+    guardarFontesMarca(
+      cortados.map((v) => ({
+        url: v.arquivo!,
+        nome: v.titulo,
+        thumb: v.thumb ? midiaUrl(v.thumb) : undefined,
+      })),
+    );
+    if (escolhidos.length > 12) {
+      toast.info("Levando os 12 primeiros (máximo por lote).");
+    }
+    router.push(ROTA_MARCA_LOTE);
+  }
+
   const total_sel = selecionados.size;
 
   if (total === 0) {
@@ -125,6 +152,15 @@ export function ViraisGaleria({
         <Button size="sm" disabled={total_sel === 0} onClick={baixarSelecionados}>
           <DownloadCloud className="size-4" />
           Baixar selecionados{total_sel > 0 ? ` (${total_sel})` : ""}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={total_sel === 0}
+          onClick={colocarMarcaSelecionados}
+        >
+          <Stamp className="size-4" />
+          Colocar marca{total_sel > 0 ? ` (${total_sel})` : ""}
         </Button>
         {total_sel > 0 && (
           <Button

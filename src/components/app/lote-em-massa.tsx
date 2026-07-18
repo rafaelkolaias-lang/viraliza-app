@@ -15,13 +15,21 @@ import {
   Info,
   Move,
   Maximize,
+  BadgeCheck,
+  ShoppingBag,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { enviarJobEmPedacos } from "@/lib/upload-chunked";
+import { CHAVE_FONTES_MARCA } from "@/lib/marca-lote-client";
 
-type Video = { id: string; file: File; url: string };
+// item da lista de vídeos: enviado pelo usuário (upload) OU vindo dos cards (servidor)
+type ItemUpload = { id: string; kind: "upload"; file: File; url: string; nome: string };
+type ItemServer = { id: string; kind: "server"; url: string; nome: string; thumb?: string };
+type Item = ItemUpload | ItemServer;
+
+const MAX_LOTE = 12;
 
 // Amostra pronta do modo demo (assets servidos pela web).
 const DEMO_TEMPLATE = "/templates/demo-randomlyy.png";
@@ -30,12 +38,20 @@ const DEMO_VIDEO = "/samples/demo-clip.mp4";
 let _seq = 0;
 const novoId = () => `l${(_seq += 1)}`;
 
+const EXT_MIME: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+  "image/gif": "gif",
+};
+
 export function LoteEmMassa({ demo = false }: { demo?: boolean }) {
   const router = useRouter();
 
   const [template, setTemplate] = useState<File | null>(null);
   const [templateUrl, setTemplateUrl] = useState("");
-  const [videos, setVideos] = useState<Video[]>([]);
+  const [logoSalva, setLogoSalva] = useState(false); // veio da conta (não re-salvar)
+  const [itens, setItens] = useState<Item[]>([]);
   const [audioVideo, setAudioVideo] = useState<"manter" | "remover">("manter");
   // como a marca é aplicada: "moldura" = PNG preenche a tela (9:16 inteiro);
   // "logo" = logo menor, com tamanho e posição escolhidos.
@@ -45,6 +61,50 @@ export function LoteEmMassa({ demo = false }: { demo?: boolean }) {
 
   const [enviando, setEnviando] = useState(false);
   const [feito, setFeito] = useState(0);
+
+  // adota os vídeos que vieram dos cards (via "Colocar marca") + carrega a logo salva
+  useEffect(() => {
+    if (demo) return;
+    try {
+      const bruto = sessionStorage.getItem(CHAVE_FONTES_MARCA);
+      if (bruto) {
+        const lista = JSON.parse(bruto) as { url: string; nome?: string; thumb?: string }[];
+        if (Array.isArray(lista) && lista.length) {
+          const novos: ItemServer[] = lista.slice(0, MAX_LOTE).map((f) => ({
+            id: novoId(),
+            kind: "server",
+            url: f.url,
+            nome: (f.nome ?? "Vídeo").slice(0, 80),
+            thumb: f.thumb,
+          }));
+          setItens(novos);
+        }
+      }
+    } catch {
+      /* seleção inválida - ignora */
+    }
+    sessionStorage.removeItem(CHAVE_FONTES_MARCA);
+
+    // logo salva na conta: mostra a prévia e já deixa pronta pra reusar
+    let vivo = true;
+    (async () => {
+      try {
+        const r = await fetch("/api/marca-lote", { cache: "no-store" });
+        if (!vivo || r.status !== 200) return;
+        const blob = await r.blob();
+        const ext = EXT_MIME[blob.type] ?? "png";
+        const file = new File([blob], `logo.${ext}`, { type: blob.type || "image/png" });
+        if (!vivo) return;
+        setTemplate(file);
+        setLogoSalva(true);
+      } catch {
+        /* sem logo salva - segue */
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [demo]);
 
   // object URL do template
   useEffect(() => {
@@ -57,28 +117,51 @@ export function LoteEmMassa({ demo = false }: { demo?: boolean }) {
     return () => URL.revokeObjectURL(u);
   }, [template]);
 
-  // limpa as URLs dos vídeos ao desmontar
+  // limpa as URLs (blob) dos uploads ao desmontar
   useEffect(() => {
-    return () => videos.forEach((v) => URL.revokeObjectURL(v.url));
+    return () =>
+      itens.forEach((v) => v.kind === "upload" && URL.revokeObjectURL(v.url));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const addVideos = useCallback((lista: FileList | null) => {
     if (!lista?.length) return;
-    const novos: Video[] = [];
+    const novos: ItemUpload[] = [];
     for (const file of Array.from(lista)) {
       if (!file.type.startsWith("video")) continue;
-      novos.push({ id: novoId(), file, url: URL.createObjectURL(file) });
+      novos.push({
+        id: novoId(),
+        kind: "upload",
+        file,
+        url: URL.createObjectURL(file),
+        nome: file.name.replace(/\.[^.]+$/, "").slice(0, 80) || "Vídeo",
+      });
     }
-    setVideos((prev) => [...prev, ...novos]);
+    setItens((prev) => [...prev, ...novos]);
   }, []);
 
   function removerVideo(id: string) {
-    setVideos((prev) => {
+    setItens((prev) => {
       const alvo = prev.find((v) => v.id === id);
-      if (alvo) URL.revokeObjectURL(alvo.url);
+      if (alvo?.kind === "upload") URL.revokeObjectURL(alvo.url);
       return prev.filter((v) => v.id !== id);
     });
+  }
+
+  // ao escolher uma logo nova: usa e salva na conta (pra reusar da próxima vez)
+  function escolherTemplate(file: File) {
+    setTemplate(file);
+    setLogoSalva(true);
+    const fd = new FormData();
+    fd.set("logo", file);
+    fetch("/api/marca-lote", { method: "POST", body: fd })
+      .then((r) => r.ok && toast.success("Logo salva na sua conta. 👍"))
+      .catch(() => {});
+  }
+
+  function trocarLogo() {
+    setTemplate(null);
+    setLogoSalva(false);
   }
 
   async function gerarDemo() {
@@ -103,20 +186,23 @@ export function LoteEmMassa({ demo = false }: { demo?: boolean }) {
   }
 
   async function gerar() {
-    if (!template) return toast.error("Escolha o template (sua logo/@).");
-    if (videos.length === 0) return toast.error("Adicione pelo menos um vídeo.");
+    if (!template) return toast.error("Escolha a marca (sua logo/@).");
+    if (itens.length === 0) return toast.error("Adicione pelo menos um vídeo.");
+
+    const uploads = itens.filter((v): v is ItemUpload => v.kind === "upload");
+    const servers = itens.filter((v): v is ItemServer => v.kind === "server");
 
     setEnviando(true);
     setFeito(0);
     let ok = 0;
     let falhou = 0;
-    for (const v of videos) {
+
+    // 1) vídeos que a pessoa subiu -> upload em pedaços (aguenta arquivo grande)
+    for (const v of uploads) {
       try {
-        const base = v.file.name.replace(/\.[^.]+$/, "").slice(0, 80) || "Vídeo";
-        // upload em pedaços: aguenta vídeo de qualquer tamanho (Cloudflare 100MB)
         await enviarJobEmPedacos(
           {
-            produto: base,
+            produto: v.nome,
             variantes: "1",
             audioVideo,
             tipo: "marca",
@@ -134,11 +220,41 @@ export function LoteEmMassa({ demo = false }: { demo?: boolean }) {
       }
       setFeito((n) => n + 1);
     }
+
+    // 2) vídeos vindos dos cards (servidor) -> um POST só; o servidor baixa e enfileira
+    if (servers.length > 0) {
+      try {
+        const fd = new FormData();
+        fd.set("template", template);
+        fd.set("fontes", JSON.stringify(servers.map((s) => ({ url: s.url, nome: s.nome }))));
+        fd.set("marcaTamanho", String(tamEfetivo));
+        fd.set("marcaPosicao", marcaPos);
+        fd.set("audioVideo", audioVideo);
+        const res = await fetch("/api/lote-acervo", { method: "POST", body: fd });
+        const data = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          criados?: number;
+          falhas?: number;
+          erro?: string;
+        };
+        if (res.ok && data.ok) {
+          ok += data.criados ?? 0;
+          falhou += data.falhas ?? 0;
+        } else {
+          falhou += servers.length;
+          if (data.erro) toast.error(data.erro);
+        }
+      } catch {
+        falhou += servers.length;
+      }
+      setFeito((n) => n + servers.length);
+    }
+
     setEnviando(false);
 
     if (ok > 0) {
       toast.success(
-        `${ok} vídeo${ok > 1 ? "s" : ""} enviado${ok > 1 ? "s" : ""} pra fila! 🎬` +
+        `${ok} vídeo${ok > 1 ? "s" : ""} na fila com a sua marca! 🎬` +
           (falhou ? ` (${falhou} falhou)` : ""),
       );
       router.push("/painel");
@@ -148,7 +264,7 @@ export function LoteEmMassa({ demo = false }: { demo?: boolean }) {
     }
   }
 
-  const previa = videos[0];
+  const previa = itens[0];
   // tamanho efetivo: moldura sempre preenche (100%); logo usa o slider.
   const tamEfetivo = modoMarca === "moldura" ? 100 : marcaTamanho;
 
@@ -286,7 +402,7 @@ export function LoteEmMassa({ demo = false }: { demo?: boolean }) {
       {/* ===== PAINEL ===== */}
       <div className="space-y-5">
         {/* template */}
-        <Secao icon={ImagePlus} titulo="Template (sua marca)">
+        <Secao icon={ImagePlus} titulo="Sua marca (logo ou moldura)">
           {template ? (
             <div className="flex items-center gap-3 rounded-lg border border-border bg-card p-2">
               <div className="relative size-14 shrink-0 overflow-hidden rounded-md bg-[repeating-conic-gradient(#2a2f3a_0_25%,#1b1f27_0_50%)] bg-[length:14px_14px]">
@@ -295,22 +411,29 @@ export function LoteEmMassa({ demo = false }: { demo?: boolean }) {
                   <img src={templateUrl} alt="" className="size-full object-contain" />
                 )}
               </div>
-              <p className="min-w-0 flex-1 truncate text-xs font-medium">
-                {template.name}
-              </p>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-medium">
+                  {logoSalva ? "Sua logo salva" : template.name}
+                </p>
+                {logoSalva && (
+                  <p className="flex items-center gap-1 text-[11px] text-primary">
+                    <BadgeCheck className="size-3" />
+                    Pronta pra reusar
+                  </p>
+                )}
+              </div>
               <button
                 type="button"
-                onClick={() => setTemplate(null)}
-                className="shrink-0 text-muted-foreground hover:text-destructive"
-                aria-label="Remover template"
+                onClick={trocarLogo}
+                className="shrink-0 text-[11px] font-medium text-muted-foreground hover:text-foreground"
               >
-                <Trash2 className="size-4" />
+                Trocar
               </button>
             </div>
           ) : (
             <PickerArquivo
               accept="image/*"
-              onPick={(l) => l?.[0] && setTemplate(l[0])}
+              onPick={(l) => l?.[0] && escolherTemplate(l[0])}
               label="Escolher imagem (PNG com fundo transparente)"
               icon={ImagePlus}
             />
@@ -374,20 +497,31 @@ export function LoteEmMassa({ demo = false }: { demo?: boolean }) {
         {/* vídeos */}
         <Secao
           icon={Layers}
-          titulo={`Vídeos (${videos.length})`}
+          titulo={`Vídeos (${itens.length})`}
           acao={
             <PickerBotao accept="video/*" multiple onPick={addVideos} label="Adicionar" />
           }
         >
-          {videos.length === 0 ? (
+          {itens.length === 0 ? (
             <p className="rounded-lg border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
-              Nenhum vídeo ainda. Adicione vários de uma vez.
+              Nenhum vídeo ainda. Suba os seus ou use o botão &quot;Colocar marca&quot; nos
+              vídeos Shopee.
             </p>
           ) : (
             <ul className="grid grid-cols-4 gap-2">
-              {videos.map((v) => (
+              {itens.map((v) => (
                 <li key={v.id} className="group relative aspect-[9/16] overflow-hidden rounded-md border border-border bg-black">
-                  <video src={`${v.url}#t=0.3`} muted preload="metadata" className="size-full object-cover" />
+                  {v.kind === "server" && v.thumb ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={v.thumb} alt={v.nome} className="size-full object-cover" />
+                  ) : (
+                    <video src={`${v.url}#t=0.3`} muted preload="metadata" className="size-full object-cover" />
+                  )}
+                  {v.kind === "server" && (
+                    <span className="absolute left-0.5 top-0.5 grid size-4 place-items-center rounded bg-primary/90 text-primary-foreground" title="Vídeo Shopee">
+                      <ShoppingBag className="size-2.5" />
+                    </span>
+                  )}
                   <button
                     type="button"
                     onClick={() => removerVideo(v.id)}
@@ -423,8 +557,8 @@ export function LoteEmMassa({ demo = false }: { demo?: boolean }) {
             <Sparkles className="size-4" />
           )}
           {enviando
-            ? `Enviando ${feito}/${videos.length}...`
-            : `Gerar ${videos.length || ""} vídeo${videos.length === 1 ? "" : "s"} com a marca`}
+            ? `Enviando ${feito}/${itens.length}...`
+            : `Gerar ${itens.length || ""} vídeo${itens.length === 1 ? "" : "s"} com a marca`}
         </Button>
       </div>
     </div>

@@ -2,10 +2,16 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Play, Download, TrendingUp, Flame, ExternalLink, Pencil, X, Tag } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Play, Download, TrendingUp, Flame, ExternalLink, Pencil, X, Tag, Stamp } from "lucide-react";
 import { midiaUrl, linkBaixar, vendidosLabel, capaCorte } from "@/lib/utils";
 import { drivePreview, driveDownload } from "@/lib/drive";
 import { CorteThumb } from "@/components/hub/corte-thumb";
+import {
+  guardarFontesMarca,
+  podeColocarMarca,
+  ROTA_MARCA_LOTE,
+} from "@/lib/marca-lote-client";
 import type { ViralVideo } from "@/lib/types";
 
 function duracao(seg: number) {
@@ -16,8 +22,23 @@ function duracao(seg: number) {
 
 /** Capa grande de um corte (estilo Netflix), 9:16. Passa o mouse: o vídeo toca sozinho. */
 export function CapaCorte({ video }: { video: ViralVideo }) {
+  const router = useRouter();
   const [aberto, setAberto] = useState(false);
   const vidRef = useRef<HTMLVideoElement>(null);
+
+  // "Colocar marca": leva o vídeo pra ferramenta de marca em lote (só serverrk).
+  const podeMarca = podeColocarMarca(video.arquivo);
+  function colocarMarca() {
+    if (!video.arquivo) return;
+    guardarFontesMarca([
+      {
+        url: video.arquivo,
+        nome: video.titulo,
+        thumb: video.thumb ? midiaUrl(video.thumb) : undefined,
+      },
+    ]);
+    router.push(ROTA_MARCA_LOTE);
+  }
 
   // Baixar: Drive segue direto (abre em nova aba); arquivo nosso passa pelo
   // linkBaixar, que força o download de verdade no celular (iOS/Android).
@@ -152,6 +173,16 @@ export function CapaCorte({ video }: { video: ViralVideo }) {
               Editar esse
             </Link>
           )}
+          {podeMarca && (
+            <button
+              type="button"
+              onClick={colocarMarca}
+              className="flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-white/25 bg-black/40 text-xs font-semibold text-white backdrop-blur-sm transition-colors hover:border-primary/60"
+            >
+              <Stamp className="size-3.5" />
+              Colocar marca
+            </button>
+          )}
           {baixar && (
             <a
               href={baixar}
@@ -251,6 +282,16 @@ export function CapaCorte({ video }: { video: ViralVideo }) {
                 </a>
               )}
             </div>
+            {podeMarca && (
+              <button
+                type="button"
+                onClick={colocarMarca}
+                className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-white/20 bg-white/10 text-sm font-semibold text-white transition-colors hover:border-primary/60 hover:bg-white/20"
+              >
+                <Stamp className="size-4" />
+                Colocar marca
+              </button>
+            )}
           </div>
         </div>
       )}

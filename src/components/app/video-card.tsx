@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Play, Download, Coins, RotateCcw, Eye, Pencil } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Play, Download, Coins, RotateCcw, Eye, Pencil, Stamp } from "lucide-react";
 import { StatusBadge } from "@/components/app/status-badge";
 import { ExcluirVideo } from "@/components/app/excluir-video";
 import { CortesCard } from "@/components/app/cortes-card";
@@ -11,6 +12,11 @@ import { VideoDetalhesModal } from "@/components/app/video-detalhes-modal";
 import { Button } from "@/components/ui/button";
 import { midiaUrl, linkBaixar } from "@/lib/utils";
 import { driveDownload } from "@/lib/drive";
+import {
+  guardarFontesMarca,
+  podeColocarMarca,
+  ROTA_MARCA_LOTE,
+} from "@/lib/marca-lote-client";
 import type { VideoJob } from "@/lib/types";
 
 const fmtData = new Intl.DateTimeFormat("pt-BR", {
@@ -36,12 +42,14 @@ function Pill({ children }: { children: React.ReactNode }) {
 }
 
 export function VideoCard({ video }: { video: VideoJob }) {
+  // hooks sempre no topo (antes de qualquer return) pra não quebrar a ordem dos hooks
+  const router = useRouter();
+  const [aberto, setAberto] = useState(false);
+
   // Cortes do clipador viram uma "capa" que abre a página com todos os cortes.
   if (video.tipo === "cortes") {
     return <CortesCard video={video} />;
   }
-
-  const [aberto, setAberto] = useState(false);
 
   const formatoLabel = video.formato === "voz" ? "Voz narrada" : "Legenda";
   const dur = duracao(video.duracaoSeg);
@@ -59,6 +67,20 @@ export function VideoCard({ video }: { video: VideoJob }) {
     return undefined;
   })();
   const baixarPrimeira = primeiraSrc ? linkBaixar(primeiraSrc, video.produto) : null;
+
+  // "Colocar marca": manda o vídeo pronto pra ferramenta de marca em lote (só serverrk)
+  const podeMarca = pronto && podeColocarMarca(primeiraSrc);
+  function colocarMarca() {
+    if (!primeiraSrc) return;
+    guardarFontesMarca([
+      {
+        url: primeiraSrc,
+        nome: video.produto,
+        thumb: capaMidia?.thumb ? midiaUrl(capaMidia.thumb) : undefined,
+      },
+    ]);
+    router.push(ROTA_MARCA_LOTE);
+  }
 
   return (
     <>
@@ -170,6 +192,12 @@ export function VideoCard({ video }: { video: VideoJob }) {
               >
                 <Pencil className="size-4" />
                 Editar
+              </Button>
+            )}
+            {podeMarca && (
+              <Button size="sm" variant="outline" onClick={colocarMarca}>
+                <Stamp className="size-4" />
+                Colocar marca
               </Button>
             )}
             {video.tipo === "produto" && (
