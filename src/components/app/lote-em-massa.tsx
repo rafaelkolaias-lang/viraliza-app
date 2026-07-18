@@ -89,6 +89,7 @@ export function LoteEmMassa({ demo = false }: { demo?: boolean }) {
   const [marcaPos, setMarcaPos] = useState("baixo-dir");
 
   const [adicionarModo, setAdicionarModo] = useState<null | "escolha" | "plataforma">(null);
+  const [previaId, setPreviaId] = useState<string | null>(null); // vídeo mostrado no preview
   const [enviando, setEnviando] = useState(false);
   const [feito, setFeito] = useState(0);
 
@@ -350,7 +351,8 @@ export function LoteEmMassa({ demo = false }: { demo?: boolean }) {
     }
   }
 
-  const previa = itens[0];
+  // qual vídeo aparece no preview (clicável); cai no 1º se nenhum escolhido/removido
+  const previa = itens.find((v) => v.id === previaId) ?? itens[0];
   const previewVideoUrl = previa?.url ?? amostraUrl;
   // tamanho efetivo: moldura sempre preenche (100%); logo usa o slider.
   const tamEfetivo = modoMarca === "moldura" ? 100 : marcaTamanho;
@@ -445,7 +447,9 @@ export function LoteEmMassa({ demo = false }: { demo?: boolean }) {
         </div>
         <p className="text-center text-[11px] text-muted-foreground">
           {previa
-            ? "Prévia da sua marca por cima do vídeo. O mesmo template vai em todos."
+            ? itens.length > 1
+              ? "Clique em qualquer vídeo abaixo pra ver ele aqui na moldura. O mesmo template vai em todos."
+              : "Prévia da sua marca por cima do vídeo. O mesmo template vai em todos."
             : "Exemplo: é assim que a sua marca fica por cima do vídeo."}
         </p>
       </div>
@@ -566,30 +570,52 @@ export function LoteEmMassa({ demo = false }: { demo?: boolean }) {
             </button>
           ) : (
             <ul className="grid grid-cols-4 gap-2">
-              {itens.map((v) => (
-                <li key={v.id} className="group relative aspect-[9/16] overflow-hidden rounded-md border border-border bg-black">
-                  {v.kind === "server" && v.thumb ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={v.thumb} alt={v.nome} className="size-full object-cover" />
-                  ) : (
-                    // eslint-disable-next-line jsx-a11y/media-has-caption
-                    <video src={`${v.url}#t=0.3`} muted preload="metadata" className="size-full object-cover" />
-                  )}
-                  {v.kind === "server" && (
-                    <span className="absolute left-0.5 top-0.5 grid size-4 place-items-center rounded bg-primary/90 text-primary-foreground" title="Vídeo da plataforma">
-                      <ShoppingBag className="size-2.5" />
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => removerVideo(v.id)}
-                    className="absolute right-0.5 top-0.5 grid size-5 place-items-center rounded bg-black/70 text-white opacity-80 hover:bg-destructive"
-                    aria-label="Remover"
-                  >
-                    <Trash2 className="size-3" />
-                  </button>
-                </li>
-              ))}
+              {itens.map((v) => {
+                const noPreview = previa?.id === v.id;
+                return (
+                  <li key={v.id} className="group relative aspect-[9/16]">
+                    <button
+                      type="button"
+                      onClick={() => setPreviaId(v.id)}
+                      aria-label={`Ver ${v.nome} no preview`}
+                      aria-pressed={noPreview}
+                      className={cn(
+                        "block size-full overflow-hidden rounded-md border bg-black transition-all",
+                        noPreview ? "border-primary ring-2 ring-primary" : "border-border hover:border-primary/50",
+                      )}
+                    >
+                      {v.kind === "server" && v.thumb ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={v.thumb} alt={v.nome} className="size-full object-cover" />
+                      ) : (
+                        // eslint-disable-next-line jsx-a11y/media-has-caption
+                        <video src={`${v.url}#t=0.3`} muted preload="metadata" className="size-full object-cover" />
+                      )}
+                    </button>
+                    {v.kind === "server" && (
+                      <span className="pointer-events-none absolute left-0.5 top-0.5 grid size-4 place-items-center rounded bg-primary/90 text-primary-foreground" title="Vídeo da plataforma">
+                        <ShoppingBag className="size-2.5" />
+                      </span>
+                    )}
+                    {noPreview && (
+                      <span className="pointer-events-none absolute bottom-0.5 left-0.5 rounded bg-primary/90 px-1 text-[8px] font-bold uppercase text-primary-foreground">
+                        No preview
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removerVideo(v.id);
+                      }}
+                      className="absolute right-0.5 top-0.5 grid size-5 place-items-center rounded bg-black/70 text-white opacity-80 hover:bg-destructive"
+                      aria-label="Remover"
+                    >
+                      <Trash2 className="size-3" />
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </Secao>
