@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Play, Download, Coins, RotateCcw, Eye } from "lucide-react";
+import { Play, Download, Coins, RotateCcw, Eye, Pencil } from "lucide-react";
 import { StatusBadge } from "@/components/app/status-badge";
 import { ExcluirVideo } from "@/components/app/excluir-video";
 import { CortesCard } from "@/components/app/cortes-card";
@@ -51,16 +51,14 @@ export function VideoCard({ video }: { video: VideoJob }) {
   const capaMidia = midias.find((m) => m.driveId || m.thumb);
   const temModal = pronto && midias.length > 0;
 
-  // link de download da 1ª saída (variante 1 ou legado)
-  const baixarPrimeira = (() => {
+  // src bruto da 1ª saída (variante 1 ou legado) - serve pra baixar e pra editar
+  const primeiraSrc = (() => {
     const m = midias[0];
-    if (m) {
-      const url = midiaUrl(m.arquivo) ?? (m.driveId ? driveDownload(m.driveId) : undefined);
-      return url ? linkBaixar(url, video.produto) : null;
-    }
-    if (saidas[0]) return linkBaixar(midiaUrl(saidas[0]), video.produto);
-    return null;
+    if (m) return midiaUrl(m.arquivo) ?? (m.driveId ? driveDownload(m.driveId) : undefined);
+    if (saidas[0]) return midiaUrl(saidas[0]);
+    return undefined;
   })();
+  const baixarPrimeira = primeiraSrc ? linkBaixar(primeiraSrc, video.produto) : null;
 
   return (
     <>
@@ -158,6 +156,20 @@ export function VideoCard({ video }: { video: VideoJob }) {
               >
                 <Download className="size-4" />
                 Baixar
+              </Button>
+            )}
+            {primeiraSrc && (
+              <Button
+                size="sm"
+                variant="outline"
+                render={
+                  <Link
+                    href={`/painel/novo?video=${encodeURIComponent(primeiraSrc)}&nome=${encodeURIComponent(video.produto)}`}
+                  />
+                }
+              >
+                <Pencil className="size-4" />
+                Editar
               </Button>
             )}
             {video.tipo === "produto" && (
