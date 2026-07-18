@@ -169,7 +169,18 @@ export async function POST(req: Request) {
   const marcaTamanho = Math.max(15, Math.min(100, Number(form.get("marcaTamanho") ?? 100) || 100));
   const posRawMarca = String(form.get("marcaPosicao") ?? "meio-meio");
   const marcaPosicao = POS_MARCA.has(posRawMarca) ? posRawMarca : "meio-meio";
-  const opcoes = JSON.stringify({ audioVideo, marcaTamanho, marcaPosicao });
+  // posição LIVRE (centro da logo em x/y % da tela) - quando a pessoa arrasta na prévia
+  const marcaX = Number(form.get("marcaX"));
+  const marcaY = Number(form.get("marcaY"));
+  const temLivre =
+    Number.isFinite(marcaX) && Number.isFinite(marcaY) &&
+    marcaX >= 0 && marcaX <= 100 && marcaY >= 0 && marcaY <= 100;
+  const opcoes = JSON.stringify({
+    audioVideo,
+    marcaTamanho,
+    marcaPosicao,
+    ...(temLivre ? { marcaX, marcaY } : {}),
+  });
   // tipo do job: "marca" = Aplicar marca em lote (só carimba o template, sem fábrica);
   // "produto" (padrão) = fábrica (copy + voz/legenda + montagem). O worker despacha por isso.
   const tipoJob = String(form.get("tipo") ?? "produto") === "marca" ? "marca" : "produto";

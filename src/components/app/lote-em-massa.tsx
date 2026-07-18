@@ -43,6 +43,9 @@ const MAX_LOTE = 12;
 const EX_MOLDURA = "/marcas-exemplo/moldura.png";
 const EX_LOGO = "/marcas-exemplo/logo.png";
 
+// upsell: checkout da "arte da sua loja" (template + logo personalizada)
+const CAKTO_ARTE_URL = "https://pay.cakto.com.br/x87uwi4_988382";
+
 // Amostra pronta do modo demo (assets servidos pela web).
 const DEMO_TEMPLATE = "/templates/demo-randomlyy.png";
 const DEMO_VIDEO = "/samples/demo-clip.mp4";
@@ -86,7 +89,14 @@ export function LoteEmMassa({ demo = false }: { demo?: boolean }) {
   // "logo" = logo menor, com tamanho e posição escolhidos.
   const [modoMarca, setModoMarca] = useState<"moldura" | "logo">("moldura");
   const [marcaTamanho, setMarcaTamanho] = useState(40); // % da largura (só no modo logo)
-  const [marcaPos, setMarcaPos] = useState("baixo-dir");
+  // posição da logo = centro em % da tela (arrastável na prévia). Padrão: canto sup. dir.
+  const [marcaX, setMarcaX] = useState(78);
+  const [marcaY, setMarcaY] = useState(12);
+  const [presetAtivo, setPresetAtivo] = useState("cima-dir"); // atalho destacado (some ao arrastar)
+  const [logoAspect, setLogoAspect] = useState(1); // altura/largura da logo (pra manter dentro)
+
+  const molduraRef = useRef<HTMLDivElement>(null); // frame 9:16 do preview (pra converter o arrasto)
+  const arrastando = useRef(false);
 
   const [adicionarModo, setAdicionarModo] = useState<null | "escolha" | "plataforma">(null);
   const [previaId, setPreviaId] = useState<string | null>(null); // vídeo mostrado no preview
@@ -166,6 +176,14 @@ export function LoteEmMassa({ demo = false }: { demo?: boolean }) {
     setTemplateUrl(u);
     return () => URL.revokeObjectURL(u);
   }, [template]);
+
+  // aspecto (altura/largura) da logo, pra ela não sair do quadro ao posicionar
+  useEffect(() => {
+    if (!templateUrl) return;
+    const img = new window.Image();
+    img.onload = () => setLogoAspect(img.naturalWidth ? img.naturalHeight / img.naturalWidth : 1);
+    img.src = templateUrl;
+  }, [templateUrl]);
 
   // limpa as URLs (blob) dos uploads ao desmontar
   useEffect(() => {
@@ -294,7 +312,10 @@ export function LoteEmMassa({ demo = false }: { demo?: boolean }) {
             audioVideo,
             tipo: "marca",
             marcaTamanho: String(tamEfetivo),
-            marcaPosicao: marcaPos,
+            marcaPosicao: presetAtivo || "meio-meio",
+            ...(modoMarca === "logo"
+              ? { marcaX: String(Math.round(posX)), marcaY: String(Math.round(posY)) }
+              : {}),
           },
           [
             { sub: "template", file: template },
@@ -315,8 +336,12 @@ export function LoteEmMassa({ demo = false }: { demo?: boolean }) {
         fd.set("template", template);
         fd.set("fontes", JSON.stringify(servers.map((s) => ({ url: s.url, nome: s.nome }))));
         fd.set("marcaTamanho", String(tamEfetivo));
-        fd.set("marcaPosicao", marcaPos);
+        fd.set("marcaPosicao", presetAtivo || "meio-meio");
         fd.set("audioVideo", audioVideo);
+        if (modoMarca === "logo") {
+          fd.set("marcaX", String(Math.round(posX)));
+          fd.set("marcaY", String(Math.round(posY)));
+        }
         const res = await fetch("/api/lote-acervo", { method: "POST", body: fd });
         const data = (await res.json().catch(() => ({}))) as {
           ok?: boolean;
@@ -356,6 +381,38 @@ export function LoteEmMassa({ demo = false }: { demo?: boolean }) {
   const previewVideoUrl = previa?.url ?? amostraUrl;
   // tamanho efetivo: moldura sempre preenche (100%); logo usa o slider.
   const tamEfetivo = modoMarca === "moldura" ? 100 : marcaTamanho;
+
+  // metade da logo em % da tela (frame 9:16 => largura/altura = 0.5625). Serve pra
+  // manter a logo dentro do quadro e pra ancorar os atalhos de canto.
+  const meiaL = marcaTamanho / 2;
+  const meiaA = (marcaTamanho * logoAspect * (9 / 16)) / 2;
+  const limita = (v: number, meia: number) => Math.max(meia, Math.min(100 - meia, v));
+  // posição efetiva (sempre dentro do quadro), usada no preview e no envio
+  const posX = limita(marcaX, meiaL);
+  const posY = limita(marcaY, meiaA);
+
+  // atalhos de canto/centro: colocam a logo ancorada (com respiro de ~5%)
+  function irParaPreset(pos: string) {
+    const m = 5;
+    const [v, h] = pos.split("-");
+    setMarcaX(h === "esq" ? m + meiaL : h === "dir" ? 100 - m - meiaL : 50);
+    setMarcaY(v === "cima" ? m + meiaA : v === "baixo" ? 100 - m - meiaA : 50);
+    setPresetAtivo(pos);
+  }
+
+  // arrastar a logo na prévia -> atualiza o centro em %
+  function moverLogoPara(clientX: number, clientY: number) {
+    const box = molduraRef.current?.getBoundingClientRect();
+    if (!box || !box.width || !box.height) return;
+    setMarcaX(limita(((clientX - box.left) / box.width) * 100, meiaL));
+    setMarcaY(limita(((clientY - box.top) / box.height) * 100, meiaA));
+    setPresetAtivo("");
+  }
+  function aoArrastar(e: React.PointerEvent) {
+    if (!arrastando.current) return;
+    e.preventDefault();
+    moverLogoPara(e.clientX, e.clientY);
+  }
 
   // ===== MODO DEMO: amostra pronta (moldura + vídeo de exemplo) =====
   if (demo) {
@@ -401,7 +458,13 @@ export function LoteEmMassa({ demo = false }: { demo?: boolean }) {
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
       {/* ===== PRÉVIA ===== */}
       <div className="space-y-3">
-        <div className="relative mx-auto aspect-[9/16] w-full max-w-[340px] overflow-hidden rounded-2xl border border-border bg-black">
+        <div
+          ref={molduraRef}
+          onPointerMove={aoArrastar}
+          onPointerUp={() => (arrastando.current = false)}
+          onPointerLeave={() => (arrastando.current = false)}
+          className="relative mx-auto aspect-[9/16] w-full max-w-[340px] touch-none overflow-hidden rounded-2xl border border-border bg-black"
+        >
           {previewVideoUrl ? (
             // eslint-disable-next-line jsx-a11y/media-has-caption
             <video
@@ -411,7 +474,7 @@ export function LoteEmMassa({ demo = false }: { demo?: boolean }) {
               loop
               muted
               playsInline
-              className="size-full object-contain"
+              className="pointer-events-none size-full object-contain"
             />
           ) : (
             <div className="grid size-full place-items-center p-6 text-center text-sm text-muted-foreground">
@@ -421,7 +484,7 @@ export function LoteEmMassa({ demo = false }: { demo?: boolean }) {
               </span>
             </div>
           )}
-          {/* template sobreposto (moldura tela cheia OU logo posicionada) */}
+          {/* template sobreposto: moldura ocupa a tela toda; logo fica arrastável */}
           {templateUrl &&
             (tamEfetivo >= 100 ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -435,12 +498,28 @@ export function LoteEmMassa({ demo = false }: { demo?: boolean }) {
               <img
                 src={templateUrl}
                 alt="Logo"
-                className="pointer-events-none absolute object-contain"
-                style={estiloMarca(tamEfetivo, marcaPos)}
+                onPointerDown={(e) => {
+                  arrastando.current = true;
+                  e.currentTarget.setPointerCapture(e.pointerId);
+                  moverLogoPara(e.clientX, e.clientY);
+                }}
+                draggable={false}
+                className="absolute cursor-grab touch-none select-none object-contain drop-shadow-lg active:cursor-grabbing"
+                style={{
+                  left: `${posX}%`,
+                  top: `${posY}%`,
+                  width: `${marcaTamanho}%`,
+                  transform: "translate(-50%, -50%)",
+                }}
               />
             ))}
+          {modoMarca === "logo" && templateUrl && (
+            <span className="pointer-events-none absolute inset-x-0 bottom-2 text-center text-[10px] font-medium text-white/90 drop-shadow">
+              arraste a logo pra posicionar
+            </span>
+          )}
           {!previa && templateUrl && (
-            <span className="absolute left-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
+            <span className="pointer-events-none absolute left-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
               Exemplo
             </span>
           )}
@@ -514,6 +593,30 @@ export function LoteEmMassa({ demo = false }: { demo?: boolean }) {
                 ? "Moldura: PNG 9:16 com fundo transparente, preenche a tela toda."
                 : "Logo: PNG só com a logo/@ (fundo transparente). Você escolhe tamanho e posição."}
           </p>
+
+          {/* upsell: arte personalizada (template + logo) via Cakto */}
+          <a
+            href={CAKTO_ARTE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 rounded-xl border border-primary/30 bg-gradient-to-br from-primary/12 to-primary/5 p-3 transition-colors hover:border-primary/60"
+          >
+            <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-primary/15 text-primary">
+              <Sparkles className="size-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold leading-tight">
+                Não tem uma arte da sua loja?
+              </span>
+              <span className="block text-[11px] text-muted-foreground">
+                A gente cria seu template + logo personalizada por{" "}
+                <b className="text-primary">R$ 19,90</b>.
+              </span>
+            </span>
+            <span className="shrink-0 rounded-lg bg-primary px-2.5 py-1.5 text-xs font-bold text-primary-foreground">
+              Quero
+            </span>
+          </a>
         </Secao>
 
         {/* 2. como aplicar */}
@@ -541,8 +644,11 @@ export function LoteEmMassa({ demo = false }: { demo?: boolean }) {
                 />
               </div>
               <div>
-                <p className="mb-1.5 text-xs font-medium">Posição</p>
-                <GradePosicao valor={marcaPos} onPick={setMarcaPos} />
+                <div className="mb-1.5 flex items-center justify-between">
+                  <p className="text-xs font-medium">Posição</p>
+                  <span className="text-[10px] text-muted-foreground">ou arraste na prévia</span>
+                </div>
+                <GradePosicao valor={presetAtivo} onPick={irParaPreset} />
               </div>
             </div>
           )}
@@ -729,22 +835,6 @@ const POSICOES = [
   "meio-esq", "meio-meio", "meio-dir",
   "baixo-esq", "baixo-meio", "baixo-dir",
 ] as const;
-
-// estilo inline da logo no preview (espelha o que o worker faz no vídeo).
-function estiloMarca(tam: number, pos: string): React.CSSProperties {
-  const [v, h] = pos.split("-");
-  const s: React.CSSProperties = { width: `${tam}%`, height: "auto" };
-  if (h === "esq") s.left = "5%";
-  else if (h === "dir") s.right = "5%";
-  else s.left = "50%";
-  if (v === "cima") s.top = "5%";
-  else if (v === "baixo") s.bottom = "5%";
-  else s.top = "50%";
-  const tx = h === "meio" ? "-50%" : "0px";
-  const ty = v === "meio" ? "-50%" : "0px";
-  if (tx !== "0px" || ty !== "0px") s.transform = `translate(${tx}, ${ty})`;
-  return s;
-}
 
 function CardMarca({
   ativo,

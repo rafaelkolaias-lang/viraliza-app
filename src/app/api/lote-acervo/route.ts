@@ -94,6 +94,12 @@ export async function POST(req: Request) {
   const posRaw = String(form.get("marcaPosicao") ?? "meio-meio");
   const marcaPosicao = POS_MARCA.has(posRaw) ? posRaw : "meio-meio";
   const audioVideo = String(form.get("audioVideo") ?? "manter") === "remover" ? "remover" : "manter";
+  // posição LIVRE (centro da logo em x/y %) quando a pessoa arrasta na prévia
+  const marcaX = Number(form.get("marcaX"));
+  const marcaY = Number(form.get("marcaY"));
+  const temLivre =
+    Number.isFinite(marcaX) && Number.isFinite(marcaY) &&
+    marcaX >= 0 && marcaX <= 100 && marcaY >= 0 && marcaY <= 100;
 
   // trava de crédito pro lote inteiro (débito é só no fim de cada job). Admin passa.
   if (user.role !== "admin") {
@@ -127,7 +133,13 @@ export async function POST(req: Request) {
   for (const f of fontes) {
     let jobId: string | null = null;
     try {
-      const opcoes = JSON.stringify({ audioVideo, marcaTamanho, marcaPosicao, fonteUrl: f.url });
+      const opcoes = JSON.stringify({
+        audioVideo,
+        marcaTamanho,
+        marcaPosicao,
+        fonteUrl: f.url,
+        ...(temLivre ? { marcaX, marcaY } : {}),
+      });
       const job = await prisma.job.create({
         data: {
           userId: user.id,

@@ -196,10 +196,10 @@ def _xy_marca(pos):
     return x, y
 
 
-def filtro_lote(tam=100, pos="meio-meio", vertical=False):
+def filtro_lote(tam=100, pos="meio-meio", vertical=False, x_pct=None, y_pct=None):
     """Monta o filtro de carimbo. tam=100 -> moldura (preenche a tela); tam<100 ->
-    logo escalada pra tam% da largura, na posição escolhida. vertical=True usa o
-    atalho sem fundo desfocado (vídeo já é 9:16)."""
+    logo escalada pra tam% da largura. Se x_pct/y_pct (0-100) vierem, a logo fica
+    livre com o CENTRO em (x_pct%, y_pct%); senão usa a posição nomeada (9 pontos)."""
     try:
         tam = int(float(tam))
     except (TypeError, ValueError):
@@ -209,21 +209,27 @@ def filtro_lote(tam=100, pos="meio-meio", vertical=False):
     else:
         tam = max(10, min(99, tam))
         w = max(80, round(LOTE_W * tam / 100))
-        x, y = _xy_marca(pos)
-        ov = f"[1:v]scale={w}:-1[ov];[base][ov]overlay={x}:{y}"
+        if x_pct is not None and y_pct is not None:
+            # posição livre: centro da logo em (x_pct%, y_pct%). W/H = base, w/h = logo.
+            ov = (f"[1:v]scale={w}:-1[ov];[base][ov]"
+                  f"overlay=(W*{x_pct:.2f}/100)-w/2:(H*{y_pct:.2f}/100)-h/2")
+        else:
+            x, y = _xy_marca(pos)
+            ov = f"[1:v]scale={w}:-1[ov];[base][ov]overlay={x}:{y}"
     base = _LOTE_BASE_VERTICAL if vertical else _LOTE_BASE
     return base + ov + ":format=auto,format=nv12,hwupload[v]"
 
 
-def carimbar_gpu(video, template, out, manter_audio=True, tam=100, pos="meio-meio"):
+def carimbar_gpu(video, template, out, manter_audio=True, tam=100, pos="meio-meio",
+                 x_pct=None, y_pct=None):
     """Em lote: 9:16 + template, encode na GPU. manter_audio=True mantém o som do
-    vídeo original; False deixa mudo. tam/pos controlam tamanho e posição da marca."""
+    vídeo original; False deixa mudo. tam/pos (ou x_pct/y_pct livres) controlam a marca."""
     audio = ["-map", "0:a?", "-c:a", "aac", "-b:a", "128k"] if manter_audio else ["-an"]
     vertical = _ja_vertical(video)  # já 9:16 -> pula o fundo desfocado (bem mais rápido)
     cmd = [
         "ffmpeg", "-y", "-vaapi_device", VAAPI_DEVICE,
         "-i", video, "-i", template,
-        "-filter_complex", filtro_lote(tam, pos, vertical), "-map", "[v]", *audio,
+        "-filter_complex", filtro_lote(tam, pos, vertical, x_pct, y_pct), "-map", "[v]", *audio,
         "-c:v", "h264_vaapi", "-rc_mode", "CQP", "-qp", "23",
         "-movflags", "+faststart", out,
     ]
@@ -252,6 +258,14 @@ def render_lote(job, work):
     # tamanho (% da largura; 100 = moldura/tela cheia) + posição (9 pontos) da marca
     marca_tam = opc.get("marcaTamanho", 100)
     marca_pos = opc.get("marcaPosicao", "meio-meio")
+    # posição livre (centro da logo em x/y %); só vale no modo logo (tam<100)
+    def _pct(v):
+        try:
+            return max(0.0, min(100.0, float(v)))
+        except (TypeError, ValueError):
+            return None
+    marca_x = _pct(opc.get("marcaX"))
+    marca_y = _pct(opc.get("marcaY"))
     # vídeo da plataforma (via card "Colocar marca"): vem por URL e é lido LOCAL
     fonte_url = (opc.get("fonteUrl") or "").strip()
 
@@ -279,7 +293,7 @@ def render_lote(job, work):
         progresso(job_id, f"Renderizando {i + 1}/{total}")
         out = os.path.join(work, f"saida-{i + 1}.mp4")
         if not carimbar_gpu(entrada, template, out, manter_audio=manter_audio,
-                            tam=marca_tam, pos=marca_pos):
+                            tam=marca_tam, pos=marca_pos, x_pct=marca_x, y_pct=marca_y):
             raise RuntimeError(f"Falha ao renderizar o vídeo {i + 1}.")
         dur = duracao(out)
         ult_dur = dur
