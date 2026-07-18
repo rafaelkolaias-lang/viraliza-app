@@ -26,18 +26,29 @@ export async function GET(req: Request) {
     return NextResponse.json({ erro: "não autorizado" }, { status: 401 });
   }
 
-  const job = await prisma.job.findFirst({
-    where: { status: "na_fila" },
-    orderBy: { criadoEm: "asc" },
-  });
+  // Claim ATÔMICO: com vários workers em paralelo, garante que só UM pega cada job
+  // (senão dois renderizam o mesmo e gastam crédito em dobro). O updateMany com
+  // guarda "status: na_fila" é atômico no MySQL; quem conseguir count===1 ficou com ele.
+  let job = null as Awaited<ReturnType<typeof prisma.job.findUnique>>;
+  for (let tentativa = 0; tentativa < 8; tentativa++) {
+    const cand = await prisma.job.findFirst({
+      where: { status: "na_fila" },
+      orderBy: { criadoEm: "asc" },
+      select: { id: true },
+    });
+    if (!cand) break;
+    const claim = await prisma.job.updateMany({
+      where: { id: cand.id, status: "na_fila" },
+      data: { status: "renderizando", erro: null },
+    });
+    if (claim.count === 1) {
+      job = await prisma.job.findUnique({ where: { id: cand.id } });
+      break;
+    }
+    // outro worker pegou esse antes; tenta o próximo da fila
+  }
 
   if (!job) return NextResponse.json({ job: null });
-
-  // marca como renderizando (claim). Single worker -> sem corrida.
-  await prisma.job.update({
-    where: { id: job.id },
-    data: { status: "renderizando", erro: null },
-  });
 
   const [videos, imagens, musica, template] = await Promise.all([
     listar(job.id, "videos"),

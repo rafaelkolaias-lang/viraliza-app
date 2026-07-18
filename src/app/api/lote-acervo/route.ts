@@ -94,7 +94,6 @@ export async function POST(req: Request) {
   const posRaw = String(form.get("marcaPosicao") ?? "meio-meio");
   const marcaPosicao = POS_MARCA.has(posRaw) ? posRaw : "meio-meio";
   const audioVideo = String(form.get("audioVideo") ?? "manter") === "remover" ? "remover" : "manter";
-  const opcoes = JSON.stringify({ audioVideo, marcaTamanho, marcaPosicao });
 
   // trava de crédito pro lote inteiro (débito é só no fim de cada job). Admin passa.
   if (user.role !== "admin") {
@@ -121,11 +120,14 @@ export async function POST(req: Request) {
   let criados = 0;
   const falhas: string[] = [];
 
-  // sequencial: baixa o vídeo do serverrk -> grava em data/uploads -> libera pra fila.
-  // Nasce "recebendo" (worker só pega "na_fila"), então nada roda antes dos arquivos.
+  // Sem double-hop: NÃO baixamos o vídeo aqui. Guardamos a URL do serverrk em
+  // `fonteUrl` e o worker lê o arquivo LOCAL (/media/...) direto - economiza 2
+  // transferências por vídeo. Só o template (logo, pequeno) vai pro data/uploads.
+  // Nasce "recebendo" (worker só pega "na_fila") e só liberamos após gravar o template.
   for (const f of fontes) {
     let jobId: string | null = null;
     try {
+      const opcoes = JSON.stringify({ audioVideo, marcaTamanho, marcaPosicao, fonteUrl: f.url });
       const job = await prisma.job.create({
         data: {
           userId: user.id,
@@ -139,18 +141,8 @@ export async function POST(req: Request) {
       });
       jobId = job.id;
 
-      const resp = await fetch(f.url);
-      if (!resp.ok) throw new Error("download falhou");
-      const ab = await resp.arrayBuffer();
-      if (ab.byteLength > MAX_ARQUIVO) throw new Error("vídeo grande demais");
-
-      const vdir = path.join(pastaEntrada(job.id), "videos");
       const tdir = path.join(pastaEntrada(job.id), "template");
-      await fs.mkdir(vdir, { recursive: true });
       await fs.mkdir(tdir, { recursive: true });
-
-      const nomeVideo = nomeSeguro(new URL(f.url).pathname.split("/").pop() || "video.mp4");
-      await fs.writeFile(path.join(vdir, nomeVideo), Buffer.from(ab));
       await fs.writeFile(path.join(tdir, tplNome), tplBuf);
 
       await prisma.job.update({ where: { id: job.id }, data: { status: "na_fila" } });
