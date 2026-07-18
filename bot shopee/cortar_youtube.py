@@ -35,9 +35,7 @@ load_dotenv()
 from google import genai
 from google.genai import types
 
-_KEYS = [k for k in (os.getenv("GEMINI_API_KEY"),
-                     os.getenv("GEMINI_API_KEY_2"),
-                     os.getenv("GEMINI_API_KEY_3")) if k]
+_KEYS = [k for k in ([os.getenv("GEMINI_API_KEY")] + [os.getenv(f"GEMINI_API_KEY_{_i}") for _i in range(2, 21)]) if k]
 _ciclo = itertools.cycle(_KEYS) if _KEYS else None
 MODELO = "gemini-2.5-flash"
 

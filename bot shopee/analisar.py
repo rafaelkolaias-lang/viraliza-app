@@ -17,8 +17,7 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 CSV_PATH = os.path.join(BASE, "resultados.csv")
 SAIDA_TXT = os.path.join(BASE, "aprendizados.txt")
 
-_KEYS = [k for k in (os.getenv("GEMINI_API_KEY"), os.getenv("GEMINI_API_KEY_2"),
-                     os.getenv("GEMINI_API_KEY_3")) if k]
+_KEYS = [k for k in ([os.getenv("GEMINI_API_KEY")] + [os.getenv(f"GEMINI_API_KEY_{_i}") for _i in range(2, 21)]) if k]
 _ciclo = itertools.cycle(_KEYS) if _KEYS else None
 
 
