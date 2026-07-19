@@ -16,7 +16,15 @@ export async function POST(
   }
 
   const { id } = await params;
-  const body = (await req.json().catch(() => ({}))) as { erro?: string };
+  // o worker manda form-encoded (data=). Lê formData; cai pra JSON por garantia.
+  let mensagem = "Falha no render";
+  try {
+    const form = await req.formData();
+    mensagem = String(form.get("erro") ?? mensagem);
+  } catch {
+    const j = (await req.json().catch(() => ({}))) as { erro?: string };
+    if (j.erro) mensagem = j.erro;
+  }
 
   const job = await prisma.job.findUnique({ where: { id } });
   if (!job) return NextResponse.json({ erro: "job não existe" }, { status: 404 });
@@ -25,7 +33,8 @@ export async function POST(
     where: { id },
     data: {
       status: "erro",
-      erro: (body.erro ?? "Falha no render").slice(0, 500),
+      // campo é @db.Text; guardamos o erro detalhado (voz/cota/etc) sem cortar cedo
+      erro: mensagem.slice(0, 4000),
       etapa: null,
     },
   });

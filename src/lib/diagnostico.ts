@@ -19,6 +19,8 @@ export interface ErroClassificado {
   servico: ServicoErro;
   /** true quando o erro tem cara de cota/crédito esgotado */
   semCredito: boolean;
+  /** explicação curta e humana da causa provável (pra mostrar no painel) */
+  motivo?: string;
 }
 
 export function classificarErro(erro?: string | null): ErroClassificado {
@@ -31,7 +33,7 @@ export function classificarErro(erro?: string | null): ErroClassificado {
   // a ordem importa: a causa raiz (eleven/gemini) costuma aparecer no log mesmo
   // quando a mensagem final é "a fábrica não gerou vídeo".
   let servico: ServicoErro = "Outro";
-  if (/eleven|text_to_speech|xi-api|convert_with_timestamps/.test(t))
+  if (/eleven|text_to_speech|xi-api|convert_with_timestamps|\[voz\]|voz=|library voices/.test(t))
     servico = "ElevenLabs (voz)";
   else if (/gemini|genai|google.*api|api key not valid|generativelanguage/.test(t))
     servico = "Gemini (copy/imagem)";
@@ -40,7 +42,19 @@ export function classificarErro(erro?: string | null): ErroClassificado {
   else if (/não gerou v[ií]deo|nao gerou video|a f[áa]brica/.test(t))
     servico = "Fábrica";
 
-  return { servico, semCredito };
+  // motivo humano da causa mais provável
+  let motivo: string | undefined;
+  if (/library voices|paid_plan_required|402/.test(t))
+    motivo = "Voz exige plano PAGO (voz 'library' da ElevenLabs). Precisa de chave paga ou troque a voz.";
+  else if (/exceeds your quota|character.*quota|cota|quota/.test(t) && servico === "ElevenLabs (voz)")
+    motivo = "Cota de caracteres da(s) chave(s) ElevenLabs esgotada.";
+  else if (/api key not valid|invalid api key|unauthorized|\b401\b/.test(t))
+    motivo = "Chave de API inválida ou sem permissão.";
+  else if (/resource_exhausted|gemini.*quota/.test(t))
+    motivo = "Cota do Gemini esgotada.";
+  else if (semCredito) motivo = "Cota/crédito esgotado.";
+
+  return { servico, semCredito, motivo };
 }
 
 export interface ChaveSaldo {

@@ -22,7 +22,7 @@ export const VOZES: VozOpcao[] = [
   { id: "nPczCjzI2devNBz1zQrb", nome: "Brian", genero: "m", principal: true },
   { id: "EXAVITQu4vr4xnSDxMaL", nome: "Sarah", genero: "f" },
   { id: "XrExE9yKIg1WjnnlVkGX", nome: "Matilda", genero: "f" },
-  { id: "XB0fDUnXU5powFXDhCwa", nome: "Charlotte", genero: "f" },
+  // Charlotte saiu: virou "library voice" da ElevenLabs (exige plano pago via API -> 402).
   { id: "JBFqnCBsd6RMkjVDRZzb", nome: "George", genero: "m" },
   { id: "TX3LPaxmHKxFdv7VOQHJ", nome: "Liam", genero: "m" },
   { id: "onwK4e9ZLuTAKqWW03F9", nome: "Daniel", genero: "m" },

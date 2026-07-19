@@ -129,7 +129,16 @@ export default async function DiagnosticoPage() {
                       </div>
                       <p className="mt-1.5 text-xs text-muted-foreground">
                         {fmtNum.format(c.usado ?? 0)} / {fmtNum.format(c.limite ?? 0)}
-                        {c.tier ? ` · ${c.tier}` : ""}
+                        {c.tier ? (
+                          <span
+                            className={cn(
+                              c.tier !== "free" && "font-semibold text-primary",
+                            )}
+                          >
+                            {" · "}
+                            {c.tier === "free" ? "free" : `${c.tier} (paga)`}
+                          </span>
+                        ) : null}
                       </p>
                       {c.resetEm && (
                         <p className="mt-0.5 text-xs text-muted-foreground">
@@ -206,6 +215,12 @@ export default async function DiagnosticoPage() {
                       )}
                     </div>
                   </div>
+                  {c.diag.motivo && (
+                    <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-500">
+                      <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+                      {c.diag.motivo}
+                    </p>
+                  )}
                   {c.erro && (
                     <details className="mt-2">
                       <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">

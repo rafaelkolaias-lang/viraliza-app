@@ -19,8 +19,16 @@ export async function POST(
   }
 
   const { id } = await params;
-  const body = (await req.json().catch(() => ({}))) as { etapa?: string };
-  const etapa = (body.etapa ?? "").toString().slice(0, 120) || null;
+  // o worker manda form-encoded (data=). Lê formData; cai pra JSON por garantia.
+  let bruto = "";
+  try {
+    const form = await req.formData();
+    bruto = String(form.get("etapa") ?? "");
+  } catch {
+    const j = (await req.json().catch(() => ({}))) as { etapa?: string };
+    bruto = String(j.etapa ?? "");
+  }
+  const etapa = bruto.slice(0, 120) || null;
 
   const r = await prisma.job.updateMany({
     where: { id, status: { in: ["renderizando", "processando"] } },

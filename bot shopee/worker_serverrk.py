@@ -60,7 +60,7 @@ def progresso(job_id, etapa):
 def reportar_erro(job_id, msg):
     try:
         requests.post(f"{WEB_URL}/api/worker/erro/{job_id}", headers=HEADERS,
-                      data={"erro": msg[:800]}, timeout=15)
+                      data={"erro": msg[:4000]}, timeout=15)
     except Exception:
         pass
 
@@ -412,8 +412,13 @@ def render_fabrica(job, work):
                        cwd=APP_DIR, env=env, capture_output=True, text=True, errors="replace")
     saidas = sorted(glob.glob(os.path.join(APP_DIR, "saida", nome + "*.mp4")))
     if not saidas:
-        cauda = ((r.stdout or "") + "\n" + (r.stderr or "")).strip()[-500:]
-        raise RuntimeError("Fábrica não gerou vídeo. " + cauda)
+        # erro DETALHADO: puxa as linhas úteis (voz/cota/traceback) em vez de só cortar
+        full = ((r.stdout or "") + "\n" + (r.stderr or "")).strip()
+        pistas = ("[voz]", "Voz falhou", "FALHOU", "ERRO", "Error", "Traceback",
+                  "cota", "quota", "HTTP 4", "HTTP 5", "library voices")
+        uteis = [ln for ln in full.splitlines() if any(p in ln for p in pistas)]
+        resumo = "\n".join(uteis[-12:]) if uteis else full[-800:]
+        raise RuntimeError("Fábrica não gerou vídeo.\n" + resumo)
 
     leg, tags = ler_legenda(os.path.join(APP_DIR, "saida", nome + ".txt"))
     total = len(saidas)

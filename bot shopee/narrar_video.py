@@ -12,8 +12,6 @@ from dotenv import load_dotenv
 from elevenlabs.client import ElevenLabs
 from elevenlabs import VoiceSettings
 
-import uso
-
 load_dotenv()
 
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -140,12 +138,28 @@ def _eleven_salvar_idx(i):
         pass
 
 
-def _tts_uma_chave(api_key, texto, mp3_path, voice_id=None, contabilizar=True):
-    """Faz a chamada na ElevenLabs com UMA chave. Pode lançar exceção (cota/erro).
-    contabilizar=False (BYO): não soma o custo, porque é a conta do próprio usuário."""
+def _log(msg):
+    print(f"[voz] {msg}", flush=True)
+
+
+def _detalhe_erro(e):
+    """Resumo ÚTIL do erro da ElevenLabs: status HTTP + corpo completo (sem cortar no
+    escuro). Ex.: 'HTTP 402: {"detail":{"message":"Free users cannot use library..."}}'."""
+    sc = getattr(e, "status_code", None)
+    corpo = getattr(e, "body", None)
+    if corpo is None:
+        corpo = str(e)
+    corpo = str(corpo)
+    if len(corpo) > 400:
+        corpo = corpo[:400] + "..."
+    return f"HTTP {sc}: {corpo}" if sc else corpo
+
+
+def _tts_uma_chave(api_key, texto, mp3_path):
+    """Faz a chamada na ElevenLabs com UMA chave. Pode lançar exceção (cota/erro)."""
     client = ElevenLabs(api_key=api_key)
     resp = client.text_to_speech.convert_with_timestamps(
-        voice_id=voice_id or VOICE_ID, model_id=MODELO_VOZ, text=texto,
+        voice_id=VOICE_ID, model_id=MODELO_VOZ, text=texto,
         output_format="mp3_44100_128",
         voice_settings=VOICE_SETTINGS,
     )
@@ -154,8 +168,6 @@ def _tts_uma_chave(api_key, texto, mp3_path, voice_id=None, contabilizar=True):
         raise RuntimeError("resposta sem áudio")
     with open(mp3_path, "wb") as f:
         f.write(base64.b64decode(audio_b64))
-    if contabilizar:
-        uso.add_eleven(len(texto))  # custo ElevenLabs = nº de caracteres da fala
 
     al = resp.alignment
     chars = al.characters
@@ -179,37 +191,151 @@ def _tts_uma_chave(api_key, texto, mp3_path, voice_id=None, contabilizar=True):
 
 
 # ---------------------------------------------------------------------------
-def gerar_voz_com_tempos(texto, mp3_path, voice_id=None, api_key=None):
-    """Gera a voz e devolve (duracao, palavras[(palavra, ini, fim)]).
-    Reveza entre todas as chaves: se uma estourou a cota (ou deu qualquer erro),
-    tenta a próxima — e lembra a que funcionou pro próximo job.
-    voice_id = voz escolhida no Estúdio; None usa a voz padrão (VOICE_ID).
-    api_key = chave do usuário (BYO): usa SÓ ela (conta dele) e NÃO contabiliza
-    custo na plataforma; None usa o rodízio das chaves da plataforma."""
-    if api_key:
-        return _tts_uma_chave(api_key, texto, mp3_path, voice_id, contabilizar=False)
+def _eleven_info(api_key):
+    """(restante_chars, tier). tier='free' = plano grátis (não usa 'library voices'
+    tipo a Charlotte via API -> HTTP 402); paga (starter+) usa tudo. 0/'' se falhar."""
+    try:
+        import requests
+        r = requests.get("https://api.elevenlabs.io/v1/user/subscription",
+                         headers={"xi-api-key": api_key}, timeout=10)
+        d = r.json()
+        restante = max(0, int(d.get("character_limit", 0)) - int(d.get("character_count", 0)))
+        tier = str(d.get("tier", "") or "").lower()
+        return restante, tier
+    except Exception:
+        return 0, ""
 
+
+def _planejar_trechos(texto, saldos):
+    """Empacota as palavras do texto nas chaves conforme o orçamento (chars) de
+    cada uma, em ordem. Devolve ([(chave, trecho)], palavras_que_faltaram)."""
+    palavras = texto.split()
+    plano, ki, buff, blen, i = [], 0, [], 0, 0
+    while i < len(palavras) and ki < len(saldos):
+        w = palavras[i]
+        add = len(w) + (1 if buff else 0)
+        if blen + add <= saldos[ki][1]:
+            buff.append(w); blen += add; i += 1
+        elif buff:
+            plano.append((saldos[ki][0], " ".join(buff)))
+            buff, blen, ki = [], 0, ki + 1
+        else:
+            ki += 1  # a palavra não cabe nem sozinha nessa chave; tenta a próxima
+    if buff and ki < len(saldos):
+        plano.append((saldos[ki][0], " ".join(buff)))
+    return plano, len(palavras) - i
+
+
+def _concat_mp3(partes, saida):
+    """Concatena os mp3 (mesmo formato) sem re-encodar."""
+    lista = saida + ".lst"
+    with open(lista, "w", encoding="utf-8") as f:
+        for p in partes:
+            f.write(f"file '{os.path.abspath(p)}'\n")
+    subprocess.run([FFMPEG, "-y", "-f", "concat", "-safe", "0", "-i", lista,
+                    "-c", "copy", saida], capture_output=True, text=True)
+    try:
+        os.remove(lista)
+    except OSError:
+        pass
+
+
+def gerar_voz_com_tempos(texto, mp3_path):
+    """Gera a voz e devolve (duracao, palavras[(palavra, ini, fim)]).
+
+    ROBUSTO (com fallback): tenta as chaves com cota suficiente pro texto e, se uma
+    FALHAR (402 de voz library, cota, erro de rede...), cai AUTOMÁTICO pra próxima até
+    dar certo. Free primeiro (economiza a cota paga); a paga entra de fallback e resolve
+    as vozes 'library' (ex.: Charlotte). Loga cada tentativa/erro em detalhe.
+
+    Se o texto for grande demais pra qualquer chave sozinha, FATIA entre as chaves
+    (cada pedaço também com fallback) e concatena o áudio."""
     if not _ELEVEN_KEYS:
         raise RuntimeError("Nenhuma chave ElevenLabs no .env (ELEVENLABS_API_KEYS).")
 
-    inicio = _eleven_ler_idx()
-    erros = []
-    for n in range(len(_ELEVEN_KEYS)):
-        i = (inicio + n) % len(_ELEVEN_KEYS)
-        try:
-            res = _tts_uma_chave(_ELEVEN_KEYS[i], texto, mp3_path, voice_id)
-            if i != inicio:
-                _eleven_salvar_idx(i)  # essa virou a chave atual
-                print(f"   [ElevenLabs] usando a chave #{i + 1}/{len(_ELEVEN_KEYS)}", flush=True)
-            return res
-        except Exception as e:
-            erros.append(f"chave #{i + 1}: {e}")
-            print(f"   [ElevenLabs] chave #{i + 1} falhou ({e}); tentando a próxima...", flush=True)
-            continue
+    n = len(texto)
+    # info real de cada chave (saldo + tier)
+    infos = []
+    for k in _ELEVEN_KEYS:
+        s, tier = _eleven_info(k)
+        infos.append({"key": k, "saldo": s, "tier": tier, "paga": tier not in ("", "free")})
+    resumo = ", ".join(f"...{i['key'][-6:]}({i['tier'] or '?'}:{i['saldo']})" for i in infos)
+    _log(f"voz={VOICE_ID} texto={n} chars | chaves: {resumo}")
 
+    def _com_margem(s):
+        return int(s * 0.97)  # 3% de folga pra não estourar no limite
+
+    # ordena: FREE primeiro (economiza a paga), depois maior saldo. A paga fica de
+    # fallback -> resolve vozes library que as free recusam (402).
+    ordenadas = sorted(infos, key=lambda i: (i["paga"], -i["saldo"]))
+
+    # ---- caminho comum: alguma chave tem cota pro texto inteiro -> tenta com fallback
+    candidatas = [i for i in ordenadas if _com_margem(i["saldo"]) >= n]
+    erros = []
+    for i in candidatas:
+        try:
+            _log(f"tentando chave ...{i['key'][-6:]} (tier={i['tier'] or '?'}, saldo={i['saldo']})")
+            r = _tts_uma_chave(i["key"], texto, mp3_path)
+            _log(f"OK na chave ...{i['key'][-6:]}")
+            return r
+        except Exception as e:
+            det = _detalhe_erro(e)
+            erros.append(f"...{i['key'][-6:]}({i['tier'] or '?'}): {det}")
+            _log(f"FALHOU chave ...{i['key'][-6:]}: {det} -> tentando a próxima")
+
+    # ---- texto grande demais pra uma chave só: fatia entre as chaves com cota
+    saldos = [(i["key"], _com_margem(i["saldo"])) for i in ordenadas if i["saldo"] > 5]
+    total = sum(s for _, s in saldos)
+    plano, faltou = _planejar_trechos(texto, sorted(saldos, key=lambda x: -x[1]))
+    if plano and faltou == 0:
+        os.makedirs(DIR_TEMP, exist_ok=True)
+        _log(f"narração dividida em {len(plano)} pedaços pra somar a cota ({n} chars)")
+        partes, palavras_all, offset = [], [], 0.0
+        try:
+            for idx, (key, trecho) in enumerate(plano):
+                parte_mp3 = os.path.join(DIR_TEMP, f"voz_parte_{idx}.mp3")
+                dur, palavras = _tts_com_fallback(trecho, parte_mp3, ordenadas, erros)
+                partes.append(parte_mp3)
+                for (w, pi, pf) in palavras:
+                    palavras_all.append((w, pi + offset, pf + offset))
+                offset += dur
+            _concat_mp3(partes, mp3_path)
+            for p in partes:
+                try:
+                    os.remove(p)
+                except OSError:
+                    pass
+            return offset, palavras_all
+        except Exception as e:
+            erros.append(f"split: {_detalhe_erro(e)}")
+
+    # ---- nada funcionou: erro DETALHADO (aparece no painel de logs)
+    disp = "; ".join(erros) if erros else "sem chaves com cota"
     raise RuntimeError(
-        "Todas as chaves ElevenLabs falharam (cota esgotada?):\n  " + "\n  ".join(erros)
+        f"Voz falhou em TODAS as chaves. voz={VOICE_ID}, texto={n} chars, "
+        f"cota_total~{total}. Tentativas: {disp}"
     )
+
+
+def _tts_com_fallback(texto, mp3_path, ordenadas, erros):
+    """Gera um trecho tentando as chaves em ordem; na 1ª que der certo, retorna.
+    Acumula os erros na lista `erros` (pra log). Levanta se todas falharem."""
+    n = len(texto)
+    for i in ordenadas:
+        if _com_margem_saldo(i["saldo"]) < n:
+            continue
+        try:
+            _log(f"[pedaço] chave ...{i['key'][-6:]} ({n} chars)")
+            return _tts_uma_chave(i["key"], texto, mp3_path)
+        except Exception as e:
+            det = _detalhe_erro(e)
+            erros.append(f"...{i['key'][-6:]}({i['tier'] or '?'}): {det}")
+            _log(f"[pedaço] FALHOU ...{i['key'][-6:]}: {det}")
+    raise RuntimeError(f"nenhuma chave gerou o pedaço de {n} chars")
+
+
+def _com_margem_saldo(s):
+    return int(s * 0.97)
 
 
 def agrupar_em_frases(palavras, max_palavras=4):
