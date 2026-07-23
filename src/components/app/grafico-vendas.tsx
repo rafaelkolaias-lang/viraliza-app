@@ -10,9 +10,9 @@ const brl = (centavos: number) =>
 export function GraficoVendas({ dias }: { dias: DiaVenda[] }) {
   const max = Math.max(
     1,
-    ...dias.map((d) => Math.max(d.receitaCentavos, d.reembolsoCentavos)),
+    ...dias.map((d) => Math.max(d.receitaLiquidaCentavos, d.reembolsoCentavos)),
   );
-  const totalReceita = dias.reduce((s, d) => s + d.receitaCentavos, 0);
+  const totalReceita = dias.reduce((s, d) => s + d.receitaLiquidaCentavos, 0);
   const totalVendas = dias.reduce((s, d) => s + d.vendas, 0);
   const totalReembolso = dias.reduce((s, d) => s + d.reembolsoCentavos, 0);
 
@@ -57,7 +57,7 @@ export function GraficoVendas({ dias }: { dias: DiaVenda[] }) {
         <div className="flex items-center gap-4 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <span className="inline-block h-0.5 w-4 rounded bg-emerald-500" />
-            Vendas {brl(totalReceita)} ({totalVendas})
+            Você recebe {brl(totalReceita)} ({totalVendas})
           </span>
           <span className="flex items-center gap-1.5">
             <span className="inline-block h-0.5 w-4 rounded bg-red-500" />
@@ -100,7 +100,7 @@ export function GraficoVendas({ dias }: { dias: DiaVenda[] }) {
             />
             {/* vendas (verde) */}
             <polyline
-              points={linha((d) => d.receitaCentavos)}
+              points={linha((d) => d.receitaLiquidaCentavos)}
               fill="none"
               className="stroke-emerald-500"
               strokeWidth="1.5"
@@ -113,7 +113,7 @@ export function GraficoVendas({ dias }: { dias: DiaVenda[] }) {
           {/* uma coluna interativa por dia: bolinhas + guia + tooltip animado */}
           <div className="absolute inset-0 flex">
             {dias.map((d) => {
-              const yVenda = y(d.receitaCentavos);
+              const yVenda = y(d.receitaLiquidaCentavos);
               const yReemb = y(d.reembolsoCentavos);
               return (
                 <div key={d.chave} className="group/dia relative flex-1">
@@ -136,7 +136,7 @@ export function GraficoVendas({ dias }: { dias: DiaVenda[] }) {
                     <p className="mb-1 font-semibold text-foreground">{d.label}</p>
                     <p className="flex items-center gap-1.5 text-emerald-500">
                       <span className="inline-block size-1.5 rounded-full bg-emerald-500" />
-                      {brl(d.receitaCentavos)} · {d.vendas} venda{d.vendas === 1 ? "" : "s"}
+                      {brl(d.receitaLiquidaCentavos)} · {d.vendas} venda{d.vendas === 1 ? "" : "s"}
                     </p>
                     <p className="flex items-center gap-1.5 text-red-500">
                       <span className="inline-block size-1.5 rounded-full bg-red-500" />

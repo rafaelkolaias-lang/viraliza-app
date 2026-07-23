@@ -58,7 +58,9 @@ export default async function FinancasPage({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Finanças</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Vendas reais da Cakto + Kiwify (plano de entrada + pacotes). Atualiza a cada abertura.
+            Vendas reais da Cakto + Kiwify (plano de entrada + pacotes). Os valores são o{" "}
+            <b className="text-foreground">líquido que você recebe</b> (já sem a taxa da
+            processadora); o valor pago pelo cliente aparece na legenda.
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             Contabilizando a partir de <b className="text-foreground">{f.desde}</b> (o histórico de
@@ -90,25 +92,56 @@ export default async function FinancasPage({
         </div>
       )}
 
-      {/* Cards - todos do PERÍODO selecionado (+ os 2 primeiros fixos de hoje) */}
+      {/* Cards - LÍQUIDO (o que você recebe) como número principal; bruto na legenda */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
-        <StatCard label="Receita hoje" value={brl(f.hoje.receitaCentavos)} icon={DollarSign} />
+        <StatCard
+          label="Você recebe hoje"
+          value={brl(f.hoje.receitaLiquidaCentavos)}
+          icon={DollarSign}
+          sub={`cliente pagou ${brl(f.hoje.receitaCentavos)}`}
+        />
         <StatCard label="Vendas hoje" value={f.hoje.pagas} icon={ShoppingCart} />
-        <StatCard label={`Receita · ${labelPeriodo}`} value={brl(f.periodo.receitaCentavos)} icon={Wallet} />
+        <StatCard
+          label={`Você recebe · ${labelPeriodo}`}
+          value={brl(f.periodo.receitaLiquidaCentavos)}
+          icon={Wallet}
+          sub={`clientes pagaram ${brl(f.periodo.receitaCentavos)}`}
+        />
         <StatCard label={`Vendas · ${labelPeriodo}`} value={f.periodo.vendasPagas} icon={Receipt} />
-        <StatCard label="Reembolsos" value={`− ${brl(f.periodo.reembolsoCentavos)}`} icon={Undo2} />
-        <StatCard label="Receita − reembolsos" value={brl(f.periodo.receitaFinalCentavos)} icon={Wallet} />
+        <StatCard
+          label="Reembolsos"
+          value={`− ${brl(f.periodo.reembolsoLiquidoCentavos)}`}
+          icon={Undo2}
+          sub={f.periodo.reembolsos > 0 ? `bruto − ${brl(f.periodo.reembolsoCentavos)}` : undefined}
+        />
+        <StatCard
+          label="Líquido − reembolsos"
+          value={brl(f.periodo.receitaFinalLiquidaCentavos)}
+          icon={Wallet}
+          sub={`o que sobra pra você`}
+        />
         <StatCard label="Clientes" value={f.periodo.clientes} icon={Users} />
-        <StatCard label="Ticket médio" value={brl(f.periodo.ticketCentavos)} icon={DollarSign} />
+        <StatCard
+          label="Ticket médio"
+          value={brl(f.periodo.ticketLiquidoCentavos)}
+          icon={DollarSign}
+          sub={`bruto ${brl(f.periodo.ticketCentavos)}`}
+        />
       </div>
 
       {/* Gráfico */}
       <GraficoVendas dias={f.grafico} />
 
       <p className="text-[11px] text-muted-foreground">
-        No período: <b className="text-red-500">{f.periodo.reembolsos} reembolso{f.periodo.reembolsos === 1 ? "" : "s"}</b>{" "}
-        (−{brl(f.periodo.reembolsoCentavos)}). Receita líquida após a taxa da processadora:{" "}
-        <b className="text-foreground">{brl(f.periodo.receitaLiquidaCentavos)}</b>.
+        No período os clientes pagaram <b className="text-foreground">{brl(f.periodo.receitaCentavos)}</b>{" "}
+        (bruto); depois da taxa da processadora você recebe{" "}
+        <b className="text-primary">{brl(f.periodo.receitaLiquidaCentavos)}</b> (líquido).{" "}
+        {f.periodo.reembolsos > 0 && (
+          <>
+            <b className="text-red-500">{f.periodo.reembolsos} reembolso{f.periodo.reembolsos === 1 ? "" : "s"}</b>{" "}
+            (−{brl(f.periodo.reembolsoLiquidoCentavos)} do seu líquido).
+          </>
+        )}
       </p>
 
       {/* Vendas do período */}
@@ -130,7 +163,7 @@ export default async function FinancasPage({
                   <TableHead>Cliente</TableHead>
                   <TableHead className="hidden sm:table-cell">Quando</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Valor</TableHead>
+                  <TableHead className="text-right">Você recebe</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -150,8 +183,13 @@ export default async function FinancasPage({
                           {st.txt}
                         </span>
                       </TableCell>
-                      <TableCell className="text-right text-sm font-semibold">
-                        {brl(c.valorCentavos)}
+                      <TableCell className="text-right">
+                        <p className="text-sm font-semibold">
+                          {c.pago ? brl(c.valorLiquidoCentavos) : "-"}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground/70">
+                          pagou {brl(c.valorCentavos)}
+                        </p>
                       </TableCell>
                     </TableRow>
                   );

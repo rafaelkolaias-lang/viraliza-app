@@ -139,7 +139,8 @@ export type DiaVenda = {
   chave: string;
   label: string;
   vendas: number;
-  receitaCentavos: number; // bruto pago pelos clientes (linha verde)
+  receitaCentavos: number; // bruto pago pelos clientes
+  receitaLiquidaCentavos: number; // LÍQUIDO recebido (após taxa) - linha verde
   reembolsos: number;
   reembolsoCentavos: number; // perdido em reembolso/chargeback (linha vermelha)
 };
@@ -150,7 +151,8 @@ export type VendaLinha = {
   quando: string; // "03/07 16:35"
   status: string; // "paid" | "waiting_payment" | "refunded" | ...
   pago: boolean;
-  valorCentavos: number;
+  valorCentavos: number; // bruto (o que o cliente pagou)
+  valorLiquidoCentavos: number; // LÍQUIDO (o que você recebe)
 };
 
 export type PainelFinancas = {
@@ -158,17 +160,25 @@ export type PainelFinancas = {
   erro?: string;
   desde: string; // marco zero (ex: "02/07/2026") - antes disso não conta
   dias: number; // filtro escolhido (1 = hoje, 0 = tudo)
-  hoje: { vendas: number; pagas: number; receitaCentavos: number };
+  hoje: {
+    vendas: number;
+    pagas: number;
+    receitaCentavos: number; // bruto
+    receitaLiquidaCentavos: number; // LÍQUIDO recebido hoje
+  };
   periodo: {
     dias: number; // dias efetivamente exibidos no gráfico
     vendasPagas: number;
     receitaCentavos: number; // bruto (tudo que entrou pago, mesmo que reembolsado depois)
-    receitaLiquidaCentavos: number; // após a taxa da processadora
+    receitaLiquidaCentavos: number; // LÍQUIDO recebido (após a taxa da processadora)
     reembolsos: number;
-    reembolsoCentavos: number; // perda: o que saiu em reembolso/chargeback
-    receitaFinalCentavos: number; // bruto − reembolsos (o número que importa)
+    reembolsoCentavos: number; // perda bruta: o que saiu em reembolso/chargeback
+    reembolsoLiquidoCentavos: number; // perda líquida (o líquido das vendas estornadas)
+    receitaFinalCentavos: number; // bruto − reembolsos
+    receitaFinalLiquidaCentavos: number; // LÍQUIDO − reembolsos (o que sobra pra você)
     clientes: number; // e-mails distintos que pagaram
     ticketCentavos: number; // ticket médio bruto
+    ticketLiquidoCentavos: number; // ticket médio LÍQUIDO
   };
   grafico: DiaVenda[];
   vendasPeriodo: VendaLinha[]; // lista de vendas DO PERÍODO filtrado (mais recentes primeiro)
@@ -192,7 +202,7 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
     configurada: caktoConfigurada() || kiwifyConfigurada(),
     desde: desdeLabel,
     dias: filtro,
-    hoje: { vendas: 0, pagas: 0, receitaCentavos: 0 },
+    hoje: { vendas: 0, pagas: 0, receitaCentavos: 0, receitaLiquidaCentavos: 0 },
     periodo: {
       dias: nDias,
       vendasPagas: 0,
@@ -200,9 +210,12 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
       receitaLiquidaCentavos: 0,
       reembolsos: 0,
       reembolsoCentavos: 0,
+      reembolsoLiquidoCentavos: 0,
       receitaFinalCentavos: 0,
+      receitaFinalLiquidaCentavos: 0,
       clientes: 0,
       ticketCentavos: 0,
+      ticketLiquidoCentavos: 0,
     },
     grafico: [],
     vendasPeriodo: [],
@@ -227,13 +240,20 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
   // buckets por dia (só os dias visíveis do filtro)
   const buckets = new Map<
     string,
-    { vendas: number; receitaCentavos: number; reembolsos: number; reembolsoCentavos: number }
+    {
+      vendas: number;
+      receitaCentavos: number;
+      receitaLiquidaCentavos: number;
+      reembolsos: number;
+      reembolsoCentavos: number;
+    }
   >();
   for (let i = 0; i < nDias; i++) {
     const d = new Date(agora - (nDias - 1 - i) * DIA_MS);
     buckets.set(fmtChave.format(d), {
       vendas: 0,
       receitaCentavos: 0,
+      receitaLiquidaCentavos: 0,
       reembolsos: 0,
       reembolsoCentavos: 0,
     });
@@ -246,8 +266,9 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
   let periodoPagas = 0;
   let periodoReembolsos = 0;
   let periodoReembolsoCentavos = 0;
+  let periodoReembolsoLiquido = 0;
   const vendasPeriodo: (VendaLinha & { ts: number })[] = [];
-  const hoje = { vendas: 0, pagas: 0, receitaCentavos: 0 };
+  const hoje = { vendas: 0, pagas: 0, receitaCentavos: 0, receitaLiquidaCentavos: 0 };
 
   for (const v of vendas) {
     const criado = v.created_at ? new Date(v.created_at) : null;
@@ -267,6 +288,7 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
       const b = buckets.get(chave)!;
       b.vendas++;
       b.receitaCentavos += bruto;
+      b.receitaLiquidaCentavos += v.liquidoCentavos;
       periodoReceita += bruto;
       periodoLiquido += v.liquidoCentavos;
       periodoPagas++;
@@ -284,6 +306,7 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
         b.reembolsoCentavos += bruto;
         periodoReembolsos++;
         periodoReembolsoCentavos += bruto;
+        periodoReembolsoLiquido += v.liquidoCentavos;
       }
     }
 
@@ -293,6 +316,7 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
       if (pago) {
         hoje.pagas++;
         hoje.receitaCentavos += bruto;
+        hoje.receitaLiquidaCentavos += v.liquidoCentavos;
       }
     }
 
@@ -305,6 +329,7 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
         status: v.status,
         pago,
         valorCentavos: bruto,
+        valorLiquidoCentavos: v.liquidoCentavos,
         ts: criado.getTime(),
       });
     }
@@ -317,6 +342,7 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
     label: fmtLabel.format(new Date(chave + "T12:00:00")),
     vendas: v.vendas,
     receitaCentavos: v.receitaCentavos,
+    receitaLiquidaCentavos: v.receitaLiquidaCentavos,
     reembolsos: v.reembolsos,
     reembolsoCentavos: v.reembolsoCentavos,
   }));
@@ -333,16 +359,19 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
       receitaLiquidaCentavos: periodoLiquido,
       reembolsos: periodoReembolsos,
       reembolsoCentavos: periodoReembolsoCentavos,
+      reembolsoLiquidoCentavos: periodoReembolsoLiquido,
       receitaFinalCentavos: periodoReceita - periodoReembolsoCentavos,
+      receitaFinalLiquidaCentavos: periodoLiquido - periodoReembolsoLiquido,
       clientes: clientesPagos.size,
       ticketCentavos: periodoPagas > 0 ? Math.round(periodoReceita / periodoPagas) : 0,
+      ticketLiquidoCentavos: periodoPagas > 0 ? Math.round(periodoLiquido / periodoPagas) : 0,
     },
     grafico,
     // teto de 100 linhas pra tabela não explodir no "Tudo"
     vendasPeriodo: vendasPeriodo
       .slice(0, 100)
-      .map(({ nome, email, quando, status, pago, valorCentavos }) => ({
-        nome, email, quando, status, pago, valorCentavos,
+      .map(({ nome, email, quando, status, pago, valorCentavos, valorLiquidoCentavos }) => ({
+        nome, email, quando, status, pago, valorCentavos, valorLiquidoCentavos,
       })),
   };
 }
