@@ -19,30 +19,10 @@ import concurrent.futures as cf
 from dotenv import load_dotenv
 
 import gemini_copy
+import venc
 from narrar_video import gerar_voz_com_tempos, agrupar_em_frases
-import uso
 
 load_dotenv()
-
-
-def _progresso(etapa):
-    """Reporta a FASE atual do render pro site (se o worker passou o contexto via
-    env). Cosmético: qualquer falha é ignorada, nunca atrapalha o render."""
-    base = os.getenv("PROGRESSO_BASE", "")
-    token = os.getenv("PROGRESSO_TOKEN", "")
-    job_id = os.getenv("PROGRESSO_JOB_ID", "")
-    if not (base and token and job_id):
-        return
-    try:
-        import requests
-        requests.post(
-            f"{base}/api/worker/progresso/{job_id}",
-            headers={"x-worker-token": token},
-            json={"etapa": etapa}, timeout=10,
-        )
-    except Exception:
-        pass
-
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 _FF = r"C:\Users\lucas\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-8.1.1-full_build\bin"
@@ -80,6 +60,8 @@ def _aln_margin(pos):
     return 2, MARGEM_BAIXO  # baixo (padrão)
 VOL_LEGENDA = 0.40        # musica quando NAO tem voz
 VOL_VOZ = 0.22            # musica quando TEM voz (mais baixa)
+VOL_MANTER_MUS = 0.10     # musica BEM baixa quando o usuario mantem o audio original
+VOL_ORIG = 1.0            # audio original do video (quando "manter")
 MAX_PARALELO = 3          # quantos videos ao mesmo tempo (ffmpeg e pesado)
 
 # Remocao de marca d'agua/logo (PADRAO): corta um pouco das bordas (onde ficam os
@@ -143,6 +125,19 @@ def duracao(path):
         return float(out.stdout.strip())
     except ValueError:
         return 0.0
+
+
+def _tem_audio(path):
+    """True se o arquivo tem faixa de áudio (pra saber se dá pra manter o som original)."""
+    out = run([FFPROBE, "-v", "error", "-select_streams", "a", "-show_entries",
+               "stream=index", "-of", "csv=p=0", path])
+    return bool((out.stdout or "").strip())
+
+
+def _quer_manter_audio(cfg):
+    """Config 'audio_original: manter' -> mantém o som do vídeo de entrada. Qualquer
+    outra coisa (ou ausência) = comportamento antigo (só música/narração)."""
+    return (cfg.get("audio_original") or "").strip().lower() == "manter"
 
 
 def parse_tempo(s):
@@ -241,27 +236,37 @@ def clip_loop_final(primeiro_video, nome, sufixo=""):
     if run([FFMPEG, "-y", "-i", primeiro_video, "-frames:v", "1", png]).returncode != 0:
         return None
     # mesmo enquadramento dos vídeos no concat (pad preto, SEM blur) pra emendar igual
-    filtro = (f"scale={W}:{H}:force_original_aspect_ratio=decrease,"
-              f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={FPS},format=yuv420p")
-    r = run([FFMPEG, "-y", "-loop", "1", "-t", f"{LOOP_FIM}", "-i", png,
-             "-vf", filtro, "-c:v", "libx264", "-preset", "fast", "-crf", str(CRF),
-             "-pix_fmt", "yuv420p", out])
-    return out if r.returncode == 0 else None
+    base = (f"scale={W}:{H}:force_original_aspect_ratio=decrease,"
+            f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={FPS}")
+    for modo in venc.modos(FFMPEG):
+        vf = base + (",format=nv12,hwupload" if modo == "gpu" else ",format=yuv420p")
+        r = run([FFMPEG, "-y", *venc.dev_args(modo), "-loop", "1", "-t", f"{LOOP_FIM}",
+                 "-i", png, "-vf", vf, *venc.codec_v(modo, crf=CRF, preset="fast"), out])
+        if r.returncode == 0:
+            return out
+        if modo == "gpu":
+            venc.desligar_gpu()
+    return None
 
 
 def imagem_para_clip(img, dur, saida):
-    filtro = (
+    base = (
         f"[0:v]split=2[bg][fg];"
         f"[bg]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},"
         f"boxblur=22:2,eq=brightness=-0.08[bgb];"
         f"[fg]scale={W}:{H}:force_original_aspect_ratio=decrease[fgs];"
-        f"[bgb][fgs]overlay=(W-w)/2:(H-h)/2,setsar=1,fps={FPS},format=yuv420p[v]"
+        f"[bgb][fgs]overlay=(W-w)/2:(H-h)/2,setsar=1,fps={FPS}"
     )
-    r = run([FFMPEG, "-y", "-loop", "1", "-t", f"{dur}", "-i", img,
-             "-filter_complex", filtro, "-map", "[v]", "-t", f"{dur}",
-             "-c:v", "libx264", "-preset", "fast", "-crf", str(CRF),
-             "-pix_fmt", "yuv420p", saida])
-    return r.returncode == 0
+    for modo in venc.modos(FFMPEG):
+        filtro = base + venc.fim_v(modo, "v")
+        r = run([FFMPEG, "-y", *venc.dev_args(modo), "-loop", "1", "-t", f"{dur}", "-i", img,
+                 "-filter_complex", filtro, "-map", "[v]", "-t", f"{dur}",
+                 *venc.codec_v(modo, crf=CRF, preset="fast"), saida])
+        if r.returncode == 0:
+            return True
+        if modo == "gpu":
+            venc.desligar_gpu()
+    return False
 
 
 def _cab_ass(estilos):
@@ -446,25 +451,58 @@ def build_legenda(prod_dir, nome, cfg, copy, sufixo="", var_idx=0, n_var=1, imag
                      f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={FPS}[v{i}];"
                      for i in range(n))
     refs = "".join(f"[v{i}]" for i in range(n))
-    filtro = (concat + f"{refs}concat=n={n}:v=1:a=0[vc];"
-              f"[vc]subtitles={ass.replace(os.sep,'/')}[vout];"
-              f"[{n}:a]atrim={mus_start}:{mus_start+dur_total},asetpts=N/SR/TB,"
-              f"volume={VOL_LEGENDA},afade=t=in:st=0:d={FADE},"
-              f"afade=t=out:st={fim}:d={FADE}[aout]")
+
+    # "manter": preserva o som original de cada clipe (silêncio nas fotos) e deixa a
+    # música BEM baixa por baixo; "remover"/ausente: só música (comportamento antigo).
+    durs = [_d(it) for it in seq]
+    manter = _quer_manter_audio(cfg)
+    tem_aud = [_tem_audio(p) for p, _ in seq] if manter else []
+
+    def _audio():
+        if not manter or not any(tem_aud):
+            return (f"[{n}:a]atrim={mus_start}:{mus_start+dur_total},asetpts=N/SR/TB,"
+                    f"volume={VOL_LEGENDA},afade=t=in:st=0:d={FADE},"
+                    f"afade=t=out:st={fim}:d={FADE}[aout]")
+        partes = ""
+        for i in range(n):
+            if tem_aud[i]:
+                partes += (f"[{i}:a]aresample=44100,apad=whole_dur={durs[i]:.2f},"
+                           f"atrim=0:{durs[i]:.2f},asetpts=N/SR/TB[a{i}];")
+            else:  # foto/loop: sem áudio -> silêncio do tamanho do clipe
+                partes += (f"anullsrc=r=44100:cl=stereo,atrim=0:{durs[i]:.2f},"
+                           f"asetpts=N/SR/TB[a{i}];")
+        arefs = "".join(f"[a{i}]" for i in range(n))
+        return (partes + f"{arefs}concat=n={n}:v=0:a=1,volume={VOL_ORIG}[orig];"
+                f"[{n}:a]atrim={mus_start}:{mus_start+dur_total},asetpts=N/SR/TB,"
+                f"volume={VOL_MANTER_MUS}[mus];"
+                f"[orig][mus]amix=inputs=2:duration=first:normalize=0,"
+                f"afade=t=in:st=0:d={FADE},afade=t=out:st={fim}:d={FADE}[aout]")
+
+    def _filtro(modo):
+        return (concat + f"{refs}concat=n={n}:v=1:a=0[vc];"
+                f"[vc]subtitles={ass.replace(os.sep,'/')}" + venc.fim_v(modo) + ";"
+                + _audio())
 
     saida = os.path.join(DIR_SAIDA, nome + sufixo + ".mp4")
-    cmd = [FFMPEG, "-y"]
+    ins = []
     for p, lim in seq:
-        if lim: cmd += ["-t", f"{lim}", "-i", p]
-        else: cmd += ["-i", p]
+        if lim: ins += ["-t", f"{lim}", "-i", p]
+        else: ins += ["-i", p]
     # -stream_loop -1 na música garante que ela cobre o vídeo inteiro (nunca acaba antes)
-    cmd += ["-stream_loop", "-1", "-i", musica,
-            "-filter_complex", filtro, "-map", "[vout]", "-map", "[aout]",
-            "-c:v", "libx264", "-preset", "slow", "-crf", str(CRF), "-profile:v", "high",
-            "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", AUDIO_KBPS,
-            "-r", str(FPS), "-movflags", "+faststart", saida]
-    r = run(cmd)
-    return r.returncode == 0, (r.stderr[-600:] if r.returncode else "")
+    ins += ["-stream_loop", "-1", "-i", musica]
+
+    r = None
+    for modo in venc.modos(FFMPEG):
+        cmd = [FFMPEG, "-y", *venc.dev_args(modo), *ins,
+               "-filter_complex", _filtro(modo), "-map", "[vout]", "-map", "[aout]",
+               *venc.codec_v(modo, crf=CRF), "-c:a", "aac", "-b:a", AUDIO_KBPS,
+               "-r", str(FPS), "-movflags", "+faststart", saida]
+        r = run(cmd)
+        if r.returncode == 0:
+            return True, ""
+        if modo == "gpu":
+            venc.desligar_gpu()
+    return False, (r.stderr[-600:] if r else "")
 
 
 def _build_voz_so_imagens(nome, cfg, frases, voz_mp3, narr_dur, imagens,
@@ -508,26 +546,35 @@ def _build_voz_so_imagens(nome, cfg, frases, voz_mp3, narr_dur, imagens,
     refs = "".join(f"[v{i}]" for i in range(n_v))
     idx_mus, idx_voz = n_v, n_v + 1
     fim = max(0.0, total - FADE)
-    filtro = (parts + f"{refs}concat=n={n_v}:v=1:a=0[vc];"
-              f"[vc]subtitles={ass.replace(os.sep,'/')}[vout];"
-              f"[{idx_mus}:a]atrim={mus_start}:{mus_start+total},asetpts=N/SR/TB,"
-              f"volume={VOL_VOZ}[mus];"
-              f"[{idx_voz}:a]apad=whole_dur={total:.2f}[vp];[vp]asplit=2[vf][vk];"
-              f"[mus][vk]sidechaincompress=threshold=0.02:ratio=12:attack=5:release=300[md];"
-              f"[md][vf]amix=inputs=2:duration=first:normalize=0,"
-              f"afade=t=in:st=0:d={FADE},afade=t=out:st={fim}:d={FADE}[aout]")
+
+    def _filtro(modo):
+        return (parts + f"{refs}concat=n={n_v}:v=1:a=0[vc];"
+                f"[vc]subtitles={ass.replace(os.sep,'/')}" + venc.fim_v(modo) + ";"
+                f"[{idx_mus}:a]atrim={mus_start}:{mus_start+total},asetpts=N/SR/TB,"
+                f"volume={VOL_VOZ}[mus];"
+                f"[{idx_voz}:a]apad=whole_dur={total:.2f}[vp];[vp]asplit=2[vf][vk];"
+                f"[mus][vk]sidechaincompress=threshold=0.02:ratio=12:attack=5:release=300[md];"
+                f"[md][vf]amix=inputs=2:duration=first:normalize=0,"
+                f"afade=t=in:st=0:d={FADE},afade=t=out:st={fim}:d={FADE}[aout]")
 
     saida = os.path.join(DIR_SAIDA, nome + sufixo + ".mp4")
-    cmd = [FFMPEG, "-y"]
+    ins = []
     for ic in seq:
-        cmd += ["-i", ic]
-    cmd += ["-stream_loop", "-1", "-i", musica, "-i", voz_mp3,
-            "-filter_complex", filtro, "-map", "[vout]", "-map", "[aout]",
-            "-c:v", "libx264", "-preset", "slow", "-crf", str(CRF), "-profile:v", "high",
-            "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", AUDIO_KBPS,
-            "-r", str(FPS), "-t", f"{total:.2f}", "-movflags", "+faststart", saida]
-    r = run(cmd)
-    return r.returncode == 0, (r.stderr[-600:] if r.returncode else "")
+        ins += ["-i", ic]
+    ins += ["-stream_loop", "-1", "-i", musica, "-i", voz_mp3]
+
+    r = None
+    for modo in venc.modos(FFMPEG):
+        cmd = [FFMPEG, "-y", *venc.dev_args(modo), *ins,
+               "-filter_complex", _filtro(modo), "-map", "[vout]", "-map", "[aout]",
+               *venc.codec_v(modo, crf=CRF), "-c:a", "aac", "-b:a", AUDIO_KBPS,
+               "-r", str(FPS), "-t", f"{total:.2f}", "-movflags", "+faststart", saida]
+        r = run(cmd)
+        if r.returncode == 0:
+            return True, ""
+        if modo == "gpu":
+            venc.desligar_gpu()
+    return False, (r.stderr[-600:] if r else "")
 
 
 def build_voz(prod_dir, nome, cfg, copy, sufixo="", var_idx=0, n_var=1, imagens=None,
@@ -540,12 +587,7 @@ def build_voz(prod_dir, nome, cfg, copy, sufixo="", var_idx=0, n_var=1, imagens=
     roteiro = copy.get("roteiro", "")
 
     voz_mp3 = os.path.join(DIR_TEMP, f"fab_voz_{nome}{sufixo}.mp3")
-    # voz escolhida no Estúdio (config.txt); vazio = voz padrão do narrar_video
-    voz_id = (cfg.get("voz_id") or "").strip() or None
-    # BYO: chave do usuário (vem por env do worker); None = usa a plataforma e cobra
-    user_key = (os.getenv("ELEVEN_USER_KEY") or "").strip() or None
-    dur_voz, palavras = gerar_voz_com_tempos(
-        roteiro, voz_mp3, voice_id=voz_id, api_key=user_key)
+    dur_voz, palavras = gerar_voz_com_tempos(roteiro, voz_mp3)
     frases = agrupar_em_frases(palavras)
     narr_dur = dur_voz + 0.8          # duração da narração
 
@@ -603,30 +645,48 @@ def build_voz(prod_dir, nome, cfg, copy, sufixo="", var_idx=0, n_var=1, imagens=
     refs = "".join(f"[v{i}]" for i in range(n_v))
     idx_mus, idx_voz = n_v, n_v + 1
     fim = max(0.0, total - FADE)
+    # "manter": o som original do vídeo (input 0) entra por baixo da narração, um pouco
+    # mais baixo pra não brigar com a voz nova. Só se o vídeo realmente tiver áudio.
+    manter = _quer_manter_audio(cfg) and _tem_audio(video)
     # apad na voz: sem isso o sidechaincompress termina junto com a voz e a música
     # morre na hora que entram as fotos — a voz vira silêncio até o fim do vídeo
-    filtro = (parts + f"{refs}concat=n={n_v}:v=1:a=0[vc];"
-              f"[vc]subtitles={ass.replace(os.sep,'/')}[vout];"
-              f"[{idx_mus}:a]atrim={mus_start}:{mus_start+total},asetpts=N/SR/TB,"
-              f"volume={VOL_VOZ}[mus];"
-              f"[{idx_voz}:a]apad=whole_dur={total:.2f}[vp];[vp]asplit=2[vf][vk];"
-              f"[mus][vk]sidechaincompress=threshold=0.02:ratio=12:attack=5:release=300[md];"
-              f"[md][vf]amix=inputs=2:duration=first:normalize=0,"
-              f"afade=t=in:st=0:d={FADE},afade=t=out:st={fim}:d={FADE}[aout]")
+    def _filtro(modo):
+        base = (parts + f"{refs}concat=n={n_v}:v=1:a=0[vc];"
+                f"[vc]subtitles={ass.replace(os.sep,'/')}" + venc.fim_v(modo) + ";"
+                f"[{idx_mus}:a]atrim={mus_start}:{mus_start+total},asetpts=N/SR/TB,"
+                f"volume={VOL_VOZ}[mus];"
+                f"[{idx_voz}:a]apad=whole_dur={total:.2f}[vp];[vp]asplit=2[vf][vk];"
+                f"[mus][vk]sidechaincompress=threshold=0.02:ratio=12:attack=5:release=300[md];")
+        if manter:
+            return (base +
+                    f"[0:a]aresample=44100,apad=whole_dur={total:.2f},atrim=0:{total:.2f},"
+                    f"asetpts=N/SR/TB,volume={VOL_ORIG}[orig];"
+                    f"[md][vf][orig]amix=inputs=3:duration=first:normalize=0,"
+                    f"afade=t=in:st=0:d={FADE},afade=t=out:st={fim}:d={FADE}[aout]")
+        return (base +
+                f"[md][vf]amix=inputs=2:duration=first:normalize=0,"
+                f"afade=t=in:st=0:d={FADE},afade=t=out:st={fim}:d={FADE}[aout]")
 
     saida = os.path.join(DIR_SAIDA, nome + sufixo + ".mp4")
-    cmd = [FFMPEG, "-y"]
-    if loops > 0: cmd += ["-stream_loop", str(loops)]
-    cmd += ["-t", f"{vid_dur:.2f}", "-i", video]   # video toca 1x (loop só se faltar)
+    ins = []
+    if loops > 0: ins += ["-stream_loop", str(loops)]
+    ins += ["-t", f"{vid_dur:.2f}", "-i", video]   # video toca 1x (loop só se faltar)
     for ic in img_clipes:
-        cmd += ["-i", ic]
-    cmd += ["-stream_loop", "-1", "-i", musica, "-i", voz_mp3,
-            "-filter_complex", filtro, "-map", "[vout]", "-map", "[aout]",
-            "-c:v", "libx264", "-preset", "slow", "-crf", str(CRF), "-profile:v", "high",
-            "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", AUDIO_KBPS,
-            "-r", str(FPS), "-t", f"{total:.2f}", "-movflags", "+faststart", saida]
-    r = run(cmd)
-    return r.returncode == 0, (r.stderr[-600:] if r.returncode else "")
+        ins += ["-i", ic]
+    ins += ["-stream_loop", "-1", "-i", musica, "-i", voz_mp3]
+
+    r = None
+    for modo in venc.modos(FFMPEG):
+        cmd = [FFMPEG, "-y", *venc.dev_args(modo), *ins,
+               "-filter_complex", _filtro(modo), "-map", "[vout]", "-map", "[aout]",
+               *venc.codec_v(modo, crf=CRF), "-c:a", "aac", "-b:a", AUDIO_KBPS,
+               "-r", str(FPS), "-t", f"{total:.2f}", "-movflags", "+faststart", saida]
+        r = run(cmd)
+        if r.returncode == 0:
+            return True, ""
+        if modo == "gpu":
+            venc.desligar_gpu()
+    return False, (r.stderr[-600:] if r else "")
 
 
 def escrever_txt(nome, copy, produto):
@@ -742,7 +802,6 @@ def processar(prod_dir, forcar):
         # 1) IA tira marca d'água das imagens (PADRÃO, com cache)
         imgs_all = listar(prod_dir, "imagens", EXTS_I)
         if imgs_all and cfg.get("limpar_marca", "sim").lower() not in ("nao", "não", "no", "false", "0"):
-            _progresso("Preparando as imagens")
             imgs_all = limpar_imagens(prod_dir, imgs_all)
 
         # 2) gera a cena com Veo a partir da imagem JÁ LIMPA (se pedido)
@@ -758,7 +817,6 @@ def processar(prod_dir, forcar):
 
         # 3) CÉREBRO EDITOR: IA olha tudo e monta o plano de edição (quais imagens,
         #    ordem, duração de cada cena) + descreve as cenas pra copy casar com elas
-        _progresso("Analisando o conteúdo")
         n_videos = len(listar(prod_dir, "videos", EXTS_V))
         plano = gemini_copy.plano_edicao(produto, descricao, imgs_all,
                                          n_videos=n_videos, max_fotos=6)
@@ -767,12 +825,11 @@ def processar(prod_dir, forcar):
         contexto = plano.get("cenas", "")
 
         for i in range(n_var):
-            _progresso(
-                f"Renderizando {i + 1}/{n_var}" if n_var > 1 else "Renderizando o vídeo")
             # copy nova a cada variante -> legendas/roteiro diferentes
             copy = gemini_copy.gerar_copy(produto, descricao, formato=formato, tom=tom,
                                           contexto_visual=contexto,
-                                          preco=cfg.get("preco", ""))
+                                          preco=cfg.get("preco", ""),
+                                          plataforma=cfg.get("plataforma", "shopee"))
             sufixo = "" if n_var == 1 else f"-v{i+1}"
             # anti-duplicado: ordem das fotos rotaciona por variante E a partir da v2
             # a IA gera uma foto NOVA do produto (outra modelo/cenário, com cache)
@@ -818,11 +875,6 @@ def main():
         for fut in cf.as_completed(futs):
             nome, status = fut.result()
             print(f"  [{nome}] {status}")
-
-    # grava o consumo de APIs (tokens Gemini + caracteres ElevenLabs) pro worker
-    # mandar pra web debitar pelo custo real.
-    if alvo:
-        uso.dump(os.path.join(DIR_PRODUTOS, alvo, "consumo.json"))
     print("\nFábrica concluída.")
 
 

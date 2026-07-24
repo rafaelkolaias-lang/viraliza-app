@@ -370,6 +370,8 @@ def montar_pasta_fabrica(job):
     except Exception:
         opc = {}
     audio_original = "manter" if opc.get("audioVideo") == "manter" else "remover"
+    # onde vai vender: muda o CTA/hashtags da copy ("shopee" = sacolinha laranja; "outro" = neutro)
+    plataforma = (opc.get("plataforma") or "shopee").strip().lower() or "shopee"
 
     linhas = [
         f"produto: {job.get('produto', nome)}",
@@ -379,6 +381,7 @@ def montar_pasta_fabrica(job):
         f"preco: {job.get('preco', '')}",
         f"legenda_pos: {job.get('legenda_pos', 'baixo')}",
         f"audio_original: {audio_original}",
+        f"plataforma: {plataforma}",
     ]
     if cfg_musica:
         linhas.append(f"musica: {cfg_musica}")

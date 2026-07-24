@@ -160,6 +160,8 @@ export async function POST(req: Request) {
   const legendaPos = ["cima", "meio", "baixo"].includes(posRaw) ? posRaw : "baixo";
   // som do vídeo original: "manter" (padrão) ou "remover" (Mudo). Guardado em opcoes.
   const audioVideo = String(form.get("audioVideo") ?? "manter") === "remover" ? "remover" : "manter";
+  // onde vai vender: muda o CTA/hashtags da copy ("shopee" = sacolinha laranja; "outro" = neutro)
+  const plataforma = String(form.get("plataforma") ?? "shopee") === "outro" ? "outro" : "shopee";
   // marca em lote: tamanho (% da largura; 100 = moldura/tela cheia) + posição (9 pontos)
   const POS_MARCA = new Set([
     "cima-esq", "cima-meio", "cima-dir",
@@ -179,6 +181,7 @@ export async function POST(req: Request) {
     audioVideo,
     marcaTamanho,
     marcaPosicao,
+    plataforma,
     ...(temLivre ? { marcaX, marcaY } : {}),
   });
   // tipo do job: "marca" = Aplicar marca em lote (só carimba o template, sem fábrica);

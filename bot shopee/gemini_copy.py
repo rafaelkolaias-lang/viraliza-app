@@ -10,21 +10,7 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
-import uso
-
 load_dotenv()
-
-
-def _call(client, **kw):
-    """generate_content + contabiliza o consumo (tokens) em uso.py.
-    'fn' sem parentese de propósito: nao casa com a troca automatica das chamadas."""
-    fn = client.models.generate_content
-    resp = fn(**kw)
-    try:
-        uso.add_gemini(kw.get("model"), getattr(resp, "usage_metadata", None))
-    except Exception:
-        pass
-    return resp
 
 _KEYS = [k for k in ([os.getenv("GEMINI_API_KEY")] + [os.getenv(f"GEMINI_API_KEY_{_i}") for _i in range(2, 21)]) if k]
 _ciclo = itertools.cycle(_KEYS) if _KEYS else None
@@ -106,7 +92,7 @@ def _gen(prompt):
         key = next(_ciclo)
         try:
             client = genai.Client(api_key=key)
-            resp = _call(client,
+            resp = client.models.generate_content(
                 model=MODELO,
                 contents=prompt,
                 config=types.GenerateContentConfig(
@@ -162,12 +148,29 @@ Escreva na MESMA ordem das cenas, pra cada frase fazer sentido com o que está n
 tela naquele momento (ex.: se a cena mostra o tecido de perto, a frase fala do tecido).
 """
 
+    # Onde vai vender: Shopee mantém o CTA/hashtags da Shopee; qualquer outra
+    # plataforma NÃO pode citar Shopee (senão fica fora de contexto).
+    eh_shopee = str(plataforma or "shopee").strip().lower() in ("shopee", "")
+    if not eh_shopee:
+        base += """
+CONTEXTO IMPORTANTE - ESTE PRODUTO **NÃO É DA SHOPEE**. Regras que têm PRIORIDADE sobre
+qualquer instrução anterior:
+- NUNCA cite "Shopee", "sacolinha laranja", "achadinho da Shopee", "algoritmo da Shopee"
+  nem nada específico da Shopee. Ignore os exemplos de CTA/hashtags de Shopee acima.
+- CTA final NEUTRO e universal: "corre no link", "link na descrição", "link na bio",
+  "garante o seu no link". Escolha um que combine com o vídeo.
+- Hashtags GENÉRICAS do nicho do produto (ex.: #achadinhos #promocao + a palavra-chave
+  do produto). PROIBIDO #AchadinhosShopee, #ShopeeFinds, #TendenciaShopee e afins.
+- A descrição é otimizada pra busca, mas SEM mencionar a Shopee.
+"""
+    desc_label = "descrição Shopee otimizada para busca" if eh_shopee else "descrição do anúncio otimizada para busca (sem citar a Shopee)"
+
     if formato == "voz":
         pedido = base + f"""
 Gere a copy para um vídeo de venda NARRADO. Responda em JSON com as chaves:
 {{
   "roteiro": "texto falado natural de ~12 a 18 segundos, com gancho, 2-3 benefícios e CTA",
-  "descricao": "descrição da {plataforma} otimizada para busca",
+  "descricao": "{desc_label}",
   "hashtags": ["#tag1", "#tag2", ... 12 a 15]
 }}"""
     else:
@@ -175,7 +178,7 @@ Gere a copy para um vídeo de venda NARRADO. Responda em JSON com as chaves:
 Gere a copy para um vídeo de venda com LEGENDAS na tela. Responda em JSON com as chaves:
 {{
   "captions": [{n_legendas} legendas curtas de tela, a 1a é o gancho, a última é o CTA],
-  "descricao": "descrição da {plataforma} otimizada para busca",
+  "descricao": "{desc_label}",
   "hashtags": ["#tag1", "#tag2", ... 12 a 15]
 }}"""
 
@@ -203,7 +206,7 @@ Responda SOMENTE em JSON: {{"prompt": "...", "negative": "..."}}"""
         key = next(_ciclo)
         try:
             client = genai.Client(api_key=key)
-            resp = _call(client,
+            resp = client.models.generate_content(
                 model=MODELO,
                 contents=[types.Part.from_bytes(data=imagem_bytes, mime_type=mime), instr],
                 config=types.GenerateContentConfig(
@@ -230,7 +233,7 @@ def remover_marca_dagua(imagem_bytes, mime="image/jpeg", modelo="gemini-2.5-flas
         key = next(_ciclo)
         try:
             client = genai.Client(api_key=key)
-            resp = _call(client,
+            resp = client.models.generate_content(
                 model=modelo,
                 contents=[types.Part.from_bytes(data=imagem_bytes, mime_type=mime), instr],
             )
@@ -250,7 +253,7 @@ def tem_pessoa(imagem_bytes, mime="image/jpeg"):
         return True
     try:
         client = genai.Client(api_key=next(_ciclo))
-        resp = _call(client,
+        resp = client.models.generate_content(
             model=MODELO,
             contents=[types.Part.from_bytes(data=imagem_bytes, mime_type=mime),
                       'Existe uma PESSOA humana real (uma modelo/pessoa) visível nesta '
@@ -281,7 +284,7 @@ def vestir_modelo(imagem_bytes, produto, mime="image/jpeg", modelo="gemini-2.5-f
         key = next(_ciclo)
         try:
             client = genai.Client(api_key=key)
-            resp = _call(client,
+            resp = client.models.generate_content(
                 model=modelo,
                 contents=[types.Part.from_bytes(data=imagem_bytes, mime_type=mime), instr],
             )
@@ -327,7 +330,7 @@ Responda SOMENTE JSON:
         key = next(_ciclo)
         try:
             client = genai.Client(api_key=key)
-            resp = _call(client,
+            resp = client.models.generate_content(
                 model=MODELO, contents=partes,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json", temperature=0.3),
@@ -360,7 +363,7 @@ def variar_imagem(imagem_bytes, produto, var_idx=1, mime="image/jpeg",
         key = next(_ciclo)
         try:
             client = genai.Client(api_key=key)
-            resp = _call(client,
+            resp = client.models.generate_content(
                 model=modelo,
                 contents=[types.Part.from_bytes(data=imagem_bytes, mime_type=mime), instr],
             )
@@ -411,7 +414,7 @@ Responda SOMENTE JSON:
         key = next(_ciclo)
         try:
             client = genai.Client(api_key=key)
-            resp = _call(client,
+            resp = client.models.generate_content(
                 model=MODELO, contents=partes,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json", temperature=0.4),
@@ -457,7 +460,7 @@ Responda SOMENTE JSON: {{"indices": [lista de números], "motivo": "curto"}}""")
         key = next(_ciclo)
         try:
             client = genai.Client(api_key=key)
-            resp = _call(client,
+            resp = client.models.generate_content(
                 model=MODELO, contents=partes,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json", temperature=0.3),

@@ -39,6 +39,11 @@ const FORMATOS = [
   { value: "legenda", label: "Legenda" },
   { value: "voz", label: "Voz narrada" },
 ] as const;
+// onde a pessoa vai vender: muda o CTA/hashtags da copy (Shopee = sacolinha laranja)
+const PLATAFORMAS = [
+  { value: "shopee", label: "Shopee" },
+  { value: "outro", label: "Outro" },
+] as const;
 const TONS = [
   { value: "agressivo", label: "Agressivo" },
   { value: "equilibrado", label: "Equilibrado" },
@@ -52,6 +57,7 @@ const POSICOES = [
 
 type Formato = (typeof FORMATOS)[number]["value"];
 type Tom = (typeof TONS)[number]["value"];
+type Plataforma = (typeof PLATAFORMAS)[number]["value"];
 type Posicao = (typeof POSICOES)[number]["value"];
 
 type Clip = {
@@ -125,6 +131,7 @@ export function EditorEstudio({
   const [preco, setPreco] = useState("");
   const [formato, setFormato] = useState<Formato>("legenda");
   const [tom, setTom] = useState<Tom>("agressivo");
+  const [plataforma, setPlataforma] = useState<Plataforma>("shopee");
   const [voz, setVoz] = useState<string>(VOZ_PADRAO);
   const [vozes, setVozes] = useState<VozOpcao[]>(VOZES);
 
@@ -428,6 +435,7 @@ export function EditorEstudio({
         fd.set("preco", preco.trim());
         fd.set("formato", formato);
         fd.set("tom", tom);
+        fd.set("plataforma", plataforma);
         if (formato === "voz") fd.set("vozId", voz);
       }
       fd.set("variantes", "1");
@@ -857,6 +865,15 @@ export function EditorEstudio({
               <div className="space-y-1.5">
                 <Label className="text-xs">Tom</Label>
                 <Segmented options={TONS} value={tom} onChange={setTom} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Onde vai vender</Label>
+                <Segmented options={PLATAFORMAS} value={plataforma} onChange={setPlataforma} />
+                <p className="text-[11px] text-muted-foreground">
+                  {plataforma === "shopee"
+                    ? "A copy usa o CTA e as hashtags da Shopee (sacolinha laranja, #AchadinhosShopee)."
+                    : "A copy usa um CTA neutro (corre no link) e hashtags do nicho - sem citar a Shopee."}
+                </p>
               </div>
               {formato === "voz" && (
                 <div className="space-y-1.5">
