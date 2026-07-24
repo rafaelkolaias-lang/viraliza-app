@@ -58,6 +58,7 @@ const ferramentasSub = [
 export const adminItems = [
   { href: "/admin", label: "Visão geral", icon: Gauge },
   { href: "/admin/financas", label: "Finanças", icon: DollarSign },
+  { href: "/admin/videos", label: "Vídeos", icon: Clapperboard },
   { href: "/admin/usuarios", label: "Usuários", icon: Users },
   { href: "/admin/notificacoes", label: "Notificações", icon: Bell },
   { href: "/admin/diagnostico", label: "Diagnóstico", icon: Activity },

@@ -1,6 +1,8 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import { paraVideoJob } from "@/lib/jobs";
+import type { VideoJob } from "@/lib/types";
 
 const TZ = "America/Sao_Paulo";
 const ONLINE_MS = 5 * 60_000; // "online" = visto nos últimos 5 min
@@ -173,4 +175,43 @@ export async function getPainelAdmin(): Promise<PainelAdmin> {
       nome: r.user?.nome ?? null,
     })),
   };
+}
+
+
+// ---- Feed de vídeos gerados (admin) ----------------------------------------
+export type VideoAdmin = {
+  job: VideoJob;
+  usuario: { nome: string; email: string };
+};
+
+/** Vídeos prontos de TODOS os usuários (mais recentes primeiro), paginado. Só admin. */
+export async function getVideosAdmin(opts: {
+  pagina: number;
+  porPagina: number;
+}): Promise<{ itens: VideoAdmin[]; total: number; pagina: number; porPagina: number }> {
+  const pagina = Math.max(1, opts.pagina);
+  const porPagina = Math.min(60, Math.max(1, opts.porPagina));
+  // vídeo "gerado" = job pronto com mídias (tem a URL tocável)
+  const where = { status: "pronto", midias: { not: null } };
+
+  const [total, jobs] = await Promise.all([
+    prisma.job.count({ where }),
+    prisma.job.findMany({
+      where,
+      orderBy: { criadoEm: "desc" },
+      skip: (pagina - 1) * porPagina,
+      take: porPagina,
+      include: { user: { select: { nome: true, email: true } } },
+    }),
+  ]);
+
+  const itens: VideoAdmin[] = jobs
+    .map((j) => ({
+      job: paraVideoJob(j),
+      usuario: { nome: j.user?.nome ?? "-", email: j.user?.email ?? "-" },
+    }))
+    // segurança extra: só entra quem realmente tem mídia tocável
+    .filter((v) => (v.job.midias?.length ?? 0) > 0);
+
+  return { itens, total, pagina, porPagina };
 }
