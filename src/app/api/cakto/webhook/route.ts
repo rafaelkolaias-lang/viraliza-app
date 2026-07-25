@@ -74,7 +74,8 @@ export async function POST(req: Request) {
       email,
       telefone: pedido.customer?.mobile,
       nome: pedido.customer?.full_name,
-      valorCentavos: pedido.payment?.charge_amount ?? pedido.net_amount ?? 0,
+      // valor LÍQUIDO (o que você recebe, ex. R$22,41), não o bruto que o cliente pagou
+      valorCentavos: pedido.net_amount ?? pedido.payment?.charge_amount ?? 0,
       produto: pedido.product?.name,
     });
     return NextResponse.json({ ok: true, reembolso: r });
@@ -116,7 +117,8 @@ export async function POST(req: Request) {
       email,
       telefone: pedido.customer?.mobile,
       nome: pedido.customer?.full_name,
-      valorCentavos: pedido.payment?.charge_amount ?? pedido.net_amount ?? 0,
+      // valor LÍQUIDO (o que você recebe, ex. R$22,41), não o bruto que o cliente pagou
+      valorCentavos: pedido.net_amount ?? pedido.payment?.charge_amount ?? 0,
       produto: pedido.product?.name,
     });
   }
