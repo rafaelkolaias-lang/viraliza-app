@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { X, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,37 +16,18 @@ function fmtCreditos(n: number) {
   return Math.round(n).toLocaleString("pt-BR");
 }
 
-/** Avisa o React quando o "fechado nesta sessão" muda. */
-function subscribe(cb: () => void) {
-  window.addEventListener("banner-creditos", cb);
-  window.addEventListener("storage", cb);
-  return () => {
-    window.removeEventListener("banner-creditos", cb);
-    window.removeEventListener("storage", cb);
-  };
-}
-
 /**
  * Banner fixo no topo pra quem está com pouco crédito (saldo < 1000): oferece o
- * pacote promocional de 2.500 créditos por R$20. Tem "x" que fecha na sessão
- * atual (sessionStorage), mas volta a aparecer no próximo acesso/login. Some
- * sozinho quando o saldo passa do limite.
+ * pacote promocional de 2.500 créditos por R$20. O "x" fecha só na visita atual
+ * (estado do componente); ao entrar de novo (recarregar/logar) o banner reaparece.
+ * Some sozinho quando o saldo passa do limite. Sem sessionStorage de propósito:
+ * era o que causava o "aparece e some" (flash de hidratação).
  */
 export function BannerCreditosBaixos({ saldoCentavos }: { saldoCentavos: number }) {
-  // lido como estado externo pra não quebrar a hidratação (no servidor = aberto).
-  const fechado = useSyncExternalStore(
-    subscribe,
-    () => sessionStorage.getItem("banner_creditos_fechado") === "1",
-    () => false,
-  );
+  const [fechado, setFechado] = useState(false);
 
   if (saldoCentavos >= LIMITE_BANNER_BAIXO) return null;
   if (fechado) return null;
-
-  function fechar() {
-    sessionStorage.setItem("banner_creditos_fechado", "1");
-    window.dispatchEvent(new Event("banner-creditos"));
-  }
 
   return (
     <div className="fixed left-1/2 top-[3.75rem] z-40 w-[calc(100%-1.5rem)] max-w-xl -translate-x-1/2 md:top-4 md:left-[calc(50%+8rem)]">
@@ -72,7 +53,7 @@ export function BannerCreditosBaixos({ saldoCentavos }: { saldoCentavos: number 
         </Button>
         <button
           type="button"
-          onClick={fechar}
+          onClick={() => setFechado(true)}
           aria-label="Fechar"
           className="grid size-7 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
