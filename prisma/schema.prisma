@@ -35,8 +35,25 @@ model User {
   leads        Lead[]
   transacoes   CreditoTransacao[]
   notificacoes Notificacao[]
+  bonusInstagram BonusInstagram?
 
   @@index([vistoEm])
+}
+
+// Pedido do bônus de +300 créditos por seguir o Instagram. A liberação é manual
+// (a Meta não deixa checar seguir/curtir por API): a pessoa manda o @ dela e o
+// admin aprova ou recusa. 1 por usuário (não credita 2x).
+model BonusInstagram {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  instagram   String    @db.VarChar(120) // @ que a pessoa informou (sem o arroba)
+  status      String    @default("pendente") // "pendente" | "aprovado" | "recusado"
+  creditadoEm DateTime? // quando os 300 créditos foram lançados
+  decididoEm  DateTime? // quando o admin decidiu (aprovou/recusou)
+  criadoEm    DateTime  @default(now())
+
+  @@index([status])
 }
 
 // Notificação do "sininho": uma linha por usuário (fan-out). Aviso automático de

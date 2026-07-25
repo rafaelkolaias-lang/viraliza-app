@@ -9,7 +9,10 @@ import { NavLinks } from "@/components/app/nav-links";
 import { UserMenu } from "@/components/app/user-menu";
 import { NotificacoesSino } from "@/components/app/notificacoes-sino";
 import { AvisoBarra } from "@/components/app/aviso-barra";
+import { ModalInstagramBonus } from "@/components/app/modal-instagram-bonus";
+import { BannerCreditosBaixos } from "@/components/app/banner-creditos-baixos";
 import type { AvisoDTO } from "@/lib/notificacoes";
+import type { StatusBonusIg } from "@/lib/promos";
 import { Separator } from "@/components/ui/separator";
 
 interface AppUser {
@@ -30,6 +33,7 @@ export function AppFrame({
   assinante = false,
   pctNaoGasto = 0,
   avisos = [],
+  bonusIgStatus = "nenhum",
 }: {
   user: AppUser;
   children: React.ReactNode;
@@ -39,6 +43,8 @@ export function AppFrame({
   pctNaoGasto?: number;
   /** barras coloridas ativas pro usuário (topo do site). */
   avisos?: AvisoDTO[];
+  /** situação do bônus do Instagram (controla o modal de +300 créditos). */
+  bonusIgStatus?: StatusBonusIg;
 }) {
   const [openMenu, setOpenMenu] = useState(false);
   const isAdmin = user.role === "admin";
@@ -114,6 +120,14 @@ export function AppFrame({
 
   return (
     <div className="min-h-dvh">
+      {/* Promoções (só pra usuário comum): modal do Instagram + banner de crédito baixo */}
+      {!isAdmin && (
+        <>
+          <ModalInstagramBonus status={bonusIgStatus} />
+          <BannerCreditosBaixos saldoCentavos={saldoCentavos} />
+        </>
+      )}
+
       {/* Sidebar fixa (desktop) */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-border bg-sidebar md:flex">
         <div className="flex items-center justify-between p-5">

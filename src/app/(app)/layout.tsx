@@ -2,6 +2,7 @@ import { AppFrame } from "@/components/app/app-frame";
 import { requireUser } from "@/lib/dal";
 import { tocarPresenca } from "@/lib/presenca";
 import { avisosAtivosPara } from "@/lib/notificacoes";
+import { getStatusBonusIg } from "@/lib/bonus-instagram";
 import {
   garantirCreditoMensal,
   getCarteira,
@@ -16,10 +17,11 @@ export default async function AppLayout({
   const user = await requireUser(); // redireciona pro /login se não estiver logado
   await tocarPresenca(user.id); // marca presença (online/visto há X) - no máx 1x/min
   await garantirCreditoMensal(user.id); // libera o crédito mensal de brinde do assinante
-  const [carteira, entradas, avisos] = await Promise.all([
+  const [carteira, entradas, avisos, bonusIg] = await Promise.all([
     getCarteira(user.id),
     totalEntradas(user.id),
     avisosAtivosPara(user.id),
+    getStatusBonusIg(user.id),
   ]);
   // % do crédito que ainda não foi gasto (saldo / total que entrou).
   // base = max(entradas, saldo) pra nunca mostrar 0% tendo saldo (ex.: saldo
@@ -38,6 +40,7 @@ export default async function AppLayout({
       assinante={carteira.assinante}
       pctNaoGasto={pctNaoGasto}
       avisos={avisos}
+      bonusIgStatus={bonusIg.status}
     >
       {children}
     </AppFrame>

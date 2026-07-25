@@ -18,6 +18,7 @@ export type TipoTransacao =
   | "debito_geracao"
   | "debito_processamento"
   | "bonus_assinatura"
+  | "bonus_instagram" // +300 por seguir o Instagram (liberado pelo admin)
   | "ajuste_admin"
   | "estorno"
   | "suspensao_reembolso" // reembolso SOLICITADO: congela (zera) o saldo até a decisão
