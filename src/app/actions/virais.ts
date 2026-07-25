@@ -18,6 +18,7 @@ export async function maisVirais(opts: {
   emAlta?: boolean;
   pagina: number;
   porPagina?: number;
+  rotacaoSeed?: number;
 }): Promise<{ itens: ViralVideo[]; total: number }> {
   await requireAssinatura();
   return getViralVideosPagina({
@@ -25,6 +26,7 @@ export async function maisVirais(opts: {
     emAlta: opts.emAlta,
     pagina: Math.max(1, opts.pagina),
     porPagina: Math.min(40, Math.max(1, opts.porPagina ?? 20)),
+    rotacaoSeed: opts.rotacaoSeed,
   });
 }
 

@@ -20,6 +20,7 @@ export function PrateleiraVirais({
   nicho,
   emAlta = false,
   porPagina = 20,
+  rotacaoSeed,
 }: {
   titulo: string;
   verTodosHref?: string;
@@ -28,6 +29,8 @@ export function PrateleiraVirais({
   nicho?: string;
   emAlta?: boolean;
   porPagina?: number;
+  /** mesmo deslocamento por visita usado na 1ª leva (mantém o giro sem repetir). */
+  rotacaoSeed?: number;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const drag = useRef({ ativo: false, startX: 0, startScroll: 0, moveu: false });
@@ -42,7 +45,7 @@ export function PrateleiraVirais({
     setCarregando(true);
     try {
       const prox = pagina + 1;
-      const { itens: novos } = await maisVirais({ nicho, emAlta, pagina: prox, porPagina });
+      const { itens: novos } = await maisVirais({ nicho, emAlta, pagina: prox, porPagina, rotacaoSeed });
       setItens((atual) => {
         const vistos = new Set(atual.map((v) => v.id));
         const filtrados = novos.filter((v) => !vistos.has(v.id));
@@ -52,7 +55,7 @@ export function PrateleiraVirais({
     } finally {
       setCarregando(false);
     }
-  }, [carregando, itens.length, total, pagina, nicho, emAlta, porPagina]);
+  }, [carregando, itens.length, total, pagina, nicho, emAlta, porPagina, rotacaoSeed]);
 
   function talvezCarregar(el: HTMLDivElement) {
     // perto do fim (menos de 1.5 largura de tela restando) -> puxa a próxima leva

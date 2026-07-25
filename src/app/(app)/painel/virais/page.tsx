@@ -15,8 +15,11 @@ const POR_PRATELEIRA = 20;
 
 export default async function ViraisPage() {
   await requireAssinatura();
+  // semente de rotação por visita: gira as prateleiras de nicho a cada entrada
+  // (a página é force-dynamic, então cada acesso gera uma nova).
+  const rotacaoSeed = Math.floor(Math.random() * 1_000_000_000) + 1;
   const [{ emAlta, emAltaTotal, nichos }, total] = await Promise.all([
-    getPrateleirasVirais(POR_PRATELEIRA),
+    getPrateleirasVirais(POR_PRATELEIRA, 14, rotacaoSeed),
     getTotalVirais(),
   ]);
 
@@ -67,6 +70,7 @@ export default async function ViraisPage() {
               total={n.total}
               nicho={n.nicho}
               porPagina={POR_PRATELEIRA}
+              rotacaoSeed={rotacaoSeed}
             />
           ))}
         </>

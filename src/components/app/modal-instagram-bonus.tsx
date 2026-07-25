@@ -23,10 +23,12 @@ export function ModalInstagramBonus({ status }: { status: StatusBonusIg }) {
   const [erro, setErro] = useState<string | null>(null);
   const [enviado, setEnviado] = useState(status === "pendente");
 
-  // abre sozinho (uma vez por sessão) só pra quem ainda não pediu ou foi recusado.
+  // Abre sozinho a CADA entrada pra quem ainda não pediu (nenhum) ou foi recusado.
+  // Só para de aparecer quando o admin APROVA (aí status vira "aprovado"). Pendente
+  // não reabre (a pessoa já mandou o @ e está esperando a aprovação). Fechar vale
+  // só pra esta sessão de navegação; ao entrar de novo (recarregar/logar), reaparece.
   useEffect(() => {
     if (status !== "nenhum" && status !== "recusado") return;
-    if (sessionStorage.getItem("ig_bonus_visto") === "1") return;
     const t = setTimeout(() => setAberto(true), 900);
     return () => clearTimeout(t);
   }, [status]);
@@ -35,7 +37,6 @@ export function ModalInstagramBonus({ status }: { status: StatusBonusIg }) {
   if (status === "aprovado") return null;
 
   function fechar() {
-    sessionStorage.setItem("ig_bonus_visto", "1");
     setAberto(false);
   }
 
@@ -58,7 +59,6 @@ export function ModalInstagramBonus({ status }: { status: StatusBonusIg }) {
         return;
       }
       setEnviado(true);
-      sessionStorage.setItem("ig_bonus_visto", "1");
     } catch {
       setErro("Sem conexão. Tente de novo.");
     } finally {
