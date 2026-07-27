@@ -22,6 +22,9 @@ import {
   DollarSign,
   Pickaxe,
   Camera,
+  Video,
+  UserRound,
+  MessageSquarePlus,
   ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -39,6 +42,8 @@ const navTopo: NavItem[] = [
   { href: "/painel", label: "Meus vídeos", icon: LayoutGrid },
   { href: "/painel/shopee", label: "Shopee", icon: ShoppingBag },
   { href: "/painel/acervo", label: "Acervo de cortes", icon: Film },
+  { href: "/painel/meus-avatares", label: "Meus avatares", icon: UserRound, novidade: true },
+  { href: "/painel/avatar", label: "Vídeo com avatar", icon: Video, novidade: true },
   { href: "/painel/minerador", label: "Minerador", icon: Pickaxe, novidade: true },
 ];
 
@@ -46,6 +51,7 @@ const navTopo: NavItem[] = [
 const navFim: NavItem[] = [
   { href: "/painel/membro", label: "Membro", icon: Gem },
   { href: "/painel/creditos", label: "Créditos", icon: Coins },
+  { href: "/painel/sugestoes", label: "Sugestões", icon: MessageSquarePlus, novidade: true },
 ];
 
 // Sub-itens do grupo "Ferramentas" (expansível)

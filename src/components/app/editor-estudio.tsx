@@ -138,7 +138,7 @@ export function EditorEstudio({
   // áudio
   const [musica, setMusica] = useState<File[]>([]);
   const [musicaUrl, setMusicaUrl] = useState("");
-  const [volumeMusica, setVolumeMusica] = useState(70);
+  const [volumeMusica, setVolumeMusica] = useState(50);
   const [audioVideo, setAudioVideo] = useState<"manter" | "remover">("manter");
 
   const [enviando, setEnviando] = useState(false);
@@ -787,10 +787,12 @@ export function EditorEstudio({
               files={musica}
               onChange={setMusica}
               multiple={false}
-              hint="A IA acha o melhor trecho automaticamente"
+              hint="Se não subir nenhuma, entra uma música automática"
             />
-            {musicaUrl && (
-              <div className="mt-3 flex items-center gap-3">
+
+            {/* volume: sempre visível, pra controlar tanto a sua música quanto a automática */}
+            <div className="mt-3">
+              <div className="flex items-center gap-3">
                 <Music className="size-4 shrink-0 text-primary" />
                 <input
                   type="range"
@@ -805,7 +807,10 @@ export function EditorEstudio({
                   {volumeMusica}%
                 </span>
               </div>
-            )}
+              <p className="mt-1 text-[10px] text-muted-foreground">
+                Controla o volume da música (sua ou a automática). Deixe baixo pra não abafar a voz.
+              </p>
+            </div>
           </div>
         </Secao>
 

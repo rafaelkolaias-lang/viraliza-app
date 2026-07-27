@@ -177,8 +177,11 @@ export async function POST(req: Request) {
   const temLivre =
     Number.isFinite(marcaX) && Number.isFinite(marcaY) &&
     marcaX >= 0 && marcaX <= 100 && marcaY >= 0 && marcaY <= 100;
+  // volume da música (0-100; o worker converte). Vale pra música própria e pra automática.
+  const volumeMusica = Math.max(0, Math.min(100, Number(form.get("volumeMusica") ?? 40) || 40));
   const opcoes = JSON.stringify({
     audioVideo,
+    volumeMusica,
     marcaTamanho,
     marcaPosicao,
     plataforma,

@@ -36,8 +36,41 @@ model User {
   transacoes   CreditoTransacao[]
   notificacoes Notificacao[]
   bonusInstagram BonusInstagram?
+  avatares     Avatar[]
+  sugestoes    Sugestao[]
 
   @@index([vistoEm])
+}
+
+// Sugestão/melhoria que o usuário manda. Ele só vê as dele; o admin vê todas.
+model Sugestao {
+  id       String   @id @default(cuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  texto    String   @db.Text
+  tipo     String   @default("sugestao") // "sugestao" | "melhoria" | "problema"
+  status   String   @default("nova")     // "nova" | "lida" | "resolvida" (admin gerencia)
+  criadoEm DateTime @default(now())
+
+  @@index([userId])
+  @@index([status])
+}
+
+// Avatar criado pelo usuário no "Meus avatares" (quiz -> gpt-image-1). A foto é
+// gerada pela OpenAI no app e HOSPEDADA no serverrk (media.univershoop.com/avatares/<id>.png),
+// igual ao resto da mídia. Guardamos só a URL e as escolhas do quiz. Custa creditos.
+model Avatar {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nome      String   @db.VarChar(120)
+  genero    String   @default("female") // "female" | "male"
+  status    String   @default("pronto") // "pronto" | "erro"
+  imagemUrl String   @db.Text  // URL publica no serverrk
+  escolhas  String?  @db.Text  // JSON das escolhas do quiz (referencia)
+  criadoEm  DateTime @default(now())
+
+  @@index([userId])
 }
 
 // Pedido do bônus de +300 créditos por seguir o Instagram. A liberação é manual
