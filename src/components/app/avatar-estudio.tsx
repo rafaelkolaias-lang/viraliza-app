@@ -561,7 +561,7 @@ export function AvatarEstudio({
         </p>
         <p className="mt-1.5 flex flex-wrap items-center gap-x-1.5 text-xs">
           <span className="font-bold text-primary">{custoVideoAvatar(duracao)} créditos</span>
-          <span className="text-muted-foreground">por vídeo (6s = 250, 10s = 300)</span>
+          <span className="text-muted-foreground">por vídeo (6s = 85, 10s = 95)</span>
         </p>
       </div>
 

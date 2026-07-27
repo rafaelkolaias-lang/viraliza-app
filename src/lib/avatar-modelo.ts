@@ -184,11 +184,11 @@ export function contarPalavras(texto: string) {
 
 // Custo fixo pra gerar 1 avatar (creditos = centavos). A imagem no gpt-image-1
 // sai mais cara que um video comum. Client-safe pra UI mostrar antes de gerar.
-export const CUSTO_AVATAR = 300;
+export const CUSTO_AVATAR = 75;
 
-// Custo pra gerar 1 vídeo com avatar (creditos = centavos): 6s = 250, 10s = 300.
-export const CUSTO_VIDEO_AVATAR = 250;
-export const CUSTO_VIDEO_AVATAR_10S = 300;
+// Custo pra gerar 1 vídeo com avatar (creditos = centavos): 6s = 85, 10s = 95.
+export const CUSTO_VIDEO_AVATAR = 85;
+export const CUSTO_VIDEO_AVATAR_10S = 95;
 export function custoVideoAvatar(duracaoSeg: number): number {
   return duracaoSeg >= 10 ? CUSTO_VIDEO_AVATAR_10S : CUSTO_VIDEO_AVATAR;
 }
