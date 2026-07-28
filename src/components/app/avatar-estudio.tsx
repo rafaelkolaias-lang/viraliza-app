@@ -19,10 +19,12 @@ import {
   Wand2,
   Home,
   Download,
+  Lightbulb,
+  TriangleAlert,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { APRESENTACOES, DURACOES, CENARIOS, custoVideoAvatar } from "@/lib/avatar-modelo";
+import { APRESENTACOES, DURACOES, DURACAO_NOTA, CENARIOS, custoVideoAvatar } from "@/lib/avatar-modelo";
 
 /**
  * FRONT do "Vídeo com avatar" (criador estilo UGC). A pessoa escolhe um avatar,
@@ -43,7 +45,7 @@ const AVATARES = [
 ];
 
 type Analise = { nome: string; tipo: string; descricao: string; sugestao: string };
-type MeuAvatar = { id: string; nome: string; imagemUrl: string };
+type MeuAvatar = { id: string; nome: string; imagemUrl: string; origem?: string };
 
 function lerDataUrl(file: File): Promise<string> {
   return new Promise((res) => {
@@ -91,6 +93,7 @@ export function AvatarEstudio({
   const [gerarClose, setGerarClose] = useState(true);
   const [cenario, setCenario] = useState<string>("sala");
   const [duracao, setDuracao] = useState<number>(6);
+  const [comFala, setComFala] = useState(true);
   const [gerando, setGerando] = useState(false);
   const [progresso, setProgresso] = useState(0);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -150,8 +153,30 @@ export function AvatarEstudio({
     }
   }
 
+  // 15s = 1 imagem só: manda a foto do avatar que JÁ tem o produto (e o cenário).
+  const imagemUnica = duracao === 15;
+  const avataresProduto = meusAvatares.filter((a) => a.origem === "produto");
+
+  // troca de duração: ao ir pro 15s, força a fonte "meus" e limpa uma seleção que
+  // não seja um avatar-com-produto (o 15s só aceita esses).
+  function escolherDuracao(s: number) {
+    setDuracao(s);
+    if (s === 15) {
+      setModo("meus");
+      setAvatarSel((sel) => (avataresProduto.some((a) => a.id === sel) ? sel : null));
+    }
+  }
+
+  // numeração dinâmica das seções (some produto/cenário no 15s)
+  const ordem = imagemUnica
+    ? ["avatar", "titulo", "fala", "duracao"]
+    : ["avatar", "produto", "aparece", "cenario", "titulo", "fala", "duracao"];
+  const nSecao = (k: string) => ordem.indexOf(k) + 1;
+
   const temAvatar = !!avatarSel;
-  const pronto = temAvatar && produtoFotos.length > 0 && !!apresentacao;
+  const pronto = imagemUnica
+    ? temAvatar
+    : temAvatar && produtoFotos.length > 0 && !!apresentacao;
 
   function trocarModo(m: "prontos" | "meus") {
     setModo(m);
@@ -190,19 +215,26 @@ export function AvatarEstudio({
       const produtoNome = analise
         ? [analise.nome, analise.tipo].filter(Boolean).join(" - ")
         : "";
+      // 15s (imagemUnica): manda SÓ o avatar (que já tem produto+cenário) + título + fala.
+      // 6s/10s: manda avatar + fotos do produto + como aparece + cenário (várias imagens).
+      const payload = imagemUnica
+        ? { avatarUrl, duracao, titulo, comFala, qualidade: "480p", imagemUnica: true }
+        : {
+            avatarUrl,
+            produtoFotos,
+            apresentacao,
+            cenario,
+            gerarClose,
+            duracao,
+            produtoNome,
+            titulo,
+            comFala,
+            qualidade: "480p",
+          };
       const r = await fetch("/api/avatar/video", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          avatarUrl,
-          produtoFotos,
-          apresentacao,
-          cenario,
-          gerarClose,
-          duracao,
-          produtoNome,
-          titulo,
-        }),
+        body: JSON.stringify(payload),
       });
       const data = (await r.json().catch(() => ({}))) as {
         erro?: string;
@@ -214,7 +246,7 @@ export function AvatarEstudio({
       if (!r.ok || !data.videoUrl) {
         toast.error(
           data.faltaCreditos
-            ? `Você precisa de ${data.custo ?? custoVideoAvatar(duracao)} créditos pra gerar esse vídeo.`
+            ? `Você precisa de ${data.custo ?? custoVideoAvatar(duracao, comFala)} créditos pra gerar esse vídeo.`
             : data.erro ?? "Não consegui gerar o vídeo. Tente de novo.",
         );
         if (data.prompt) setPromptFinal(data.prompt);
@@ -258,112 +290,175 @@ export function AvatarEstudio({
 
       {/* ===== 1. AVATAR ===== */}
       <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-        <Secao n={1} titulo="Seu avatar" />
+        <Secao n={nSecao("avatar")} titulo={imagemUnica ? "Avatar com produto" : "Seu avatar"} />
 
-        <div className="mt-3 grid max-w-xs grid-cols-2 gap-1 rounded-xl bg-muted p-1">
-          <button
-            type="button"
-            onClick={() => trocarModo("prontos")}
-            className={cn(
-              "flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-colors",
-              modo === "prontos" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <Users className="size-3.5" />
-            Avatares prontos
-          </button>
-          <button
-            type="button"
-            onClick={() => trocarModo("meus")}
-            className={cn(
-              "flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-colors",
-              modo === "meus" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <UserRound className="size-3.5" />
-            Meus avatares
-          </button>
-        </div>
-
-        {modo === "prontos" ? (
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {AVATARES.map((a) => {
-              const sel = avatarSel === a.id;
-              return (
-                <button
-                  key={a.id}
-                  type="button"
-                  onClick={() => setAvatarSel(a.id)}
-                  className={cn(
-                    "group relative overflow-hidden rounded-2xl border transition-all",
-                    sel ? "border-primary ring-2 ring-primary/40" : "border-border hover:border-primary/50",
-                  )}
+        {imagemUnica ? (
+          // 15s: só os avatares que JÁ têm o produto (o cenário também já está na foto)
+          <>
+            <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-primary/30 bg-primary/10 px-3.5 py-3">
+              <Sparkles className="size-5 shrink-0 text-primary" />
+              <p className="text-sm text-foreground">
+                No vídeo de <span className="font-bold">15s</span> a gente usa a sua imagem de{" "}
+                <span className="font-semibold">Avatar com produto</span> (ela já tem o produto e o
+                cenário). Escolha uma abaixo.
+              </p>
+            </div>
+            {avataresProduto.length > 0 ? (
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {avataresProduto.map((a) => {
+                  const sel = avatarSel === a.id;
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      onClick={() => setAvatarSel(a.id)}
+                      className={cn(
+                        "group relative overflow-hidden rounded-2xl border transition-all",
+                        sel ? "border-primary ring-2 ring-primary/40" : "border-border hover:border-primary/50",
+                      )}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={a.imagemUrl} alt={a.nome} className="aspect-[3/4] w-full object-cover" />
+                      <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-2.5 pb-2 pt-6 text-center text-sm font-semibold text-white">
+                        {a.nome}
+                      </span>
+                      {sel && (
+                        <span className="absolute right-2 top-2 grid size-6 place-items-center rounded-full bg-primary text-primary-foreground">
+                          <Check className="size-3.5" strokeWidth={3} />
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="mt-4 flex flex-col items-center gap-2 rounded-xl border border-dashed border-border py-10 text-center">
+                <span className="grid size-12 place-items-center rounded-full bg-muted text-muted-foreground">
+                  <UserRound className="size-6" />
+                </span>
+                <p className="font-medium">Você ainda não tem um Avatar com produto</p>
+                <p className="max-w-sm text-sm text-muted-foreground">
+                  Crie um em Meus avatares na opção Avatar com produto pra usar no vídeo de 15s.
+                </p>
+                <Link
+                  href="/painel/meus-avatares"
+                  className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={a.src} alt={a.nome} className="aspect-[3/4] w-full object-cover" />
-                  <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-2.5 pb-2 pt-6 text-center text-sm font-semibold text-white">
-                    {a.nome}
-                  </span>
-                  {sel && (
-                    <span className="absolute right-2 top-2 grid size-6 place-items-center rounded-full bg-primary text-primary-foreground">
-                      <Check className="size-3.5" strokeWidth={3} />
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        ) : meusAvatares.length > 0 ? (
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {meusAvatares.map((a) => {
-              const sel = avatarSel === a.id;
-              return (
-                <button
-                  key={a.id}
-                  type="button"
-                  onClick={() => setAvatarSel(a.id)}
-                  className={cn(
-                    "group relative overflow-hidden rounded-2xl border transition-all",
-                    sel ? "border-primary ring-2 ring-primary/40" : "border-border hover:border-primary/50",
-                  )}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={a.imagemUrl} alt={a.nome} className="aspect-[3/4] w-full object-cover" />
-                  <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-2.5 pb-2 pt-6 text-center text-sm font-semibold text-white">
-                    {a.nome}
-                  </span>
-                  {sel && (
-                    <span className="absolute right-2 top-2 grid size-6 place-items-center rounded-full bg-primary text-primary-foreground">
-                      <Check className="size-3.5" strokeWidth={3} />
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+                  <Plus className="size-4" />
+                  Criar avatar com produto
+                </Link>
+              </div>
+            )}
+          </>
         ) : (
-          <div className="mt-4 flex flex-col items-center gap-2 rounded-xl border border-dashed border-border py-10 text-center">
-            <span className="grid size-12 place-items-center rounded-full bg-muted text-muted-foreground">
-              <UserRound className="size-6" />
-            </span>
-            <p className="font-medium">Você ainda não criou avatares</p>
-            <p className="max-w-sm text-sm text-muted-foreground">
-              Crie o seu na aba Meus avatares pra ele aparecer aqui.
-            </p>
-            <Link
-              href="/painel/meus-avatares"
-              className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
-            >
-              <Plus className="size-4" />
-              Criar avatar
-            </Link>
-          </div>
+          <>
+            <div className="mt-3 grid max-w-xs grid-cols-2 gap-1 rounded-xl bg-muted p-1">
+              <button
+                type="button"
+                onClick={() => trocarModo("prontos")}
+                className={cn(
+                  "flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-colors",
+                  modo === "prontos" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Users className="size-3.5" />
+                Avatares prontos
+              </button>
+              <button
+                type="button"
+                onClick={() => trocarModo("meus")}
+                className={cn(
+                  "flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-colors",
+                  modo === "meus" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <UserRound className="size-3.5" />
+                Meus avatares
+              </button>
+            </div>
+
+            {modo === "prontos" ? (
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {AVATARES.map((a) => {
+                  const sel = avatarSel === a.id;
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      onClick={() => setAvatarSel(a.id)}
+                      className={cn(
+                        "group relative overflow-hidden rounded-2xl border transition-all",
+                        sel ? "border-primary ring-2 ring-primary/40" : "border-border hover:border-primary/50",
+                      )}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={a.src} alt={a.nome} className="aspect-[3/4] w-full object-cover" />
+                      <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-2.5 pb-2 pt-6 text-center text-sm font-semibold text-white">
+                        {a.nome}
+                      </span>
+                      {sel && (
+                        <span className="absolute right-2 top-2 grid size-6 place-items-center rounded-full bg-primary text-primary-foreground">
+                          <Check className="size-3.5" strokeWidth={3} />
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : meusAvatares.length > 0 ? (
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {meusAvatares.map((a) => {
+                  const sel = avatarSel === a.id;
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      onClick={() => setAvatarSel(a.id)}
+                      className={cn(
+                        "group relative overflow-hidden rounded-2xl border transition-all",
+                        sel ? "border-primary ring-2 ring-primary/40" : "border-border hover:border-primary/50",
+                      )}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={a.imagemUrl} alt={a.nome} className="aspect-[3/4] w-full object-cover" />
+                      <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-2.5 pb-2 pt-6 text-center text-sm font-semibold text-white">
+                        {a.nome}
+                      </span>
+                      {sel && (
+                        <span className="absolute right-2 top-2 grid size-6 place-items-center rounded-full bg-primary text-primary-foreground">
+                          <Check className="size-3.5" strokeWidth={3} />
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="mt-4 flex flex-col items-center gap-2 rounded-xl border border-dashed border-border py-10 text-center">
+                <span className="grid size-12 place-items-center rounded-full bg-muted text-muted-foreground">
+                  <UserRound className="size-6" />
+                </span>
+                <p className="font-medium">Você ainda não criou avatares</p>
+                <p className="max-w-sm text-sm text-muted-foreground">
+                  Crie o seu na aba Meus avatares pra ele aparecer aqui.
+                </p>
+                <Link
+                  href="/painel/meus-avatares"
+                  className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+                >
+                  <Plus className="size-4" />
+                  Criar avatar
+                </Link>
+              </div>
+            )}
+          </>
         )}
       </div>
 
-      {/* ===== 2. PRODUTO ===== */}
+      {/* ===== PRODUTO (só 6s/10s; no 15s a imagem já tem o produto) ===== */}
+      {!imagemUnica && (
       <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-        <Secao n={2} titulo="Fotos do produto" />
+        <Secao n={nSecao("produto")} titulo="Fotos do produto" />
         <input
           ref={inputProduto}
           type="file"
@@ -445,27 +540,29 @@ export function AvatarEstudio({
           </div>
         )}
 
-        {/* título do produto (entra na fala da avatar) */}
-        <div className="mt-4">
-          <label className="text-xs font-semibold text-muted-foreground">
-            Título do produto <span className="font-normal">(opcional)</span>
-          </label>
-          <input
-            value={titulo}
-            onChange={(e) => setTitulo(e.target.value)}
-            placeholder="Ex: Fone Bluetooth à prova d'água"
-            maxLength={160}
-            className="mt-1.5 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-          />
-          <p className="mt-1.5 text-[11px] text-muted-foreground">
-            A avatar cita esse nome na fala. Deixe do jeito que você anuncia.
-          </p>
-        </div>
+      </div>
+      )}
+
+      {/* ===== TÍTULO (sempre; a avatar cita na fala) ===== */}
+      <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+        <Secao n={nSecao("titulo")} titulo="Título do produto" />
+        <input
+          value={titulo}
+          onChange={(e) => setTitulo(e.target.value)}
+          placeholder="Ex: Fone Bluetooth à prova d'água"
+          maxLength={160}
+          className="mt-4 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+        />
+        <p className="mt-1.5 text-[11px] text-muted-foreground">
+          A avatar cita esse nome na fala. Deixe do jeito que você anuncia
+          {imagemUnica ? " (opcional, mas ajuda muito no vídeo com fala)." : "."}
+        </p>
       </div>
 
-      {/* ===== 3. COMO O PRODUTO APARECE ===== */}
+      {/* ===== COMO O PRODUTO APARECE (só 6s/10s) ===== */}
+      {!imagemUnica && (
       <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-        <Secao n={3} titulo="Como o produto aparece" />
+        <Secao n={nSecao("aparece")} titulo="Como o produto aparece" />
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
           {APRESENTACOES.map((a) => {
             const ativo = apresentacao === a.chave;
@@ -505,10 +602,12 @@ export function AvatarEstudio({
           </span>
         </button>
       </div>
+      )}
 
-      {/* ===== 4. CENÁRIO ===== */}
+      {/* ===== CENÁRIO (só 6s/10s; no 15s já está na imagem) ===== */}
+      {!imagemUnica && (
       <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-        <Secao n={4} titulo="Cenário do vídeo" />
+        <Secao n={nSecao("cenario")} titulo="Cenário do vídeo" />
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
           {CENARIOS.map((c) => {
             const ativo = cenario === c.chave;
@@ -533,20 +632,49 @@ export function AvatarEstudio({
           Onde a cena acontece: casa de gente de verdade, do dia a dia.
         </p>
       </div>
+      )}
 
-      {/* ===== 5. DURAÇÃO ===== */}
+      {/* ===== FALA ===== */}
       <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-        <Secao n={5} titulo="Duração do vídeo" />
+        <Secao n={nSecao("fala")} titulo="O avatar vai falar?" />
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          {[
+            { v: true, titulo: "Com fala", desc: "Ela anuncia o produto falando em português." },
+            { v: false, titulo: "Sem fala", desc: "Só mostra o produto (você põe voz/texto depois)." },
+          ].map((o) => (
+            <button
+              key={String(o.v)}
+              type="button"
+              onClick={() => setComFala(o.v)}
+              className={cn(
+                "rounded-xl border p-3 text-left transition-all",
+                comFala === o.v
+                  ? "border-primary bg-primary/10 ring-2 ring-primary/30"
+                  : "border-border hover:border-primary/50 hover:bg-muted/40",
+              )}
+            >
+              <span className={cn("block text-sm font-semibold", comFala === o.v && "text-primary")}>
+                {o.titulo}
+              </span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">{o.desc}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ===== DURAÇÃO ===== */}
+      <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+        <Secao n={nSecao("duracao")} titulo="Duração do vídeo" />
         <div className="mt-4 flex items-center gap-2">
-          <Clock className="size-4 text-muted-foreground" />
-          <div className="grid grid-cols-2 gap-1 rounded-xl bg-muted p-1">
+          <Clock className="size-4 shrink-0 text-muted-foreground" />
+          <div className="grid grid-cols-3 gap-1 rounded-xl bg-muted p-1">
             {DURACOES.map((s) => (
               <button
                 key={s}
                 type="button"
-                onClick={() => setDuracao(s)}
+                onClick={() => escolherDuracao(s)}
                 className={cn(
-                  "rounded-lg px-5 py-1.5 text-sm font-semibold transition-colors",
+                  "rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors",
                   duracao === s ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
                 )}
               >
@@ -555,13 +683,30 @@ export function AvatarEstudio({
             ))}
           </div>
         </div>
-        <p className="mt-3 text-xs text-muted-foreground">
-          A IA vai <span className="font-medium text-foreground">anunciar seu produto sozinha</span>,
-          no tempo escolhido. Você não precisa escrever nada.
-        </p>
-        <p className="mt-1.5 flex flex-wrap items-center gap-x-1.5 text-xs">
-          <span className="font-bold text-primary">{custoVideoAvatar(duracao)} créditos</span>
-          <span className="text-muted-foreground">por vídeo (6s = 85, 10s = 95)</span>
+        {/* obs da duração em destaque */}
+        <div className="mt-3 flex items-center gap-2.5 rounded-xl border border-primary/30 bg-primary/10 px-3.5 py-3">
+          <Lightbulb className="size-5 shrink-0 text-primary" />
+          <p className="text-sm font-semibold text-foreground">{DURACAO_NOTA[duracao]}</p>
+        </div>
+
+        {/* aviso: com fala + 6s é curto demais pra uma fala boa */}
+        {comFala && duracao === 6 && (
+          <div className="mt-2 flex items-start gap-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3.5 py-3">
+            <TriangleAlert className="size-5 shrink-0 text-amber-500" />
+            <p className="text-sm text-amber-700 dark:text-amber-300">
+              <span className="font-bold">6 segundos é curtinho pra fala.</span> A avatar
+              mal vai conseguir anunciar o produto. Pra vídeo <span className="font-semibold">com fala</span>,
+              use <span className="font-semibold">10s ou 15s</span>. Se quiser mesmo os 6s,
+              o ideal é deixar <span className="font-semibold">sem fala</span>.
+            </p>
+          </div>
+        )}
+
+        <p className="mt-2 flex flex-wrap items-center gap-x-1.5 text-xs">
+          <span className="font-bold text-primary">{custoVideoAvatar(duracao, comFala)} créditos</span>
+          <span className="text-muted-foreground">
+            {comFala ? "por vídeo com fala" : "por vídeo sem fala (mais barato)"}
+          </span>
         </p>
       </div>
 
@@ -585,8 +730,10 @@ export function AvatarEstudio({
           {gerando
             ? "A IA está gravando seu vídeo. Isso leva alguns minutos, pode deixar aberto. 🎬"
             : pronto
-              ? `Tudo pronto! Toque pra gerar (${custoVideoAvatar(duracao)} créditos).`
-              : "Escolha o avatar, as fotos do produto e como ele aparece pra liberar."}
+              ? `Tudo pronto! Toque pra gerar (${custoVideoAvatar(duracao, comFala)} créditos).`
+              : imagemUnica
+                ? "Escolha um Avatar com produto pra liberar."
+                : "Escolha o avatar, as fotos do produto e como ele aparece pra liberar."}
         </p>
 
         {/* moldura de vídeo em blur enquanto gera, com o % subindo */}
@@ -670,7 +817,7 @@ export function AvatarEstudio({
         )}
 
         {/* prompt final (só admin) */}
-        {promptFinal && (
+        {admin && promptFinal && (
           <div className="mt-4 overflow-hidden rounded-2xl border border-border bg-card">
             <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-2.5">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">

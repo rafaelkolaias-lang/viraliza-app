@@ -172,8 +172,15 @@ export const APRESENTACOES: Apresentacao[] = [
 // Duração do clipe (o Grok gera vídeos curtos). A fala precisa caber no tempo:
 // ~2,5 palavras por segundo é um ritmo natural de fala em português. Se na prática
 // o Grok falar mais rápido/devagar, é só ajustar PALAVRAS_POR_SEG aqui num lugar só.
-export const DURACOES = [6, 10] as const;
+export const DURACOES = [6, 10, 15] as const;
 export const PALAVRAS_POR_SEG = 2.5;
+
+// obs de cada duração, pra pessoa entender pra que serve cada uma.
+export const DURACAO_NOTA: Record<number, string> = {
+  6: "Curtinho, ótimo pra vídeo sem fala",
+  10: "Dá tempo de uma fala boa",
+  15: "Mais completo, fala caprichada",
+};
 
 export function limitePalavras(seg: number) {
   return Math.round(seg * PALAVRAS_POR_SEG);
@@ -186,11 +193,50 @@ export function contarPalavras(texto: string) {
 // sai mais cara que um video comum. Client-safe pra UI mostrar antes de gerar.
 export const CUSTO_AVATAR = 75;
 
-// Custo pra gerar 1 vídeo com avatar (creditos = centavos): 6s = 85, 10s = 95.
+// Como o produto aparece na foto "avatar com produto" (image-to-image). O `en`
+// vira a instrucao pro gpt-image-1. Client-safe: a UI mostra o label em PT.
+export const USOS_PRODUTO: Opcao[] = [
+  {
+    chave: "segurando",
+    label: "Segurando o produto",
+    en: "the person is holding the product in one hand, showing it clearly to the camera, fingers open so they do not cover the product, at chest height",
+  },
+  {
+    chave: "rosto",
+    label: "Passando no rosto",
+    en: "the person is gently applying the product on their own face with the fingertips, like applying a skincare cream or serum, the product container visible near the face",
+  },
+  {
+    chave: "cabelo",
+    label: "Passando no cabelo",
+    en: "the person is applying the product on their own hair with one hand, like a hair cream or oil, the product container visible near the head",
+  },
+  {
+    chave: "vestindo",
+    label: "Vestindo / usando",
+    en: "the person is wearing or using the product on their body, showing how it looks when worn, natural relaxed pose",
+  },
+  {
+    chave: "mostrando",
+    label: "Mostrando pra câmera",
+    en: "the person holds the product up next to their smiling face and points at it with the other hand, an enthusiastic review pose",
+  },
+];
+
+// Custo pra gerar 1 vídeo com avatar (creditos = centavos): COM fala 6s=85,
+// 10s=95, 15s=120. SEM fala custa DESCONTO_SEM_FALA a menos (é mais simples de gerar).
 export const CUSTO_VIDEO_AVATAR = 85;
 export const CUSTO_VIDEO_AVATAR_10S = 95;
-export function custoVideoAvatar(duracaoSeg: number): number {
-  return duracaoSeg >= 10 ? CUSTO_VIDEO_AVATAR_10S : CUSTO_VIDEO_AVATAR;
+export const CUSTO_VIDEO_AVATAR_15S = 120;
+export const DESCONTO_SEM_FALA = 10;
+export function custoVideoAvatar(duracaoSeg: number, comFala = true): number {
+  const base =
+    duracaoSeg >= 15
+      ? CUSTO_VIDEO_AVATAR_15S
+      : duracaoSeg >= 10
+        ? CUSTO_VIDEO_AVATAR_10S
+        : CUSTO_VIDEO_AVATAR;
+  return comFala ? base : Math.max(0, base - DESCONTO_SEM_FALA);
 }
 
 export type EscolhasAvatar = {

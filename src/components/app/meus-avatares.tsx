@@ -1,20 +1,59 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Plus, UserRoundPlus, Camera, Wand2, Film } from "lucide-react";
+import {
+  Sparkles,
+  Plus,
+  UserRoundPlus,
+  Camera,
+  Wand2,
+  Film,
+  ImagePlus,
+  ShoppingBag,
+  ArrowLeft,
+  ChevronRight,
+} from "lucide-react";
 import { AvatarQuiz, type AvatarCriado } from "@/components/app/avatar-quiz";
+import { AvatarDaFoto } from "@/components/app/avatar-da-foto";
+import { AvatarComProduto } from "@/components/app/avatar-com-produto";
 
 /**
  * FRONT da aba "Meus avatares". A pessoa cria e gerencia os avatares dela (que
- * depois aparecem na aba "Meus avatares" do criador de vídeo). "Criar avatar" abre
- * o quiz; a foto e gerada no gpt-image-1 e hospedada no serverrk. A galeria comeca
- * com os avatares que ja vieram do servidor e cresce quando cria um novo.
+ * depois aparecem na aba "Meus avatares" do criador de vídeo). Três formas de criar:
+ *  - do zero (quiz)          -> AvatarQuiz
+ *  - da minha foto           -> AvatarDaFoto
+ *  - com produto             -> AvatarComProduto
+ * Todas geram a imagem (gpt-image-1) e hospedam no serverrk. A galeria cresce quando
+ * cria um novo.
  */
 
+type Modo = null | "menu" | "zero" | "foto" | "produto";
+
 const PASSOS = [
-  { Icon: Camera, txt: "Responda o quiz do avatar" },
+  { Icon: Camera, txt: "Escolha como criar o avatar" },
   { Icon: Wand2, txt: "A IA gera a foto do seu avatar" },
   { Icon: Film, txt: "Use nos seus vídeos" },
+];
+
+const OPCOES: { modo: Exclude<Modo, null | "menu">; Icon: typeof Camera; titulo: string; desc: string }[] = [
+  {
+    modo: "zero",
+    Icon: Wand2,
+    titulo: "Criar do zero",
+    desc: "Responda um quiz rápido e a IA cria uma pessoa nova, do seu jeito.",
+  },
+  {
+    modo: "foto",
+    Icon: ImagePlus,
+    titulo: "Avatar da minha foto",
+    desc: "Suba uma foto sua e a IA transforma num avatar pra usar nos vídeos.",
+  },
+  {
+    modo: "produto",
+    Icon: ShoppingBag,
+    titulo: "Avatar com produto",
+    desc: "Junte uma pessoa com a foto do produto: ela aparece usando o produto.",
+  },
 ];
 
 export function MeusAvatares({
@@ -24,21 +63,76 @@ export function MeusAvatares({
   avataresIniciais?: AvatarCriado[];
   admin?: boolean;
 }) {
-  const [criando, setCriando] = useState(false);
+  const [modo, setModo] = useState<Modo>(null);
   const [avatares, setAvatares] = useState<AvatarCriado[]>(avataresIniciais);
 
-  if (criando) {
+  const aoCriar = (a: AvatarCriado) => setAvatares((prev) => [a, ...prev]);
+
+  // ===== telas de criação =====
+  if (modo === "zero") {
     return (
       <div className="mx-auto w-full max-w-4xl">
-        <AvatarQuiz
-          admin={admin}
-          onSair={() => setCriando(false)}
-          onCriado={(a) => setAvatares((prev) => [a, ...prev])}
-        />
+        <AvatarQuiz admin={admin} onSair={() => setModo(null)} onCriado={aoCriar} />
+      </div>
+    );
+  }
+  if (modo === "foto") {
+    return (
+      <div className="mx-auto w-full max-w-4xl">
+        <AvatarDaFoto onSair={() => setModo(null)} onCriado={aoCriar} />
+      </div>
+    );
+  }
+  if (modo === "produto") {
+    return (
+      <div className="mx-auto w-full max-w-4xl">
+        <AvatarComProduto avatares={avatares} onSair={() => setModo(null)} onCriado={aoCriar} />
       </div>
     );
   }
 
+  // ===== menu de escolha do modo =====
+  if (modo === "menu") {
+    return (
+      <div className="mx-auto w-full max-w-4xl space-y-5">
+        <button
+          type="button"
+          onClick={() => setModo(null)}
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ArrowLeft className="size-4" />
+          Voltar
+        </button>
+        <div>
+          <h1 className="text-2xl font-black tracking-tight">Como quer criar?</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Escolha uma das formas abaixo. Todas custam a mesma coisa em créditos.
+          </p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {OPCOES.map(({ modo: m, Icon, titulo, desc }) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setModo(m)}
+              className="group flex flex-col rounded-2xl border border-border bg-card p-5 text-left transition-colors hover:border-primary/60"
+            >
+              <span className="grid size-11 place-items-center rounded-xl bg-primary/15 text-primary">
+                <Icon className="size-5" />
+              </span>
+              <span className="mt-3 flex items-center gap-1 font-bold">
+                {titulo}
+                <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+              </span>
+              <span className="mt-1 text-xs text-muted-foreground">{desc}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // ===== galeria (tela inicial) =====
   return (
     <div className="mx-auto w-full max-w-4xl space-y-5">
       {/* ===== HERÓI ===== */}
@@ -56,8 +150,8 @@ export function MeusAvatares({
             </span>
           </h1>
           <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-            Monte um avatar do seu jeito, respondendo um quiz rápido, pra usar nos
-            seus vídeos de produto.
+            Crie do zero, a partir de uma foto sua ou junto com um produto, pra usar
+            nos seus vídeos.
           </p>
         </div>
       </div>
@@ -84,7 +178,7 @@ export function MeusAvatares({
           {/* card de criar */}
           <button
             type="button"
-            onClick={() => setCriando(true)}
+            onClick={() => setModo("menu")}
             className="flex aspect-[3/4] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border text-muted-foreground transition-colors hover:border-primary/60 hover:text-primary"
           >
             <span className="grid size-12 place-items-center rounded-full bg-primary/15 text-primary">
@@ -120,8 +214,8 @@ export function MeusAvatares({
             </span>
             <p className="font-medium">Você ainda não criou nenhum avatar</p>
             <p className="max-w-sm text-sm text-muted-foreground">
-              Clique em Criar avatar e responda o quiz. Seus avatares vão aparecer aqui
-              pra usar nos vídeos.
+              Clique em Criar avatar e escolha uma das formas. Seus avatares vão
+              aparecer aqui pra usar nos vídeos.
             </p>
           </div>
         )}

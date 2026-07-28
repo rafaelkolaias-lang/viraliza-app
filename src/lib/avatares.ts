@@ -16,14 +16,28 @@ export type AvatarItem = {
   genero: string;
   imagemUrl: string;
   criadoEm: string;
+  // origem da imagem: "quiz" (do zero), "foto" (da foto da pessoa) ou "produto"
+  // (avatar JÁ com o produto). Só os "produto" servem pro vídeo de 15s (1 imagem).
+  origem: string;
 };
+
+/** Lê a `origem` de dentro do JSON de escolhas (quiz/foto/produto). */
+function origemDe(escolhas: string | null): string {
+  if (!escolhas) return "quiz";
+  try {
+    const o = JSON.parse(escolhas) as { origem?: string };
+    return typeof o.origem === "string" ? o.origem : "quiz";
+  } catch {
+    return "quiz";
+  }
+}
 
 /** Lista os avatares prontos do usuario (mais novos primeiro). */
 export async function listarAvatares(userId: string): Promise<AvatarItem[]> {
   const rows = await prisma.avatar.findMany({
     where: { userId, status: "pronto" },
     orderBy: { criadoEm: "desc" },
-    select: { id: true, nome: true, genero: true, imagemUrl: true, criadoEm: true },
+    select: { id: true, nome: true, genero: true, imagemUrl: true, escolhas: true, criadoEm: true },
   });
   return rows.map((a) => ({
     id: a.id,
@@ -31,6 +45,7 @@ export async function listarAvatares(userId: string): Promise<AvatarItem[]> {
     genero: a.genero,
     imagemUrl: a.imagemUrl,
     criadoEm: a.criadoEm.toISOString(),
+    origem: origemDe(a.escolhas),
   }));
 }
 
@@ -51,7 +66,7 @@ export async function registrarAvatar(opts: {
       imagemUrl: opts.imagemUrl,
       escolhas: JSON.stringify(opts.escolhas ?? {}),
     },
-    select: { id: true, nome: true, genero: true, imagemUrl: true, criadoEm: true },
+    select: { id: true, nome: true, genero: true, imagemUrl: true, escolhas: true, criadoEm: true },
   });
   return {
     id: a.id,
@@ -59,5 +74,6 @@ export async function registrarAvatar(opts: {
     genero: a.genero,
     imagemUrl: a.imagemUrl,
     criadoEm: a.criadoEm.toISOString(),
+    origem: origemDe(a.escolhas),
   };
 }

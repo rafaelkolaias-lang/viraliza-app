@@ -37,14 +37,14 @@ export function montarPromptProduto(opts: {
   duracaoSeg?: number;
   cenario?: string;
   temRefCenario?: boolean;
+  comFala?: boolean;
 }): string {
   const dur = opts.duracaoSeg === 10 ? 10 : opts.duracaoSeg === 15 ? 15 : 6;
+  const comFala = opts.comFala !== false; // padrão: com fala
   const acao = ACAO[opts.apresentacao] ?? ACAO.mao;
   const prod = (opts.produtoNome ?? "").trim();
   const linhaProduto = prod ? ` O produto é: ${prod}.` : "";
   const tit = (opts.titulo ?? "").trim();
-  // o título entra na FALA: a avatar cita o nome do produto (melhora o anúncio)
-  const nomeFala = tit ? ` Na fala, ela cita o nome do produto de forma natural: "${tit}".` : "";
   const close = opts.gerarClose ? " Dá um close rápido no produto no meio do vídeo." : "";
   const cen = opts.cenario ? CENARIO[opts.cenario] : "";
   const ondeGrava = cen ? ` Grave ${cen}.` : "";
@@ -53,12 +53,61 @@ export function montarPromptProduto(opts: {
     ? " A última foto anexada é só a referência do CENÁRIO (o ambiente da casa): use como o lugar/fundo da cena, nunca como produto."
     : "";
 
+  const abertura = `Vídeo vertical 9:16 de cerca de ${dur} segundos, estilo UGC gravado no celular: natural, em casa, sem cara de estúdio e sem cara de IA.${ondeGrava}`;
+  const pessoa = `Use a MESMA pessoa da foto de referência (mesmo rosto, cabelo e pele), ${acao}. O produto tem que ser IDÊNTICO ao das fotos: mesma cor, forma, material e marca, sem inventar nada.${linhaProduto}`;
+
+  if (!comFala) {
+    // SEM FALA: nada de voz nem boca mexendo; só mostra e valoriza o produto (a
+    // pessoa põe voz/texto por cima depois). É o modo bom pros vídeos curtos.
+    return [
+      abertura,
+      pessoa,
+      `SEM FALA: a pessoa NÃO fala e NÃO mexe a boca como se estivesse falando. Ela só mostra e valoriza o produto com gestos naturais e expressões (sorriso, aprovação), num vídeo pronto pra colocar voz ou texto por cima depois.${close}`,
+      `Movimentos suaves e naturais, sem áudio de voz, sem legendas na tela.${refCenario}`,
+    ].join(" ");
+  }
+
+  // COM FALA: a avatar anuncia falando em pt-BR (o título entra na fala).
+  const nomeFala = tit ? ` Na fala, ela cita o nome do produto de forma natural: "${tit}".` : "";
   return [
-    `Vídeo vertical 9:16 de cerca de ${dur} segundos, estilo UGC gravado no celular: natural, em casa, sem cara de estúdio e sem cara de IA.${ondeGrava}`,
-    `Use a MESMA pessoa da foto de referência (mesmo rosto, cabelo e pele), ${acao}. O produto tem que ser IDÊNTICO ao das fotos: mesma cor, forma, material e marca, sem inventar nada.${linhaProduto}`,
+    abertura,
+    pessoa,
     `Faça ela mostrar o produto e anunciar, falando SÓ em português do Brasil (sem misturar nenhuma palavra em inglês), de forma natural e animada, como uma influenciadora. Comece com um gancho e termine com uma chamada rápida e clara pra comprar no link (tipo: corre lá, garante o seu).${nomeFala}${close}`,
     `Ela fala no ritmo natural dela, sem arrastar e sem robotizar.${refCenario}`,
     // uma linha só de propósito: no campo do Grok, quebra de linha (Enter) ENVIA
     // o prompt antes da hora. Junta com espaço pra digitar tudo de uma vez.
+  ].join(" ");
+}
+
+/**
+ * Prompt do vídeo quando mandamos UMA imagem só: a foto do avatar que JÁ está
+ * com o produto na mão/vestido, no cenário dela. O Grok só ANIMA essa imagem (não
+ * precisa juntar produto/cenário separados). É o modo do vídeo de 15s. `comFala`
+ * decide se ela fala ou não; `titulo` é o nome que ela cita.
+ */
+export function montarPromptAvatarPronto(opts: {
+  titulo?: string;
+  duracaoSeg?: number;
+  comFala?: boolean;
+}): string {
+  const dur = opts.duracaoSeg === 6 ? 6 : opts.duracaoSeg === 10 ? 10 : 15;
+  const comFala = opts.comFala !== false;
+  const tit = (opts.titulo ?? "").trim();
+
+  const base =
+    `Vídeo vertical 9:16 de cerca de ${dur} segundos, estilo UGC gravado no celular: natural, em casa, sem cara de estúdio e sem cara de IA. ` +
+    `Anime a pessoa DESTA foto: ela já está com o produto na mão/no corpo, no cenário da própria imagem. Mantenha EXATAMENTE a mesma pessoa, o mesmo produto e o mesmo cenário da foto, sem inventar nem adicionar objetos novos. Movimentos naturais e leves.`;
+
+  if (!comFala) {
+    return [
+      base,
+      "SEM FALA: a pessoa NÃO fala e NÃO mexe a boca como se estivesse falando. Ela só mostra e valoriza o produto com gestos naturais e expressões (sorriso, aprovação), num vídeo pronto pra colocar voz ou texto por cima depois. Sem áudio de voz, sem legendas na tela.",
+    ].join(" ");
+  }
+
+  const nomeFala = tit ? ` Ela cita o nome do produto de forma natural: "${tit}".` : "";
+  return [
+    base,
+    `Faça ela apresentar e anunciar o produto, falando SÓ em português do Brasil (sem misturar inglês), de forma natural e animada, como uma influenciadora. Comece com um gancho e termine com uma chamada rápida pra comprar no link (tipo: corre lá, garante o seu).${nomeFala} Ela fala no ritmo natural dela, sem robotizar.`,
   ].join(" ");
 }

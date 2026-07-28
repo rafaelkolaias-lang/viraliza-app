@@ -3,7 +3,7 @@ import path from "node:path";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
-import { montarPromptProduto } from "@/lib/produto-shot";
+import { montarPromptProduto, montarPromptAvatarPronto } from "@/lib/produto-shot";
 import { gerarVideoGrok, type ArquivoImagem } from "@/lib/video-robot";
 import { custoVideoAvatar } from "@/lib/avatar-modelo";
 import { getCarteira, debitar } from "@/lib/creditos";
@@ -30,6 +30,9 @@ export async function POST(req: Request) {
     produtoNome?: string;
     titulo?: string;
     gerarClose?: boolean;
+    comFala?: boolean;
+    qualidade?: string;
+    imagemUnica?: boolean; // 15s: manda SÓ a imagem do avatar-com-produto pro Grok
   } = {};
   try {
     body = await req.json();
@@ -37,15 +40,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ erro: "Dados inválidos." }, { status: 400 });
   }
 
+  // modo imagemUnica (vídeo de 15s): a foto do avatar JÁ tem o produto e o cenário,
+  // então NÃO exige fotos de produto nem "como aparece" nem cenário separado.
+  const imagemUnica = !!body.imagemUnica;
+
   if (!body.avatarUrl) {
     return NextResponse.json({ erro: "Escolha um avatar." }, { status: 400 });
   }
-  if (!body.apresentacao) {
+  if (!imagemUnica && !body.apresentacao) {
     return NextResponse.json({ erro: "Escolha como o produto aparece." }, { status: 400 });
-  }
-  const fotos = Array.isArray(body.produtoFotos) ? body.produtoFotos : [];
-  if (!fotos.length) {
-    return NextResponse.json({ erro: "Envie ao menos 1 foto do produto." }, { status: 400 });
   }
 
   // avatar -> bytes
@@ -56,19 +59,26 @@ export async function POST(req: Request) {
     return NextResponse.json({ erro: "Não consegui carregar o avatar." }, { status: 400 });
   }
 
-  // fotos do produto (data URLs) -> bytes
+  // fotos do produto: só no modo normal (6s/10s). No imagemUnica vai vazio.
   const produtos: ArquivoImagem[] = [];
-  for (const f of fotos.slice(0, 3)) {
-    const img = dataUrlParaImagem(f);
-    if (img) produtos.push(img);
-  }
-  if (!produtos.length) {
-    return NextResponse.json({ erro: "Fotos do produto inválidas." }, { status: 400 });
+  if (!imagemUnica) {
+    const fotos = Array.isArray(body.produtoFotos) ? body.produtoFotos : [];
+    if (!fotos.length) {
+      return NextResponse.json({ erro: "Envie ao menos 1 foto do produto." }, { status: 400 });
+    }
+    for (const f of fotos.slice(0, 3)) {
+      const img = dataUrlParaImagem(f);
+      if (img) produtos.push(img);
+    }
+    if (!produtos.length) {
+      return NextResponse.json({ erro: "Fotos do produto inválidas." }, { status: 400 });
+    }
   }
 
-  // custo: 6s = 250 créditos, 10s = 300. Admin/demo não pagam (igual ao resto).
+  // custo depende da duração E da fala (sem fala custa menos). Admin/demo não pagam.
   const dur = Number(body.duracao) || 6;
-  const custo = custoVideoAvatar(dur);
+  const comFala = body.comFala !== false;
+  const custo = custoVideoAvatar(dur, comFala);
   const isAdmin = user.role === "admin" || user.role === "demo";
 
   // checa saldo ANTES de gastar a geração (o débito de fato só sai se o vídeo vier)
@@ -82,18 +92,22 @@ export async function POST(req: Request) {
     }
   }
 
-  // foto de referência do cenário (docs/referencias), conforme o cenário escolhido
-  const cenarioRef = await resolverCenarioRef(body.cenario);
+  // no imagemUnica NÃO manda cenário separado (já está na foto)
+  const cenarioRef = imagemUnica ? null : await resolverCenarioRef(body.cenario);
+  const tituloLimpo = typeof body.titulo === "string" ? body.titulo.slice(0, 160) : undefined;
 
-  const prompt = montarPromptProduto({
-    apresentacao: String(body.apresentacao),
-    gerarClose: body.gerarClose !== false,
-    produtoNome: body.produtoNome,
-    titulo: typeof body.titulo === "string" ? body.titulo.slice(0, 160) : undefined,
-    duracaoSeg: dur,
-    cenario: body.cenario,
-    temRefCenario: !!cenarioRef,
-  });
+  const prompt = imagemUnica
+    ? montarPromptAvatarPronto({ titulo: tituloLimpo, duracaoSeg: dur, comFala })
+    : montarPromptProduto({
+        apresentacao: String(body.apresentacao),
+        gerarClose: body.gerarClose !== false,
+        produtoNome: body.produtoNome,
+        titulo: tituloLimpo,
+        duracaoSeg: dur,
+        cenario: body.cenario,
+        temRefCenario: !!cenarioRef,
+        comFala,
+      });
 
   const r = await gerarVideoGrok({
     prompt,
@@ -101,6 +115,8 @@ export async function POST(req: Request) {
     produtos,
     cenarioRef: cenarioRef ?? undefined,
     duracaoSeg: dur,
+    qualidade: body.qualidade || "480p",
+    semAudio: !comFala,
   });
 
   if (!r.ok || !r.videoUrl) {
@@ -111,7 +127,7 @@ export async function POST(req: Request) {
   if (!isAdmin) {
     try {
       await debitar(user.id, custo, "debito_geracao", {
-        descricao: `Vídeo com avatar (${dur}s)`,
+        descricao: `Vídeo com avatar (${dur}s, ${comFala ? "com fala" : "sem fala"})`,
       });
     } catch {
       return NextResponse.json(
@@ -141,7 +157,12 @@ export async function POST(req: Request) {
     console.error("[avatar-video] falhou ao registrar em Meus vídeos", e);
   }
 
-  return NextResponse.json({ ok: true, videoUrl: r.videoUrl, prompt, log: r.log });
+  // o prompt (a "receita") só volta pro admin ver/copiar; usuário não precisa ver.
+  return NextResponse.json({
+    ok: true,
+    videoUrl: r.videoUrl,
+    ...(user.role === "admin" ? { prompt, log: r.log } : {}),
+  });
 }
 
 const MIME_EXT: Record<string, string> = {

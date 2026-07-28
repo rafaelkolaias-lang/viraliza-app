@@ -41,6 +41,8 @@ export async function gerarVideoGrok(opts: {
   produtos: ArquivoImagem[];
   cenarioRef?: ArquivoImagem; // foto de referência do cenário (casa), opcional
   duracaoSeg: number;
+  qualidade?: string; // "480p" (padrão) etc; o robô do serverrk seleciona no Grok
+  semAudio?: boolean; // true = vídeo "sem fala" (desliga o áudio do Grok)
 }): Promise<ResultadoVideo> {
   if (!BASE || !TOKEN) {
     return { ok: false, erro: "Motor de vídeo não configurado (GROK_INGEST_URL/TOKEN)." };
@@ -58,7 +60,13 @@ export async function gerarVideoGrok(opts: {
     const r = await fetch(`${BASE}/gerar`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Grok-Token": TOKEN },
-      body: JSON.stringify({ prompt: opts.prompt, imagens, duracao: opts.duracaoSeg }),
+      body: JSON.stringify({
+        prompt: opts.prompt,
+        imagens,
+        duracao: opts.duracaoSeg,
+        qualidade: opts.qualidade || "480p",
+        semAudio: !!opts.semAudio,
+      }),
       cache: "no-store",
       signal: AbortSignal.timeout(90_000),
     });
