@@ -79,9 +79,10 @@ export async function gerarVideoGrok(opts: {
     return { ok: false, erro: "Sem conexão com o motor de vídeo." };
   }
 
-  // 2. polling do status até pronto/erro (a geração leva 1 a 5 min)
+  // 2. polling do status até pronto/erro. Janela grande porque agora tem FILA no
+  // serverrk (um vídeo por vez): se tiver gente na frente, o nosso espera a vez.
   const inicio = Date.now();
-  while (Date.now() - inicio < 600_000) {
+  while (Date.now() - inicio < 1_500_000) {
     await dormir(6_000);
     try {
       const s = (await fetch(`${BASE}/status/${jobId}`, {

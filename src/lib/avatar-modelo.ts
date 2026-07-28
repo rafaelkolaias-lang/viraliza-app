@@ -120,6 +120,18 @@ export const CENARIOS: Cenario[] = [
     local: "a corner with a simple vanity or dressing table, a mirror, small cosmetics and personal items, an ordinary bedroom corner",
     luz: "soft natural daylight from a nearby window, out of frame",
   },
+  {
+    chave: "academia",
+    local: "a real gym, weight racks, dumbbells, machines and wall mirrors softly out of focus in the background, an ordinary Brazilian gym",
+    label: "Academia",
+    luz: "bright even gym lighting, energetic indoor light",
+  },
+  {
+    chave: "rua",
+    label: "Na rua",
+    local: "an ordinary Brazilian residential street outdoors, a sidewalk with houses, a wall and a few trees behind, the person outside as if walking on the street",
+    luz: "natural outdoor daylight, soft daytime sunlight",
+  },
 ];
 
 export const ESTILOS: Opcao[] = [

@@ -27,6 +27,8 @@ const CENARIO: Record<string, string> = {
   quarto: "num quarto aconchegante",
   quintal: "no quintal de casa, ao ar livre com luz natural",
   penteadeira: "num cantinho com penteadeira e espelho",
+  academia: "numa academia, com aparelhos e pesos ao fundo",
+  rua: "na rua, ao ar livre, como se estivesse caminhando na calçada",
 };
 
 export function montarPromptProduto(opts: {
@@ -36,6 +38,7 @@ export function montarPromptProduto(opts: {
   titulo?: string;
   duracaoSeg?: number;
   cenario?: string;
+  cenarioTexto?: string; // descrição livre quando cenario === "outros"
   temRefCenario?: boolean;
   comFala?: boolean;
 }): string {
@@ -46,7 +49,9 @@ export function montarPromptProduto(opts: {
   const linhaProduto = prod ? ` O produto é: ${prod}.` : "";
   const tit = (opts.titulo ?? "").trim();
   const close = opts.gerarClose ? " Dá um close rápido no produto no meio do vídeo." : "";
-  const cen = opts.cenario ? CENARIO[opts.cenario] : "";
+  // cenário: chave pré-definida OU texto livre da pessoa (quando "outros")
+  const cenTexto = (opts.cenarioTexto ?? "").trim();
+  const cen = opts.cenario === "outros" ? cenTexto : opts.cenario ? CENARIO[opts.cenario] : "";
   const ondeGrava = cen ? ` Grave ${cen}.` : "";
   // quando anexamos a foto do cenário, avisa que ela é só o ambiente (não produto)
   const refCenario = opts.temRefCenario

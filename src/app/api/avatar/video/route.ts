@@ -9,7 +9,7 @@ import { custoVideoAvatar } from "@/lib/avatar-modelo";
 import { getCarteira, debitar } from "@/lib/creditos";
 
 export const runtime = "nodejs";
-export const maxDuration = 800;
+export const maxDuration = 1600;
 
 /**
  * PONTE DEV (localhost): recebe o avatar escolhido + fotos do produto + opções,
@@ -26,6 +26,7 @@ export async function POST(req: Request) {
     produtoFotos?: string[];
     apresentacao?: string;
     cenario?: string;
+    cenarioTexto?: string;
     duracao?: number;
     produtoNome?: string;
     titulo?: string;
@@ -105,6 +106,7 @@ export async function POST(req: Request) {
         titulo: tituloLimpo,
         duracaoSeg: dur,
         cenario: body.cenario,
+        cenarioTexto: typeof body.cenarioTexto === "string" ? body.cenarioTexto.slice(0, 300) : undefined,
         temRefCenario: !!cenarioRef,
         comFala,
       });

@@ -92,6 +92,7 @@ export function AvatarEstudio({
   const [apresentacao, setApresentacao] = useState<string>("");
   const [gerarClose, setGerarClose] = useState(true);
   const [cenario, setCenario] = useState<string>("sala");
+  const [cenarioTexto, setCenarioTexto] = useState("");
   const [duracao, setDuracao] = useState<number>(6);
   const [comFala, setComFala] = useState(true);
   const [gerando, setGerando] = useState(false);
@@ -153,17 +154,17 @@ export function AvatarEstudio({
     }
   }
 
-  // 15s = 1 imagem só: manda a foto do avatar que JÁ tem o produto (e o cenário).
+  // 15s = 1 imagem só (manda a foto do avatar pro Grok animar). Mostra TODOS os
+  // avatares do usuário; a dica avisa que fica melhor quando o avatar já tem o produto.
   const imagemUnica = duracao === 15;
-  const avataresProduto = meusAvatares.filter((a) => a.origem === "produto");
 
-  // troca de duração: ao ir pro 15s, força a fonte "meus" e limpa uma seleção que
-  // não seja um avatar-com-produto (o 15s só aceita esses).
+  // troca de duração: ao ir pro 15s, força a fonte "meus" e limpa a seleção se ela
+  // for um avatar pronto (o 15s usa os avatares do próprio usuário).
   function escolherDuracao(s: number) {
     setDuracao(s);
     if (s === 15) {
       setModo("meus");
-      setAvatarSel((sel) => (avataresProduto.some((a) => a.id === sel) ? sel : null));
+      setAvatarSel((sel) => (meusAvatares.some((a) => a.id === sel) ? sel : null));
     }
   }
 
@@ -209,7 +210,7 @@ export function AvatarEstudio({
     if (progRef.current) clearInterval(progRef.current);
     progRef.current = setInterval(() => {
       const s = (Date.now() - t0) / 1000;
-      setProgresso(Math.min(94, Math.max(2, Math.round(100 * (1 - Math.exp(-s / 75))))));
+      setProgresso(Math.min(94, Math.max(2, Math.round(100 * (1 - Math.exp(-s / 110))))));
     }, 700);
     try {
       const produtoNome = analise
@@ -224,6 +225,7 @@ export function AvatarEstudio({
             produtoFotos,
             apresentacao,
             cenario,
+            cenarioTexto: cenario === "outros" ? cenarioTexto : undefined,
             gerarClose,
             duracao,
             produtoNome,
@@ -290,22 +292,23 @@ export function AvatarEstudio({
 
       {/* ===== 1. AVATAR ===== */}
       <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-        <Secao n={nSecao("avatar")} titulo={imagemUnica ? "Avatar com produto" : "Seu avatar"} />
+        <Secao n={nSecao("avatar")} titulo="Seu avatar" />
 
         {imagemUnica ? (
-          // 15s: só os avatares que JÁ têm o produto (o cenário também já está na foto)
+          // 15s: manda 1 imagem pro Grok. Mostra TODOS os avatares do usuário; a
+          // dica avisa que fica melhor quando o avatar já está com o produto.
           <>
             <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-primary/30 bg-primary/10 px-3.5 py-3">
               <Sparkles className="size-5 shrink-0 text-primary" />
               <p className="text-sm text-foreground">
-                No vídeo de <span className="font-bold">15s</span> a gente usa a sua imagem de{" "}
-                <span className="font-semibold">Avatar com produto</span> (ela já tem o produto e o
-                cenário). Escolha uma abaixo.
+                No vídeo de <span className="font-bold">15s</span> a gente anima 1 imagem sua. Escolha
+                um avatar abaixo. <span className="font-semibold">Fica melhor quando o avatar já está
+                com o produto</span> (feito na opção Avatar com produto).
               </p>
             </div>
-            {avataresProduto.length > 0 ? (
+            {meusAvatares.length > 0 ? (
               <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {avataresProduto.map((a) => {
+                {meusAvatares.map((a) => {
                   const sel = avatarSel === a.id;
                   return (
                     <button
@@ -336,16 +339,17 @@ export function AvatarEstudio({
                 <span className="grid size-12 place-items-center rounded-full bg-muted text-muted-foreground">
                   <UserRound className="size-6" />
                 </span>
-                <p className="font-medium">Você ainda não tem um Avatar com produto</p>
+                <p className="font-medium">Você ainda não tem avatares</p>
                 <p className="max-w-sm text-sm text-muted-foreground">
-                  Crie um em Meus avatares na opção Avatar com produto pra usar no vídeo de 15s.
+                  Crie ou suba um avatar em Meus avatares pra usar aqui. Fica ainda melhor com a opção
+                  Avatar com produto.
                 </p>
                 <Link
                   href="/painel/meus-avatares"
                   className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
                 >
                   <Plus className="size-4" />
-                  Criar avatar com produto
+                  Ir pra Meus avatares
                 </Link>
               </div>
             )}
@@ -626,11 +630,40 @@ export function AvatarEstudio({
               </button>
             );
           })}
+          {/* Outros: a pessoa descreve o cenário que quiser */}
+          <button
+            type="button"
+            onClick={() => setCenario("outros")}
+            className={cn(
+              "flex items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition-all",
+              cenario === "outros" ? "border-primary bg-primary/10 text-primary ring-2 ring-primary/30" : "border-border hover:border-primary/50 hover:bg-muted/40",
+            )}
+          >
+            Outros
+            {cenario === "outros" && <Check className="size-4 shrink-0" strokeWidth={3} />}
+          </button>
         </div>
-        <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Home className="size-3.5" />
-          Onde a cena acontece: casa de gente de verdade, do dia a dia.
-        </p>
+
+        {cenario === "outros" ? (
+          <div className="mt-3">
+            <textarea
+              value={cenarioTexto}
+              onChange={(e) => setCenarioTexto(e.target.value)}
+              placeholder="Descreva o cenário. Ex: numa academia treinando, andando na rua, na praia..."
+              maxLength={300}
+              rows={2}
+              className="w-full resize-none rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+            <p className="mt-1.5 text-[11px] text-muted-foreground">
+              A IA usa esse texto como o lugar da cena. Sem foto de referência aqui.
+            </p>
+          </div>
+        ) : (
+          <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Home className="size-3.5" />
+            Onde a cena acontece. Escolha um pronto ou use Outros pra descrever.
+          </p>
+        )}
       </div>
       )}
 
@@ -728,7 +761,7 @@ export function AvatarEstudio({
         </button>
         <p className="mt-2 text-center text-[11px] text-muted-foreground">
           {gerando
-            ? "A IA está gravando seu vídeo. Isso leva alguns minutos, pode deixar aberto. 🎬"
+            ? "Gerando seu vídeo, pode demorar de 3 a 5 minutos. Pode deixar aberto. 🎬"
             : pronto
               ? `Tudo pronto! Toque pra gerar (${custoVideoAvatar(duracao, comFala)} créditos).`
               : imagemUnica
