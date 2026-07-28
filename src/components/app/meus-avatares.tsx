@@ -10,12 +10,14 @@ import {
   Film,
   ImagePlus,
   ShoppingBag,
+  Upload,
   ArrowLeft,
   ChevronRight,
 } from "lucide-react";
 import { AvatarQuiz, type AvatarCriado } from "@/components/app/avatar-quiz";
 import { AvatarDaFoto } from "@/components/app/avatar-da-foto";
 import { AvatarComProduto } from "@/components/app/avatar-com-produto";
+import { AvatarSubir } from "@/components/app/avatar-subir";
 
 /**
  * FRONT da aba "Meus avatares". A pessoa cria e gerencia os avatares dela (que
@@ -27,7 +29,7 @@ import { AvatarComProduto } from "@/components/app/avatar-com-produto";
  * cria um novo.
  */
 
-type Modo = null | "menu" | "zero" | "foto" | "produto";
+type Modo = null | "menu" | "zero" | "foto" | "produto" | "subir";
 
 const PASSOS = [
   { Icon: Camera, txt: "Escolha como criar o avatar" },
@@ -35,7 +37,14 @@ const PASSOS = [
   { Icon: Film, txt: "Use nos seus vídeos" },
 ];
 
-const OPCOES: { modo: Exclude<Modo, null | "menu">; Icon: typeof Camera; titulo: string; desc: string }[] = [
+const OPCOES: { modo: Exclude<Modo, null | "menu">; Icon: typeof Camera; titulo: string; desc: string; gratis?: boolean }[] = [
+  {
+    modo: "subir",
+    Icon: Upload,
+    titulo: "Subir avatar pronto",
+    desc: "Já tem a imagem do seu avatar? Suba e use direto, sem gastar crédito.",
+    gratis: true,
+  },
   {
     modo: "zero",
     Icon: Wand2,
@@ -90,6 +99,13 @@ export function MeusAvatares({
       </div>
     );
   }
+  if (modo === "subir") {
+    return (
+      <div className="mx-auto w-full max-w-4xl">
+        <AvatarSubir onSair={() => setModo(null)} onCriado={aoCriar} />
+      </div>
+    );
+  }
 
   // ===== menu de escolha do modo =====
   if (modo === "menu") {
@@ -106,17 +122,22 @@ export function MeusAvatares({
         <div>
           <h1 className="text-2xl font-black tracking-tight">Como quer criar?</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Escolha uma das formas abaixo. Todas custam a mesma coisa em créditos.
+            Escolha uma das formas abaixo. Já tem a imagem pronta? Suba de graça.
           </p>
         </div>
-        <div className="grid gap-3 sm:grid-cols-3">
-          {OPCOES.map(({ modo: m, Icon, titulo, desc }) => (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {OPCOES.map(({ modo: m, Icon, titulo, desc, gratis }) => (
             <button
               key={m}
               type="button"
               onClick={() => setModo(m)}
-              className="group flex flex-col rounded-2xl border border-border bg-card p-5 text-left transition-colors hover:border-primary/60"
+              className="group relative flex flex-col rounded-2xl border border-border bg-card p-5 text-left transition-colors hover:border-primary/60"
             >
+              {gratis && (
+                <span className="absolute right-3 top-3 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
+                  Grátis
+                </span>
+              )}
               <span className="grid size-11 place-items-center rounded-xl bg-primary/15 text-primary">
                 <Icon className="size-5" />
               </span>
