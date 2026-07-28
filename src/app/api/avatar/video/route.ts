@@ -20,12 +20,6 @@ export const maxDuration = 800;
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ erro: "Faça login." }, { status: 401 });
-  if (user.role !== "admin") {
-    return NextResponse.json(
-      { erro: "Geração de vídeo em testes (só admin por enquanto)." },
-      { status: 403 },
-    );
-  }
 
   let body: {
     avatarUrl?: string;

@@ -469,18 +469,9 @@ export function AvatarQuiz({
             <div className="mt-4 flex items-center gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-3">
               <Sparkles className="size-4 shrink-0 text-amber-500" />
               <p className="text-xs text-amber-600 dark:text-amber-400">
-                {admin ? (
-                  <>
-                    Gerar esse avatar usa{" "}
-                    <span className="font-bold">{CUSTO_AVATAR} créditos</span>. A foto fica
-                    salva pra usar em quantos vídeos quiser.
-                  </>
-                ) : (
-                  <>
-                    A <span className="font-bold">geração de avatar chega em breve</span> pra
-                    você. Você já pode montar tudo e deixar pronto. 🚧
-                  </>
-                )}
+                Gerar esse avatar usa{" "}
+                <span className="font-bold">{CUSTO_AVATAR} créditos</span>. A foto fica
+                salva pra usar em quantos vídeos quiser.
               </p>
             </div>
           )}
@@ -498,26 +489,15 @@ export function AvatarQuiz({
           </button>
 
           {ehRevisar ? (
-            admin ? (
-              <button
-                type="button"
-                onClick={gerar}
-                disabled={enviando}
-                className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/25 transition-colors hover:bg-primary/90 disabled:opacity-60"
-              >
-                {enviando ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-                Gerar avatar
-              </button>
-            ) : (
-              <button
-                type="button"
-                disabled
-                className="inline-flex cursor-not-allowed items-center gap-2 rounded-xl bg-muted px-5 py-2.5 text-sm font-bold text-muted-foreground"
-              >
-                <Sparkles className="size-4" />
-                Em breve
-              </button>
-            )
+            <button
+              type="button"
+              onClick={gerar}
+              disabled={enviando}
+              className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/25 transition-colors hover:bg-primary/90 disabled:opacity-60"
+            >
+              {enviando ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+              Gerar avatar
+            </button>
           ) : (
             <button
               type="button"

@@ -567,39 +567,26 @@ export function AvatarEstudio({
 
       {/* ===== GERAR ===== */}
       <div>
-        {admin ? (
-          <button
-            type="button"
-            onClick={gerar}
-            disabled={gerando}
-            className={cn(
-              "flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3.5 text-sm font-bold transition-all",
-              pronto && !gerando
-                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/25 hover:bg-primary/90"
-                : "cursor-not-allowed bg-muted text-muted-foreground",
-            )}
-          >
-            {gerando ? <Loader2 className="size-5 animate-spin" /> : <Clapperboard className="size-5" />}
-            {gerando ? "Gerando o vídeo..." : "Gerar vídeo com avatar"}
-          </button>
-        ) : (
-          <button
-            type="button"
-            disabled
-            className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-2xl bg-muted px-4 py-3.5 text-sm font-bold text-muted-foreground"
-          >
-            <Clapperboard className="size-5" />
-            Em breve
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={gerar}
+          disabled={gerando}
+          className={cn(
+            "flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3.5 text-sm font-bold transition-all",
+            pronto && !gerando
+              ? "bg-primary text-primary-foreground shadow-lg shadow-primary/25 hover:bg-primary/90"
+              : "cursor-not-allowed bg-muted text-muted-foreground",
+          )}
+        >
+          {gerando ? <Loader2 className="size-5 animate-spin" /> : <Clapperboard className="size-5" />}
+          {gerando ? "Gerando o vídeo..." : "Gerar vídeo com avatar"}
+        </button>
         <p className="mt-2 text-center text-[11px] text-muted-foreground">
-          {!admin
-            ? "A geração de vídeo com avatar chega em breve pra você. Monte tudo e já deixe pronto. 🚧"
-            : gerando
-              ? "A IA está gravando seu vídeo. Isso leva alguns minutos, pode deixar aberto. 🎬"
-              : pronto
-                ? `Tudo pronto! Toque pra gerar (${custoVideoAvatar(duracao)} créditos).`
-                : "Escolha o avatar, as fotos do produto e como ele aparece pra liberar."}
+          {gerando
+            ? "A IA está gravando seu vídeo. Isso leva alguns minutos, pode deixar aberto. 🎬"
+            : pronto
+              ? `Tudo pronto! Toque pra gerar (${custoVideoAvatar(duracao)} créditos).`
+              : "Escolha o avatar, as fotos do produto e como ele aparece pra liberar."}
         </p>
 
         {/* moldura de vídeo em blur enquanto gera, com o % subindo */}

@@ -22,13 +22,6 @@ export async function POST(req: Request) {
   if (!user) {
     return NextResponse.json({ erro: "Faça login." }, { status: 401 });
   }
-  // por enquanto SÓ admin gera (pra usuários a UI mostra "em breve")
-  if (user.role !== "admin" && user.role !== "demo") {
-    return NextResponse.json(
-      { erro: "A geração de avatar chega em breve! 🚧", emBreve: true },
-      { status: 403 },
-    );
-  }
   if (!openaiConfigurado()) {
     return NextResponse.json({ erro: "Geração indisponível no momento." }, { status: 503 });
   }
