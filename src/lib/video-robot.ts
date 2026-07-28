@@ -41,7 +41,7 @@ export async function gerarVideoGrok(opts: {
   produtos: ArquivoImagem[];
   cenarioRef?: ArquivoImagem; // foto de referência do cenário (casa), opcional
   duracaoSeg: number;
-  qualidade?: string; // "480p" (padrão) etc; o robô do serverrk seleciona no Grok
+  qualidade?: string; // "720p" (padrão) etc; o robô do serverrk seleciona no Grok
   semAudio?: boolean; // true = vídeo "sem fala" (desliga o áudio do Grok)
 }): Promise<ResultadoVideo> {
   if (!BASE || !TOKEN) {
@@ -64,7 +64,7 @@ export async function gerarVideoGrok(opts: {
         prompt: opts.prompt,
         imagens,
         duracao: opts.duracaoSeg,
-        qualidade: opts.qualidade || "480p",
+        qualidade: opts.qualidade || "720p",
         semAudio: !!opts.semAudio,
       }),
       cache: "no-store",

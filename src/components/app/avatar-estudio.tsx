@@ -219,7 +219,7 @@ export function AvatarEstudio({
       // 15s (imagemUnica): manda SÓ o avatar (que já tem produto+cenário) + título + fala.
       // 6s/10s: manda avatar + fotos do produto + como aparece + cenário (várias imagens).
       const payload = imagemUnica
-        ? { avatarUrl, duracao, titulo, comFala, qualidade: "480p", imagemUnica: true }
+        ? { avatarUrl, duracao, titulo, comFala, qualidade: "720p", imagemUnica: true }
         : {
             avatarUrl,
             produtoFotos,
@@ -231,7 +231,7 @@ export function AvatarEstudio({
             produtoNome,
             titulo,
             comFala,
-            qualidade: "480p",
+            qualidade: "720p",
           };
       const r = await fetch("/api/avatar/video", {
         method: "POST",

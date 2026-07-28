@@ -117,7 +117,7 @@ export async function POST(req: Request) {
     produtos,
     cenarioRef: cenarioRef ?? undefined,
     duracaoSeg: dur,
-    qualidade: body.qualidade || "480p",
+    qualidade: body.qualidade || "720p",
     semAudio: !comFala,
   });
 
