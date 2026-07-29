@@ -96,6 +96,7 @@ export function AvatarEstudio({
   const [cenarioTexto, setCenarioTexto] = useState("");
   const [duracao, setDuracao] = useState<number>(6);
   const [comFala, setComFala] = useState(true);
+  const [plataforma, setPlataforma] = useState<"carrinho" | "link">("carrinho");
   const [gerando, setGerando] = useState(false);
 
   const router = useRouter();
@@ -196,8 +197,8 @@ export function AvatarEstudio({
 
   // numeração dinâmica das seções (some produto/cenário no 15s)
   const ordem = imagemUnica
-    ? ["avatar", "titulo", "fala", "duracao"]
-    : ["avatar", "produto", "aparece", "cenario", "titulo", "fala", "duracao"];
+    ? ["avatar", "titulo", "plataforma", "fala", "duracao"]
+    : ["avatar", "produto", "aparece", "cenario", "titulo", "plataforma", "fala", "duracao"];
   const nSecao = (k: string) => ordem.indexOf(k) + 1;
 
   const temAvatar = !!avatarSel;
@@ -235,7 +236,7 @@ export function AvatarEstudio({
       // 15s (imagemUnica): manda SÓ o avatar (que já tem produto+cenário) + título + fala.
       // 6s/10s: manda avatar + fotos do produto + como aparece + cenário (várias imagens).
       const payload = imagemUnica
-        ? { avatarUrl, duracao, titulo, comFala, qualidade: "720p", imagemUnica: true }
+        ? { avatarUrl, duracao, titulo, comFala, plataforma, qualidade: "720p", imagemUnica: true }
         : {
             avatarUrl,
             produtoFotos,
@@ -247,6 +248,7 @@ export function AvatarEstudio({
             produtoNome,
             titulo,
             comFala,
+            plataforma,
             qualidade: "720p",
           };
       const r = await fetch("/api/avatar/video", {
@@ -708,6 +710,45 @@ export function AvatarEstudio({
         )}
       </div>
       )}
+
+      {/* ===== PLATAFORMA (muda o CTA final da fala) ===== */}
+      <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+        <Secao n={nSecao("plataforma")} titulo="Onde vai anunciar?" />
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          {[
+            {
+              v: "carrinho" as const,
+              titulo: "Shopee / TikTok Shop",
+              desc: 'Termina com "clique no carrinho laranja e aproveite a promoção".',
+            },
+            {
+              v: "link" as const,
+              titulo: "Link (bio, site, grupo)",
+              desc: 'Termina com "corre lá no link, garante o seu".',
+            },
+          ].map((o) => (
+            <button
+              key={o.v}
+              type="button"
+              onClick={() => setPlataforma(o.v)}
+              className={cn(
+                "rounded-xl border p-3.5 text-left transition-all",
+                plataforma === o.v
+                  ? "border-primary bg-primary/10 ring-2 ring-primary/30"
+                  : "border-border hover:border-primary/50 hover:bg-muted/40",
+              )}
+            >
+              <span className={cn("block text-sm font-bold", plataforma === o.v && "text-primary")}>
+                {o.titulo}
+              </span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">{o.desc}</span>
+            </button>
+          ))}
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Isso muda só o finzinho da fala (a chamada pra compra).
+        </p>
+      </div>
 
       {/* ===== FALA ===== */}
       <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">

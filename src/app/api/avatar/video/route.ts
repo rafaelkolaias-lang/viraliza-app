@@ -36,6 +36,7 @@ export async function POST(req: Request) {
     gerarClose?: boolean;
     comFala?: boolean;
     qualidade?: string;
+    plataforma?: string; // "carrinho" (Shopee/TikTok Shop) | "link" (muda o CTA da fala)
     imagemUnica?: boolean; // 15s: manda SÓ a imagem do avatar-com-produto pro Grok
   } = {};
   try {
@@ -99,9 +100,10 @@ export async function POST(req: Request) {
   // no imagemUnica NÃO manda cenário separado (já está na foto)
   const cenarioRef = imagemUnica ? null : await resolverCenarioRef(body.cenario);
   const tituloLimpo = typeof body.titulo === "string" ? body.titulo.slice(0, 160) : undefined;
+  const plataforma = body.plataforma === "link" ? "link" : "carrinho";
 
   const prompt = imagemUnica
-    ? montarPromptAvatarPronto({ titulo: tituloLimpo, duracaoSeg: dur, comFala })
+    ? montarPromptAvatarPronto({ titulo: tituloLimpo, duracaoSeg: dur, comFala, plataforma })
     : montarPromptProduto({
         apresentacao: String(body.apresentacao),
         gerarClose: body.gerarClose !== false,
@@ -112,6 +114,7 @@ export async function POST(req: Request) {
         cenarioTexto: typeof body.cenarioTexto === "string" ? body.cenarioTexto.slice(0, 300) : undefined,
         temRefCenario: !!cenarioRef,
         comFala,
+        plataforma,
       });
 
   // 1. cria o Job JÁ como "processando": aparece na hora em Meus vídeos

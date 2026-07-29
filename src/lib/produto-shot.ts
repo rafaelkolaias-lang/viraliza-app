@@ -18,6 +18,14 @@ const ACAO: Record<string, string> = {
   lado: "ao lado do produto (ele apoiado numa superfície), apresentando ele",
 };
 
+// CTA final por plataforma: Shopee e TikTok Shop usam o MESMO carrinho laranja;
+// "link" é pra quem anuncia com link (bio, site, grupo).
+const CTA: Record<string, string> = {
+  carrinho:
+    'termine falando EXATAMENTE esta chamada: "clique no carrinho laranja e aproveite a promoção"',
+  link: "termine com uma chamada rápida e clara pra comprar no link (tipo: corre lá, garante o seu)",
+};
+
 // cenário de casa real (frase curta em pt por chave). É no VÍDEO que o cenário
 // entra (não no retrato do avatar), reforçando o ambiente de casa de verdade.
 const CENARIO: Record<string, string> = {
@@ -41,9 +49,11 @@ export function montarPromptProduto(opts: {
   cenarioTexto?: string; // descrição livre quando cenario === "outros"
   temRefCenario?: boolean;
   comFala?: boolean;
+  plataforma?: string; // "carrinho" (Shopee/TikTok Shop, padrão) | "link"
 }): string {
   const dur = opts.duracaoSeg === 10 ? 10 : opts.duracaoSeg === 15 ? 15 : 6;
   const comFala = opts.comFala !== false; // padrão: com fala
+  const cta = CTA[opts.plataforma === "link" ? "link" : "carrinho"];
   const acao = ACAO[opts.apresentacao] ?? ACAO.mao;
   const prod = (opts.produtoNome ?? "").trim();
   const linhaProduto = prod ? ` O produto é: ${prod}.` : "";
@@ -77,7 +87,7 @@ export function montarPromptProduto(opts: {
   return [
     abertura,
     pessoa,
-    `Faça ela mostrar o produto e anunciar, falando SÓ em português do Brasil (sem misturar nenhuma palavra em inglês), de forma natural e animada, como uma influenciadora. Comece com um gancho e termine com uma chamada rápida e clara pra comprar no link (tipo: corre lá, garante o seu).${nomeFala}${close}`,
+    `Faça ela mostrar o produto e anunciar, falando SÓ em português do Brasil (sem misturar nenhuma palavra em inglês), de forma natural e animada, como uma influenciadora. Comece com um gancho e ${cta}.${nomeFala}${close}`,
     `Ela fala no ritmo natural dela, sem arrastar e sem robotizar.${refCenario}`,
     // uma linha só de propósito: no campo do Grok, quebra de linha (Enter) ENVIA
     // o prompt antes da hora. Junta com espaço pra digitar tudo de uma vez.
@@ -94,10 +104,12 @@ export function montarPromptAvatarPronto(opts: {
   titulo?: string;
   duracaoSeg?: number;
   comFala?: boolean;
+  plataforma?: string; // "carrinho" (Shopee/TikTok Shop, padrão) | "link"
 }): string {
   const dur = opts.duracaoSeg === 6 ? 6 : opts.duracaoSeg === 10 ? 10 : 15;
   const comFala = opts.comFala !== false;
   const tit = (opts.titulo ?? "").trim();
+  const cta = CTA[opts.plataforma === "link" ? "link" : "carrinho"];
 
   const base =
     `Vídeo vertical 9:16 de cerca de ${dur} segundos, estilo UGC gravado no celular: natural, em casa, sem cara de estúdio e sem cara de IA. ` +
@@ -113,6 +125,6 @@ export function montarPromptAvatarPronto(opts: {
   const nomeFala = tit ? ` Ela cita o nome do produto de forma natural: "${tit}".` : "";
   return [
     base,
-    `Faça ela apresentar e anunciar o produto, falando SÓ em português do Brasil (sem misturar inglês), de forma natural e animada, como uma influenciadora. Comece com um gancho e termine com uma chamada rápida pra comprar no link (tipo: corre lá, garante o seu).${nomeFala} Ela fala no ritmo natural dela, sem robotizar.`,
+    `Faça ela apresentar e anunciar o produto, falando SÓ em português do Brasil (sem misturar inglês), de forma natural e animada, como uma influenciadora. Comece com um gancho e ${cta}.${nomeFala} Ela fala no ritmo natural dela, sem robotizar.`,
   ].join(" ");
 }
