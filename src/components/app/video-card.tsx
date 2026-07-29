@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Play, Download, Coins, RotateCcw, Eye, Pencil, Stamp } from "lucide-react";
 import { StatusBadge } from "@/components/app/status-badge";
 import { ExcluirVideo } from "@/components/app/excluir-video";
+import { ReportarProblema } from "@/components/app/reportar-problema";
 import { CortesCard } from "@/components/app/cortes-card";
 import { CorteThumb } from "@/components/hub/corte-thumb";
 import { VideoDetalhesModal } from "@/components/app/video-detalhes-modal";
@@ -56,6 +57,10 @@ export function VideoCard({ video }: { video: VideoJob }) {
   const midias = video.midias ?? [];
   const saidas = video.saidas ?? [];
   const pronto = video.status === "pronto";
+  const emProducao =
+    video.status === "na_fila" ||
+    video.status === "renderizando" ||
+    video.status === "processando";
   const capaMidia = midias.find((m) => m.driveId || m.thumb);
   const temModal = pronto && midias.length > 0;
 
@@ -102,6 +107,34 @@ export function VideoCard({ video }: { video: VideoJob }) {
                 w={200}
                 className="size-full object-cover"
               />
+            ) : emProducao ? (
+              // em produção: moldura "de vídeo" em blur animado, tipo frame gerando
+              <div className="relative size-full overflow-hidden">
+                <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-primary/40 via-emerald-500/15 to-background blur-xl" />
+                <div
+                  className="absolute inset-0 animate-pulse opacity-40 blur-xl"
+                  style={{
+                    background:
+                      "radial-gradient(120% 80% at 50% 20%, rgba(16,185,129,0.35), transparent 60%)",
+                    animationDuration: "2.6s",
+                  }}
+                />
+                <div className="absolute inset-0 grid place-items-center">
+                  <span className="relative grid size-9 place-items-center">
+                    <span
+                      className="absolute inset-0 animate-spin rounded-full"
+                      style={{
+                        background:
+                          "conic-gradient(from 0deg, transparent 15%, rgb(16 185 129), transparent 85%)",
+                        animationDuration: "2.4s",
+                      }}
+                    />
+                    <span className="relative grid size-7 place-items-center rounded-full bg-black/60 backdrop-blur">
+                      <Play className="size-3.5 text-primary" />
+                    </span>
+                  </span>
+                </div>
+              </div>
             ) : (
               <div className="grid size-full place-items-center">
                 <Play className="size-5 text-primary/70" />
@@ -210,6 +243,8 @@ export function VideoCard({ video }: { video: VideoJob }) {
                 Refazer
               </Button>
             )}
+            {/* deu errado? reporta e o admin analisa (possível reembolso) */}
+            <ReportarProblema jobId={video.id} />
           </div>
         )}
       </div>

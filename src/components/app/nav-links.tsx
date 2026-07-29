@@ -26,6 +26,7 @@ import {
   UserRound,
   MessageSquarePlus,
   ChevronDown,
+  Flag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -68,6 +69,7 @@ export const adminItems = [
   { href: "/admin/videos", label: "Vídeos", icon: Clapperboard },
   { href: "/admin/usuarios", label: "Usuários", icon: Users },
   { href: "/admin/bonus", label: "Bônus IG", icon: Camera },
+  { href: "/admin/reportes", label: "Reportes de vídeo", icon: Flag },
   { href: "/admin/notificacoes", label: "Notificações", icon: Bell },
   { href: "/admin/diagnostico", label: "Diagnóstico", icon: Activity },
 ] as const;

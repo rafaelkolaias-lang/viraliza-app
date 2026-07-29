@@ -17,6 +17,7 @@ export type ArquivoImagem = { bytes: Buffer; ext: string };
 export type ResultadoVideo = {
   ok: boolean;
   videoUrl?: string; // URL http do serverrk (media.univershoop.com/avatares/<id>.mp4)
+  thumbUrl?: string; // miniatura (JPG de 1 frame) gerada pelo serverrk, se saiu
   erro?: string;
   log?: string;
 };
@@ -89,8 +90,15 @@ export async function gerarVideoGrok(opts: {
         headers: { "X-Grok-Token": TOKEN },
         cache: "no-store",
         signal: AbortSignal.timeout(25_000),
-      }).then((x) => x.json())) as { status?: string; videoUrl?: string; erro?: string };
-      if (s.status === "pronto" && s.videoUrl) return { ok: true, videoUrl: s.videoUrl };
+      }).then((x) => x.json())) as {
+        status?: string;
+        videoUrl?: string;
+        thumbUrl?: string;
+        erro?: string;
+      };
+      if (s.status === "pronto" && s.videoUrl) {
+        return { ok: true, videoUrl: s.videoUrl, thumbUrl: s.thumbUrl };
+      }
       if (s.status === "erro") return { ok: false, erro: s.erro ?? "Falha ao gerar o vídeo." };
     } catch {
       // hiccup de rede num poll: tenta de novo no próximo ciclo

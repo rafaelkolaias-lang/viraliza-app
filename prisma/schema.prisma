@@ -38,11 +38,30 @@ model User {
   bonusInstagram BonusInstagram?
   avatares     Avatar[]
   sugestoes    Sugestao[]
+  reportes     ReporteVideo[]
 
   @@index([vistoEm])
 }
 
 // Sugestão/melhoria que o usuário manda. Ele só vê as dele; o admin vê todas.
+// Reporte de problema num vídeo gerado (a pessoa acha que saiu errado e pede
+// reembolso dos créditos). O admin decide: reembolsa (credita de volta) ou recusa.
+model ReporteVideo {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId      String    @db.VarChar(64) // id do Job reportado (pode já ter sido excluído)
+  produto    String    @db.VarChar(255) // nome do vídeo na hora do reporte
+  motivo     String    @db.Text
+  creditos   Int       @default(0) // créditos gastos no vídeo (o que seria reembolsado)
+  status     String    @default("novo") // "novo" | "reembolsado" | "recusado"
+  decididoEm DateTime?
+  criadoEm   DateTime  @default(now())
+
+  @@index([userId])
+  @@index([status])
+}
+
 model Sugestao {
   id       String   @id @default(cuid())
   userId   String

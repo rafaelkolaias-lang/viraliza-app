@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Sparkles,
   ImagePlus,
@@ -10,15 +11,11 @@ import {
   Clapperboard,
   Users,
   UserRound,
-  Plus,
   ZoomIn,
-  Copy,
-  ClipboardCheck,
   Loader2,
   Clock,
   Wand2,
   Home,
-  Download,
   Lightbulb,
   TriangleAlert,
 } from "lucide-react";
@@ -78,12 +75,14 @@ function Secao({
 
 export function AvatarEstudio({
   meusAvatares = [],
-  admin = false,
 }: {
   meusAvatares?: MeuAvatar[];
   admin?: boolean;
 }) {
   const [modo, setModo] = useState<"prontos" | "meus">("prontos");
+  // lista local: começa com os avatares salvos e cresce quando sobe um novo aqui
+  const [avatares, setAvatares] = useState<MeuAvatar[]>(meusAvatares);
+  const [subindoAvatar, setSubindoAvatar] = useState(false);
   const [avatarSel, setAvatarSel] = useState<string | null>(null);
   const [produtoFotos, setProdutoFotos] = useState<string[]>([]);
   const [titulo, setTitulo] = useState("");
@@ -96,20 +95,10 @@ export function AvatarEstudio({
   const [duracao, setDuracao] = useState<number>(6);
   const [comFala, setComFala] = useState(true);
   const [gerando, setGerando] = useState(false);
-  const [progresso, setProgresso] = useState(0);
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [promptFinal, setPromptFinal] = useState<string | null>(null);
-  const [copiado, setCopiado] = useState(false);
 
+  const router = useRouter();
   const inputProduto = useRef<HTMLInputElement>(null);
-  const progRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // limpa o timer de progresso se sair da tela no meio da geração
-  useEffect(() => {
-    return () => {
-      if (progRef.current) clearInterval(progRef.current);
-    };
-  }, []);
+  const inputAvatar = useRef<HTMLInputElement>(null);
 
   async function adicionarProdutos(e: React.ChangeEvent<HTMLInputElement>) {
     const arquivos = Array.from(e.target.files ?? []);
@@ -164,7 +153,42 @@ export function AvatarEstudio({
     setDuracao(s);
     if (s === 15) {
       setModo("meus");
-      setAvatarSel((sel) => (meusAvatares.some((a) => a.id === sel) ? sel : null));
+      setAvatarSel((sel) => (avatares.some((a) => a.id === sel) ? sel : null));
+    }
+  }
+
+  // sobe uma imagem de avatar pronta (grátis, sem IA) e já seleciona
+  async function subirAvatarPronto(file?: File | null) {
+    if (!file || subindoAvatar) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Escolha um arquivo de imagem.");
+      return;
+    }
+    setSubindoAvatar(true);
+    try {
+      const foto = await lerDataUrl(file);
+      const nome = (file.name.replace(/\.[^.]+$/, "").trim() || "Meu avatar").slice(0, 120);
+      const res = await fetch("/api/avatar/subir", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome, foto }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        erro?: string;
+        avatar?: MeuAvatar;
+      };
+      if (!res.ok || !data.avatar) {
+        toast.error(data.erro ?? "Não consegui subir o avatar.");
+        return;
+      }
+      setAvatares((prev) => [data.avatar!, ...prev]);
+      setModo("meus");
+      setAvatarSel(data.avatar.id);
+      toast.success("Avatar adicionado e selecionado! 🎉");
+    } catch {
+      toast.error("Sem conexão. Tente de novo.");
+    } finally {
+      setSubindoAvatar(false);
     }
   }
 
@@ -188,7 +212,7 @@ export function AvatarEstudio({
   function avatarUrlSel(): string | null {
     if (!avatarSel) return null;
     if (modo === "prontos") return AVATARES.find((a) => a.id === avatarSel)?.src ?? null;
-    return meusAvatares.find((a) => a.id === avatarSel)?.imagemUrl ?? null;
+    return avatares.find((a) => a.id === avatarSel)?.imagemUrl ?? null;
   }
 
   async function gerar() {
@@ -202,16 +226,6 @@ export function AvatarEstudio({
       return;
     }
     setGerando(true);
-    setVideoUrl(null);
-    // progresso estimado pelo tempo (não dá pra ler o % real do Grok neste request):
-    // sobe rápido e desacelera, travando em ~94% até o vídeo chegar de verdade.
-    setProgresso(2);
-    const t0 = Date.now();
-    if (progRef.current) clearInterval(progRef.current);
-    progRef.current = setInterval(() => {
-      const s = (Date.now() - t0) / 1000;
-      setProgresso(Math.min(94, Math.max(2, Math.round(100 * (1 - Math.exp(-s / 110))))));
-    }, 700);
     try {
       const produtoNome = analise
         ? [analise.nome, analise.tipo].filter(Boolean).join(" - ")
@@ -241,28 +255,24 @@ export function AvatarEstudio({
       const data = (await r.json().catch(() => ({}))) as {
         erro?: string;
         prompt?: string;
-        videoUrl?: string;
+        jobId?: string;
         faltaCreditos?: boolean;
         custo?: number;
       };
-      if (!r.ok || !data.videoUrl) {
+      if (!r.ok || !data.jobId) {
         toast.error(
           data.faltaCreditos
             ? `Você precisa de ${data.custo ?? custoVideoAvatar(duracao, comFala)} créditos pra gerar esse vídeo.`
-            : data.erro ?? "Não consegui gerar o vídeo. Tente de novo.",
+            : data.erro ?? "Não consegui iniciar a geração. Tente de novo.",
         );
-        if (data.prompt) setPromptFinal(data.prompt);
         return;
       }
-      if (data.prompt) setPromptFinal(data.prompt);
-      setProgresso(100);
-      setVideoUrl(data.videoUrl);
-      toast.success("Vídeo pronto! 🎬");
+      // disparou: a geração segue em background e o vídeo aparece em Meus vídeos
+      toast.success("Vídeo em produção! 🎬 Ele aparece em Meus vídeos em 3 a 5 minutos.");
+      router.push("/painel");
     } catch {
-      toast.error("Sem conexão ou o robô demorou demais. Tente de novo.");
+      toast.error("Sem conexão. Tente de novo.");
     } finally {
-      if (progRef.current) clearInterval(progRef.current);
-      progRef.current = null;
       setGerando(false);
     }
   }
@@ -293,6 +303,17 @@ export function AvatarEstudio({
       {/* ===== 1. AVATAR ===== */}
       <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
         <Secao n={nSecao("avatar")} titulo="Seu avatar" />
+        {/* upload de avatar pronto (grátis): entra na lista e já fica selecionado */}
+        <input
+          ref={inputAvatar}
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={(e) => {
+            subirAvatarPronto(e.target.files?.[0]);
+            e.target.value = "";
+          }}
+        />
 
         {imagemUnica ? (
           // 15s: manda 1 imagem pro Grok. Mostra TODOS os avatares do usuário; a
@@ -306,52 +327,59 @@ export function AvatarEstudio({
                 com o produto</span> (feito na opção Avatar com produto).
               </p>
             </div>
-            {meusAvatares.length > 0 ? (
-              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {meusAvatares.map((a) => {
-                  const sel = avatarSel === a.id;
-                  return (
-                    <button
-                      key={a.id}
-                      type="button"
-                      onClick={() => setAvatarSel(a.id)}
-                      className={cn(
-                        "group relative overflow-hidden rounded-2xl border transition-all",
-                        sel ? "border-primary ring-2 ring-primary/40" : "border-border hover:border-primary/50",
-                      )}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={a.imagemUrl} alt={a.nome} className="aspect-[3/4] w-full object-cover" />
-                      <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-2.5 pb-2 pt-6 text-center text-sm font-semibold text-white">
-                        {a.nome}
-                      </span>
-                      {sel && (
-                        <span className="absolute right-2 top-2 grid size-6 place-items-center rounded-full bg-primary text-primary-foreground">
-                          <Check className="size-3.5" strokeWidth={3} />
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="mt-4 flex flex-col items-center gap-2 rounded-xl border border-dashed border-border py-10 text-center">
-                <span className="grid size-12 place-items-center rounded-full bg-muted text-muted-foreground">
-                  <UserRound className="size-6" />
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {/* subir avatar pronto (grátis) */}
+              <button
+                type="button"
+                onClick={() => inputAvatar.current?.click()}
+                disabled={subindoAvatar}
+                className="flex aspect-[3/4] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border text-muted-foreground transition-colors hover:border-primary/60 hover:text-primary disabled:opacity-60"
+              >
+                {subindoAvatar ? (
+                  <Loader2 className="size-6 animate-spin" />
+                ) : (
+                  <span className="grid size-11 place-items-center rounded-full bg-primary/15 text-primary">
+                    <ImagePlus className="size-5" />
+                  </span>
+                )}
+                <span className="px-2 text-center text-xs font-semibold">
+                  {subindoAvatar ? "Subindo..." : "Subir avatar (grátis)"}
                 </span>
-                <p className="font-medium">Você ainda não tem avatares</p>
-                <p className="max-w-sm text-sm text-muted-foreground">
-                  Crie ou suba um avatar em Meus avatares pra usar aqui. Fica ainda melhor com a opção
-                  Avatar com produto.
-                </p>
-                <Link
-                  href="/painel/meus-avatares"
-                  className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
-                >
-                  <Plus className="size-4" />
-                  Ir pra Meus avatares
-                </Link>
-              </div>
+              </button>
+              {avatares.map((a) => {
+                const sel = avatarSel === a.id;
+                return (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => setAvatarSel(a.id)}
+                    className={cn(
+                      "group relative overflow-hidden rounded-2xl border transition-all",
+                      sel ? "border-primary ring-2 ring-primary/40" : "border-border hover:border-primary/50",
+                    )}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={a.imagemUrl} alt={a.nome} className="aspect-[3/4] w-full object-cover" />
+                    <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-2.5 pb-2 pt-6 text-center text-sm font-semibold text-white">
+                      {a.nome}
+                    </span>
+                    {sel && (
+                      <span className="absolute right-2 top-2 grid size-6 place-items-center rounded-full bg-primary text-primary-foreground">
+                        <Check className="size-3.5" strokeWidth={3} />
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            {avatares.length === 0 && (
+              <p className="mt-3 text-center text-xs text-muted-foreground">
+                Suba a imagem do seu avatar acima, ou{" "}
+                <Link href="/painel/meus-avatares" className="font-semibold text-primary hover:underline">
+                  crie um em Meus avatares
+                </Link>{" "}
+                (melhor ainda com a opção Avatar com produto).
+              </p>
             )}
           </>
         ) : (
@@ -409,51 +437,63 @@ export function AvatarEstudio({
                   );
                 })}
               </div>
-            ) : meusAvatares.length > 0 ? (
-              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {meusAvatares.map((a) => {
-                  const sel = avatarSel === a.id;
-                  return (
-                    <button
-                      key={a.id}
-                      type="button"
-                      onClick={() => setAvatarSel(a.id)}
-                      className={cn(
-                        "group relative overflow-hidden rounded-2xl border transition-all",
-                        sel ? "border-primary ring-2 ring-primary/40" : "border-border hover:border-primary/50",
-                      )}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={a.imagemUrl} alt={a.nome} className="aspect-[3/4] w-full object-cover" />
-                      <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-2.5 pb-2 pt-6 text-center text-sm font-semibold text-white">
-                        {a.nome}
-                      </span>
-                      {sel && (
-                        <span className="absolute right-2 top-2 grid size-6 place-items-center rounded-full bg-primary text-primary-foreground">
-                          <Check className="size-3.5" strokeWidth={3} />
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
             ) : (
-              <div className="mt-4 flex flex-col items-center gap-2 rounded-xl border border-dashed border-border py-10 text-center">
-                <span className="grid size-12 place-items-center rounded-full bg-muted text-muted-foreground">
-                  <UserRound className="size-6" />
-                </span>
-                <p className="font-medium">Você ainda não criou avatares</p>
-                <p className="max-w-sm text-sm text-muted-foreground">
-                  Crie o seu na aba Meus avatares pra ele aparecer aqui.
-                </p>
-                <Link
-                  href="/painel/meus-avatares"
-                  className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
-                >
-                  <Plus className="size-4" />
-                  Criar avatar
-                </Link>
-              </div>
+              <>
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {/* subir avatar pronto (grátis) */}
+                  <button
+                    type="button"
+                    onClick={() => inputAvatar.current?.click()}
+                    disabled={subindoAvatar}
+                    className="flex aspect-[3/4] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border text-muted-foreground transition-colors hover:border-primary/60 hover:text-primary disabled:opacity-60"
+                  >
+                    {subindoAvatar ? (
+                      <Loader2 className="size-6 animate-spin" />
+                    ) : (
+                      <span className="grid size-11 place-items-center rounded-full bg-primary/15 text-primary">
+                        <ImagePlus className="size-5" />
+                      </span>
+                    )}
+                    <span className="px-2 text-center text-xs font-semibold">
+                      {subindoAvatar ? "Subindo..." : "Subir avatar (grátis)"}
+                    </span>
+                  </button>
+                  {avatares.map((a) => {
+                    const sel = avatarSel === a.id;
+                    return (
+                      <button
+                        key={a.id}
+                        type="button"
+                        onClick={() => setAvatarSel(a.id)}
+                        className={cn(
+                          "group relative overflow-hidden rounded-2xl border transition-all",
+                          sel ? "border-primary ring-2 ring-primary/40" : "border-border hover:border-primary/50",
+                        )}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={a.imagemUrl} alt={a.nome} className="aspect-[3/4] w-full object-cover" />
+                        <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-2.5 pb-2 pt-6 text-center text-sm font-semibold text-white">
+                          {a.nome}
+                        </span>
+                        {sel && (
+                          <span className="absolute right-2 top-2 grid size-6 place-items-center rounded-full bg-primary text-primary-foreground">
+                            <Check className="size-3.5" strokeWidth={3} />
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+                {avatares.length === 0 && (
+                  <p className="mt-3 text-center text-xs text-muted-foreground">
+                    Suba a imagem do seu avatar acima, ou{" "}
+                    <Link href="/painel/meus-avatares" className="font-semibold text-primary hover:underline">
+                      crie um em Meus avatares
+                    </Link>
+                    .
+                  </p>
+                )}
+              </>
             )}
           </>
         )}
@@ -757,11 +797,11 @@ export function AvatarEstudio({
           )}
         >
           {gerando ? <Loader2 className="size-5 animate-spin" /> : <Clapperboard className="size-5" />}
-          {gerando ? "Gerando o vídeo..." : "Gerar vídeo com avatar"}
+          {gerando ? "Enviando..." : "Gerar vídeo com avatar"}
         </button>
         <p className="mt-2 text-center text-[11px] text-muted-foreground">
           {gerando
-            ? "Gerando seu vídeo, pode demorar de 3 a 5 minutos. Pode deixar aberto. 🎬"
+            ? "Colocando seu vídeo em produção..."
             : pronto
               ? `Tudo pronto! Toque pra gerar (${custoVideoAvatar(duracao, comFala)} créditos).`
               : imagemUnica
@@ -769,113 +809,6 @@ export function AvatarEstudio({
                 : "Escolha o avatar, as fotos do produto e como ele aparece pra liberar."}
         </p>
 
-        {/* moldura de vídeo em blur enquanto gera, com o % subindo */}
-        {gerando && !videoUrl && (
-          <div className="mt-4">
-            <div className="relative mx-auto aspect-[9/16] w-full max-w-[280px] overflow-hidden rounded-2xl border border-border bg-black">
-              {/* fundo borrado tipo frame de vídeo */}
-              <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-primary/40 via-emerald-500/15 to-background blur-2xl" />
-              <div
-                className="absolute inset-0 animate-pulse opacity-40 blur-2xl"
-                style={{
-                  background:
-                    "radial-gradient(120% 80% at 50% 20%, rgba(16,185,129,0.35), transparent 60%)",
-                  animationDuration: "2.6s",
-                }}
-              />
-
-              {/* conteúdo central */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center">
-                <span className="relative grid size-14 place-items-center">
-                  <span
-                    className="absolute inset-0 animate-spin rounded-full"
-                    style={{
-                      background:
-                        "conic-gradient(from 0deg, transparent 15%, rgb(16 185 129), transparent 85%)",
-                      animationDuration: "2.4s",
-                    }}
-                  />
-                  <span className="relative grid size-11 place-items-center rounded-full bg-black/60 backdrop-blur">
-                    <Clapperboard className="size-5 text-primary" />
-                  </span>
-                </span>
-                <p className="text-4xl font-black tabular-nums text-white drop-shadow">
-                  {progresso}%
-                </p>
-                <p className="text-xs font-medium text-white/85">
-                  {progresso < 90 ? "Gravando seu vídeo..." : "Baixando..."}
-                </p>
-              </div>
-
-              {/* barra de progresso embaixo */}
-              <div className="absolute inset-x-0 bottom-0 h-1.5 bg-white/15">
-                <div
-                  className="h-full bg-gradient-to-r from-primary to-emerald-400 transition-all duration-500"
-                  style={{ width: `${progresso}%` }}
-                />
-              </div>
-            </div>
-            <p className="mt-2 text-center text-[11px] text-muted-foreground">
-              Pode deixar essa tela aberta. Leva alguns minutinhos. 🎬
-            </p>
-          </div>
-        )}
-
-        {/* vídeo pronto */}
-        {videoUrl && (
-          <div className="mt-4 overflow-hidden rounded-2xl border border-border bg-card">
-            <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-2.5">
-              <p className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-primary">
-                <Sparkles className="size-3.5" />
-                Vídeo pronto
-              </p>
-              <a
-                href={videoUrl}
-                download
-                className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold transition-colors hover:border-primary/50 hover:text-primary"
-              >
-                <Download className="size-3.5" />
-                Baixar
-              </a>
-            </div>
-            <video
-              src={videoUrl}
-              controls
-              autoPlay
-              loop
-              playsInline
-              className="mx-auto max-h-[70vh] w-full bg-black"
-            />
-          </div>
-        )}
-
-        {/* prompt final (só admin) */}
-        {admin && promptFinal && (
-          <div className="mt-4 overflow-hidden rounded-2xl border border-border bg-card">
-            <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-2.5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Prompt do vídeo · admin
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.clipboard?.writeText(promptFinal).then(() => {
-                    setCopiado(true);
-                    toast.success("Prompt copiado!");
-                    setTimeout(() => setCopiado(false), 2000);
-                  });
-                }}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold transition-colors hover:border-primary/50 hover:text-primary"
-              >
-                {copiado ? <ClipboardCheck className="size-3.5" /> : <Copy className="size-3.5" />}
-                {copiado ? "Copiado" : "Copiar"}
-              </button>
-            </div>
-            <pre className="max-h-80 overflow-auto p-4 text-left text-[11px] leading-relaxed text-muted-foreground">
-              {promptFinal}
-            </pre>
-          </div>
-        )}
       </div>
     </div>
   );

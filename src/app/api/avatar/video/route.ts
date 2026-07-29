@@ -1,21 +1,24 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { getCurrentUser } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { montarPromptProduto, montarPromptAvatarPronto } from "@/lib/produto-shot";
 import { gerarVideoGrok, type ArquivoImagem } from "@/lib/video-robot";
 import { custoVideoAvatar } from "@/lib/avatar-modelo";
-import { getCarteira, debitar } from "@/lib/creditos";
+import { getCarteira, debitarClamp } from "@/lib/creditos";
+import { criarNotificacao } from "@/lib/notificacoes";
 
 export const runtime = "nodejs";
 export const maxDuration = 1600;
 
 /**
- * PONTE DEV (localhost): recebe o avatar escolhido + fotos do produto + opções,
- * monta o prompt pt-BR e roda o robô do Grok (Selenium no PC do Lucas) pra gerar
- * o vídeo. Devolve a URL local do mp4 pra tocar no localhost. Admin-only por
- * enquanto (dirige o navegador local). FUTURO: vai pro serverrk.
+ * Gera o vídeo com avatar de forma ASSÍNCRONA: valida tudo, cria o Job como
+ * "processando" (já aparece em Meus vídeos com a etapa) e responde na hora com o
+ * jobId. A geração de verdade roda em background (after): manda pro robô do Grok
+ * no serverrk (que tem FILA, um por vez), e quando o mp4 sai a gente debita os
+ * créditos, marca o Job "pronto" (com thumb) e manda a notificação do sininho.
+ * Falha não cobra. A pessoa pode fechar a aba: o vídeo aparece sozinho.
  */
 export async function POST(req: Request) {
   const user = await getCurrentUser();
@@ -111,59 +114,96 @@ export async function POST(req: Request) {
         comFala,
       });
 
-  const r = await gerarVideoGrok({
-    prompt,
-    avatar,
-    produtos,
-    cenarioRef: cenarioRef ?? undefined,
-    duracaoSeg: dur,
-    qualidade: body.qualidade || "720p",
-    semAudio: !comFala,
+  // 1. cria o Job JÁ como "processando": aparece na hora em Meus vídeos
+  const nomeVideo = (body.titulo?.trim() || body.produtoNome?.trim() || "Vídeo com avatar").slice(0, 255);
+  const job = await prisma.job.create({
+    data: {
+      userId: user.id,
+      produto: nomeVideo,
+      tipo: "produto",
+      formato: "legenda",
+      variantes: 1,
+      status: "renderizando",
+      etapa: "A IA está gravando seu vídeo (3 a 5 min)",
+      duracao: dur,
+    },
   });
 
-  if (!r.ok || !r.videoUrl) {
-    return NextResponse.json({ erro: r.erro ?? "Falha ao gerar o vídeo.", log: r.log }, { status: 502 });
-  }
-
-  // cobra os créditos SÓ agora que o vídeo saiu (falha não desconta). Admin não paga.
-  if (!isAdmin) {
+  // 2. a geração de verdade roda em BACKGROUND, depois da resposta (a pessoa pode
+  // fechar a aba). O serverrk tem fila: se tiver gente na frente, espera a vez.
+  const userId = user.id;
+  after(async () => {
     try {
-      await debitar(user.id, custo, "debito_geracao", {
-        descricao: `Vídeo com avatar (${dur}s, ${comFala ? "com fala" : "sem fala"})`,
+      const r = await gerarVideoGrok({
+        prompt,
+        avatar,
+        produtos,
+        cenarioRef: cenarioRef ?? undefined,
+        duracaoSeg: dur,
+        qualidade: body.qualidade || "720p",
+        semAudio: !comFala,
       });
-    } catch {
-      return NextResponse.json(
-        { erro: "Créditos insuficientes.", faltaCreditos: true, custo },
-        { status: 402 },
-      );
+
+      if (!r.ok || !r.videoUrl) {
+        await prisma.job.update({
+          where: { id: job.id },
+          data: { status: "erro", etapa: null, erro: r.erro ?? "Falha ao gerar o vídeo." },
+        });
+        await criarNotificacao({
+          userId,
+          tipo: "video_erro",
+          titulo: "Falha ao gerar seu vídeo",
+          mensagem: `Não consegui gerar "${nomeVideo}". Tente de novo (não descontamos créditos).`,
+          link: "/painel",
+          jobId: job.id,
+        }).catch(() => {});
+        return;
+      }
+
+      // cobra SÓ agora que o vídeo saiu (falha não desconta). Admin/demo não pagam.
+      // debitarClamp nunca deixa negativo: se o saldo mudou, cobra o que der.
+      if (!isAdmin) {
+        await debitarClamp(userId, custo, "debito_geracao", {
+          descricao: `Vídeo com avatar (${dur}s, ${comFala ? "com fala" : "sem fala"})`,
+          jobId: job.id,
+        }).catch(() => {});
+      }
+
+      await prisma.job.update({
+        where: { id: job.id },
+        data: {
+          status: "pronto",
+          etapa: null,
+          saidas: JSON.stringify([r.videoUrl]),
+          midias: JSON.stringify([{ arquivo: r.videoUrl, ...(r.thumbUrl ? { thumb: r.thumbUrl } : {}) }]),
+        },
+      });
+      await criarNotificacao({
+        userId,
+        tipo: "video_pronto",
+        titulo: "Seu vídeo com avatar ficou pronto!",
+        mensagem: `"${nomeVideo}" já está em Meus vídeos.`,
+        link: "/painel",
+        jobId: job.id,
+      }).catch(() => {});
+    } catch (e) {
+      console.error("[avatar-video] geração em background falhou", e);
+      await prisma.job
+        .update({
+          where: { id: job.id },
+          data: { status: "erro", etapa: null, erro: "Falha inesperada ao gerar. Tente de novo." },
+        })
+        .catch(() => {});
     }
-  }
+  });
 
-  // registra como um vídeo "pronto" pra aparecer em Meus vídeos (e virar editável
-  // + watermarkável, que leem tudo da tabela Job). Se falhar, ainda devolve a URL.
-  try {
-    await prisma.job.create({
-      data: {
-        userId: user.id,
-        produto: (body.titulo?.trim() || "Vídeo com avatar").slice(0, 255),
-        tipo: "produto",
-        formato: "legenda",
-        variantes: 1,
-        status: "pronto",
-        duracao: dur,
-        saidas: JSON.stringify([r.videoUrl]),
-        midias: JSON.stringify([{ arquivo: r.videoUrl }]),
-      },
-    });
-  } catch (e) {
-    console.error("[avatar-video] falhou ao registrar em Meus vídeos", e);
-  }
-
-  // o prompt (a "receita") só volta pro admin ver/copiar; usuário não precisa ver.
+  // 3. responde na hora: a UI manda a pessoa acompanhar em Meus vídeos.
+  // O prompt (a "receita") só volta pro admin ver/copiar.
   return NextResponse.json({
     ok: true,
-    videoUrl: r.videoUrl,
-    ...(user.role === "admin" ? { prompt, log: r.log } : {}),
+    jobId: job.id,
+    custo,
+    ...(user.role === "admin" ? { prompt } : {}),
   });
 }
 
