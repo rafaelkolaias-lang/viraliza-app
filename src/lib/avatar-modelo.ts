@@ -201,9 +201,9 @@ export function contarPalavras(texto: string) {
   return texto.trim().split(/\s+/).filter(Boolean).length;
 }
 
-// Custo fixo pra gerar 1 avatar (creditos = centavos). A imagem no gpt-image-1
-// sai mais cara que um video comum. Client-safe pra UI mostrar antes de gerar.
-export const CUSTO_AVATAR = 75;
+// Custo fixo pra GERAR 1 avatar na plataforma (creditos = centavos). Subir uma
+// imagem pronta e gratis (sem IA). Client-safe pra UI mostrar antes de gerar.
+export const CUSTO_AVATAR = 40;
 
 // Como o produto aparece na foto "avatar com produto" (image-to-image). O `en`
 // vira a instrucao pro gpt-image-1. Client-safe: a UI mostra o label em PT.
@@ -235,11 +235,11 @@ export const USOS_PRODUTO: Opcao[] = [
   },
 ];
 
-// Custo pra gerar 1 vídeo com avatar (creditos = centavos): COM fala 6s=85,
-// 10s=95, 15s=120. SEM fala custa DESCONTO_SEM_FALA a menos (é mais simples de gerar).
-export const CUSTO_VIDEO_AVATAR = 85;
-export const CUSTO_VIDEO_AVATAR_10S = 95;
-export const CUSTO_VIDEO_AVATAR_15S = 120;
+// Custo pra gerar 1 vídeo com avatar (creditos = centavos): COM fala 6s=50,
+// 10s=60, 15s=70. SEM fala custa DESCONTO_SEM_FALA a menos (é mais simples de gerar).
+export const CUSTO_VIDEO_AVATAR = 50;
+export const CUSTO_VIDEO_AVATAR_10S = 60;
+export const CUSTO_VIDEO_AVATAR_15S = 70;
 export const DESCONTO_SEM_FALA = 10;
 export function custoVideoAvatar(duracaoSeg: number, comFala = true): number {
   const base =
