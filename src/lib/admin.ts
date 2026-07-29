@@ -44,6 +44,13 @@ export type PainelAdmin = {
     emProducao: number;
     prontos: number;
     erros: number;
+    creditosGastos: number; // total de créditos já consumidos em produção
+  };
+  // pendências que precisam de ação do admin (viram atalhos na visão geral)
+  pendencias: {
+    reportes: number; // reportes de vídeo "novo"
+    sugestoes: number; // sugestões "nova"
+    bonus: number; // bônus IG "pendente"
   };
   grafico: DiaProducao[];
   usuarios: LinhaUsuario[];
@@ -51,6 +58,7 @@ export type PainelAdmin = {
     id: string;
     produto: string;
     formato: string;
+    tipo: string; // "produto" | "cortes" | "avatar" (avatar = gerado no Grok)
     status: string;
     criadoEm: Date;
     nome: string | null;
@@ -75,6 +83,9 @@ export async function getPainelAdmin(): Promise<PainelAdmin> {
     gastos,
     jobsPorUser,
     listaUsuarios,
+    pendReportes,
+    pendSugestoes,
+    pendBonus,
   ] = await Promise.all([
     prisma.user.count(),
     prisma.job.count(),
@@ -89,6 +100,9 @@ export async function getPainelAdmin(): Promise<PainelAdmin> {
         id: true,
         produto: true,
         formato: true,
+        tipo: true,
+        midias: true,
+        saidas: true,
         status: true,
         criadoEm: true,
         user: { select: { nome: true } },
@@ -116,6 +130,9 @@ export async function getPainelAdmin(): Promise<PainelAdmin> {
         ferramentasLiberadas: true,
       },
     }),
+    prisma.reporteVideo.count({ where: { status: "novo" } }),
+    prisma.sugestao.count({ where: { status: "nova" } }),
+    prisma.bonusInstagram.count({ where: { status: "pendente" } }),
   ]);
 
   // --- gráfico: últimos N dias, buckets por dia (fuso de SP) ---
@@ -162,14 +179,23 @@ export async function getPainelAdmin(): Promise<PainelAdmin> {
       return (b.vistoEm ?? "").localeCompare(a.vistoEm ?? "");
     });
 
+  // total de créditos consumidos em produção (todas as pessoas somadas)
+  const creditosGastos = gastos.reduce((s, g) => s + Math.abs(g._sum.valor ?? 0), 0);
+
   return {
-    stats: { usuarios, online, videos, emProducao, prontos, erros },
+    stats: { usuarios, online, videos, emProducao, prontos, erros, creditosGastos },
+    pendencias: { reportes: pendReportes, sugestoes: pendSugestoes, bonus: pendBonus },
     grafico,
     usuarios: linhas,
     recentes: recentes.map((r) => ({
       id: r.id,
       produto: r.produto,
       formato: r.formato,
+      // vídeo do avatar (Grok) mora em media.../avatares/: mostra como tipo próprio
+      tipo:
+        (r.midias ?? "").includes("/avatares/") || (r.saidas ?? "").includes("/avatares/")
+          ? "avatar"
+          : r.tipo || "produto",
       status: r.status,
       criadoEm: r.criadoEm,
       nome: r.user?.nome ?? null,

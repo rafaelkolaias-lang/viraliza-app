@@ -11,6 +11,7 @@ export type ServicoErro =
   | "ElevenLabs (voz)"
   | "Gemini (copy/imagem)"
   | "Veo (vídeo IA)"
+  | "Grok (vídeo avatar)"
   | "Edição (ffmpeg)"
   | "Fábrica"
   | "Outro";
@@ -38,6 +39,8 @@ export function classificarErro(erro?: string | null): ErroClassificado {
   else if (/gemini|genai|google.*api|api key not valid|generativelanguage/.test(t))
     servico = "Gemini (copy/imagem)";
   else if (/\bveo\b/.test(t)) servico = "Veo (vídeo IA)";
+  else if (/grok|rob[oô]|motor de v[ií]deo|n[aã]o veio v[ií]deo|stale element|selenium|demorou demais/.test(t))
+    servico = "Grok (vídeo avatar)";
   else if (/ffmpeg|libx264|codec/.test(t)) servico = "Edição (ffmpeg)";
   else if (/não gerou v[ií]deo|nao gerou video|a f[áa]brica/.test(t))
     servico = "Fábrica";
@@ -52,6 +55,8 @@ export function classificarErro(erro?: string | null): ErroClassificado {
     motivo = "Chave de API inválida ou sem permissão.";
   else if (/resource_exhausted|gemini.*quota/.test(t))
     motivo = "Cota do Gemini esgotada.";
+  else if (servico === "Grok (vídeo avatar)")
+    motivo = "O robô do Grok falhou (recusa, timeout ou sessão deslogada). Falha não cobra créditos.";
   else if (semCredito) motivo = "Cota/crédito esgotado.";
 
   return { servico, semCredito, motivo };

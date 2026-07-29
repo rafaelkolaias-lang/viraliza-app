@@ -69,6 +69,8 @@ model Sugestao {
   texto    String   @db.Text
   tipo     String   @default("sugestao") // "sugestao" | "melhoria" | "problema"
   status   String   @default("nova")     // "nova" | "lida" | "resolvida" (admin gerencia)
+  resposta String?  @db.Text // resposta do admin (o autor vê na aba dele + sininho)
+  creditosDados Int @default(0) // créditos dados de recompensa junto com a resposta
   criadoEm DateTime @default(now())
 
   @@index([userId])

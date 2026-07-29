@@ -18,6 +18,8 @@ import {
   Home,
   Lightbulb,
   TriangleAlert,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -712,27 +714,61 @@ export function AvatarEstudio({
         <Secao n={nSecao("fala")} titulo="O avatar vai falar?" />
         <div className="mt-4 grid grid-cols-2 gap-2">
           {[
-            { v: true, titulo: "Com fala", desc: "Ela anuncia o produto falando em português." },
-            { v: false, titulo: "Sem fala", desc: "Só mostra o produto (você põe voz/texto depois)." },
+            {
+              v: true,
+              titulo: "Com fala",
+              desc: "Ela anuncia o produto falando em português, com voz.",
+              Icon: Volume2,
+              selo: "Recomendado",
+            },
+            {
+              v: false,
+              titulo: "Sem fala",
+              desc: "Vídeo MUDO: só mostra o produto (você põe voz/texto depois).",
+              Icon: VolumeX,
+              selo: null,
+            },
           ].map((o) => (
             <button
               key={String(o.v)}
               type="button"
               onClick={() => setComFala(o.v)}
               className={cn(
-                "rounded-xl border p-3 text-left transition-all",
+                "relative rounded-xl border p-3.5 text-left transition-all",
                 comFala === o.v
                   ? "border-primary bg-primary/10 ring-2 ring-primary/30"
                   : "border-border hover:border-primary/50 hover:bg-muted/40",
               )}
             >
-              <span className={cn("block text-sm font-semibold", comFala === o.v && "text-primary")}>
+              {o.selo && (
+                <span className="absolute right-2.5 top-2.5 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
+                  {o.selo}
+                </span>
+              )}
+              <span
+                className={cn(
+                  "grid size-9 place-items-center rounded-lg",
+                  comFala === o.v ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground",
+                )}
+              >
+                <o.Icon className="size-4.5" />
+              </span>
+              <span className={cn("mt-2 block text-sm font-bold", comFala === o.v && "text-primary")}>
                 {o.titulo}
               </span>
               <span className="mt-0.5 block text-xs text-muted-foreground">{o.desc}</span>
             </button>
           ))}
         </div>
+        {!comFala && (
+          <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3.5 py-3">
+            <VolumeX className="size-5 shrink-0 text-amber-500" />
+            <p className="text-sm text-amber-700 dark:text-amber-300">
+              <span className="font-bold">Atenção: o vídeo vai sair SEM som.</span> A avatar não
+              fala nada. Escolha assim só se você for colocar sua própria voz ou música depois.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* ===== DURAÇÃO ===== */}

@@ -84,6 +84,8 @@ export function AdminVideos({
           const dur = job.duracaoSeg
             ? `${Math.floor(job.duracaoSeg / 60)}:${(job.duracaoSeg % 60).toString().padStart(2, "0")}`
             : null;
+          // vídeo do avatar (Grok) mora em media.../avatares/
+          const ehAvatar = (job.midias ?? []).some((m) => (m.arquivo ?? "").includes("/avatares/"));
           return (
             <div key={job.id} className="overflow-hidden rounded-xl border border-border bg-card">
               <button
@@ -109,6 +111,11 @@ export function AdminVideos({
                     <Play className="size-4 translate-x-px fill-current" />
                   </span>
                 </span>
+                {ehAvatar && (
+                  <span className="absolute left-1 top-1 rounded bg-primary/90 px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground">
+                    Avatar
+                  </span>
+                )}
                 {dur && (
                   <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1 text-[10px] font-medium text-white">
                     {dur}

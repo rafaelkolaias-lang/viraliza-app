@@ -208,6 +208,22 @@ export function SugestoesPainel({
                   </div>
                   <p className="mt-2 whitespace-pre-wrap text-sm">{s.texto}</p>
 
+                  {/* resposta da equipe (autor e admin veem) */}
+                  {s.resposta && (
+                    <div className="mt-3 rounded-xl border border-primary/25 bg-primary/5 p-3">
+                      <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-primary">
+                        <MessageSquarePlus className="size-3.5" />
+                        Resposta da equipe
+                        {(s.creditosDados ?? 0) > 0 && (
+                          <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold normal-case tracking-normal">
+                            +{s.creditosDados} créditos 🎉
+                          </span>
+                        )}
+                      </p>
+                      <p className="mt-1.5 whitespace-pre-wrap text-sm">{s.resposta}</p>
+                    </div>
+                  )}
+
                   {admin && s.autor && (
                     <p className="mt-2 text-[11px] text-muted-foreground">
                       por <span className="font-medium text-foreground">{s.autor.nome}</span> · {s.autor.email}
@@ -215,7 +231,7 @@ export function SugestoesPainel({
                   )}
 
                   {admin && (
-                    <div className="mt-3 flex flex-wrap gap-2">
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
                       <BotaoStatus
                         ativo={s.status === "lida"}
                         onClick={() => marcar(s.id, "lida")}
@@ -227,6 +243,24 @@ export function SugestoesPainel({
                         label="Resolvida"
                         verde
                       />
+                      <ResponderSugestao
+                        id={s.id}
+                        jaRespondida={!!s.resposta}
+                        onRespondida={(resposta, creditos) =>
+                          setLista((prev) =>
+                            prev.map((x) =>
+                              x.id === s.id
+                                ? {
+                                    ...x,
+                                    resposta,
+                                    creditosDados: (x.creditosDados ?? 0) + creditos,
+                                    status: "resolvida",
+                                  }
+                                : x,
+                            ),
+                          )
+                        }
+                      />
                     </div>
                   )}
                 </div>
@@ -234,6 +268,103 @@ export function SugestoesPainel({
             })}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+/** Admin responde a sugestão e pode dar créditos de recompensa junto. */
+function ResponderSugestao({
+  id,
+  jaRespondida,
+  onRespondida,
+}: {
+  id: string;
+  jaRespondida: boolean;
+  onRespondida: (resposta: string, creditos: number) => void;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const [resposta, setResposta] = useState("");
+  const [creditos, setCreditos] = useState("");
+  const [enviando, setEnviando] = useState(false);
+
+  async function enviar() {
+    const txt = resposta.trim();
+    if (txt.length < 2 || enviando) return;
+    const qtd = Math.max(0, Math.round(Number(creditos) || 0));
+    setEnviando(true);
+    try {
+      const r = await fetch("/api/sugestoes", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, resposta: txt, creditos: qtd }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        toast.error(data?.erro || "Não consegui responder.");
+        return;
+      }
+      toast.success(qtd > 0 ? `Respondida + ${qtd} créditos dados! 💚` : "Respondida! 💚");
+      onRespondida(txt, qtd);
+      setAberto(false);
+      setResposta("");
+      setCreditos("");
+    } catch {
+      toast.error("Sem conexão.");
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  if (!aberto) {
+    return (
+      <button
+        type="button"
+        onClick={() => setAberto(true)}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/15"
+      >
+        <Send className="size-3.5" />
+        {jaRespondida ? "Responder de novo" : "Responder"}
+      </button>
+    );
+  }
+
+  return (
+    <div className="w-full rounded-xl border border-border bg-background p-3">
+      <textarea
+        value={resposta}
+        onChange={(e) => setResposta(e.target.value)}
+        placeholder="Escreva a resposta pro usuário (ele recebe no sininho e vê aqui)..."
+        maxLength={2000}
+        rows={2}
+        autoFocus
+        className="w-full resize-none rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:border-primary"
+      />
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <input
+          value={creditos}
+          onChange={(e) => setCreditos(e.target.value.replace(/\D/g, ""))}
+          placeholder="Créditos (opcional)"
+          inputMode="numeric"
+          className="w-36 rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:border-primary"
+        />
+        <button
+          type="button"
+          onClick={enviar}
+          disabled={resposta.trim().length < 2 || enviando}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground disabled:opacity-50"
+        >
+          {enviando ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
+          Enviar resposta
+        </button>
+        <button
+          type="button"
+          onClick={() => setAberto(false)}
+          disabled={enviando}
+          className="rounded-lg px-2.5 py-2 text-xs font-medium text-muted-foreground hover:bg-muted"
+        >
+          Cancelar
+        </button>
       </div>
     </div>
   );

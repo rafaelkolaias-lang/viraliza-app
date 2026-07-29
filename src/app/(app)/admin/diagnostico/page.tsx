@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Activity, AlertCircle, KeyRound, RefreshCw, ShieldCheck } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { classificarErro, elevenSaldo } from "@/lib/diagnostico";
+import { EstornarJob } from "@/components/app/estornar-job";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Admin · Diagnóstico" };
@@ -41,9 +42,29 @@ export default async function DiagnosticoPage() {
     elevenSaldo(),
   ]);
 
+  // créditos debitados e estornos já feitos nesses jobs (pro botão de estorno)
+  const idsErro = jobsErro.map((j) => j.id);
+  const [debitos, estornos] = idsErro.length
+    ? await Promise.all([
+        prisma.creditoTransacao.groupBy({
+          by: ["jobId"],
+          where: { jobId: { in: idsErro }, tipo: { in: ["debito_geracao", "debito_processamento"] } },
+          _sum: { valor: true },
+        }),
+        prisma.creditoTransacao.findMany({
+          where: { jobId: { in: idsErro }, tipo: "estorno" },
+          select: { jobId: true },
+        }),
+      ])
+    : [[], []];
+  const debitadoPor = new Map(debitos.map((d) => [d.jobId, Math.abs(d._sum.valor ?? 0)]));
+  const estornado = new Set(estornos.map((e) => e.jobId));
+
   const classificados = jobsErro.map((j) => ({
     ...j,
     diag: classificarErro(j.erro),
+    creditos: debitadoPor.get(j.id) ?? 0,
+    jaEstornado: estornado.has(j.id),
   }));
 
   // resumo por serviço
@@ -190,7 +211,8 @@ export default async function DiagnosticoPage() {
                     <div className="min-w-0">
                       <p className="truncate font-medium">{c.produto}</p>
                       <p className="truncate text-xs text-muted-foreground">
-                        {c.user?.nome ?? "-"} ·{" "}
+                        {c.user?.nome ?? "-"}
+                        {c.user?.email ? ` (${c.user.email})` : ""} ·{" "}
                         {c.formato === "voz" ? "Voz narrada" : "Legenda"} ·{" "}
                         {fmtData.format(new Date(c.criadoEm))}
                       </p>
@@ -230,6 +252,18 @@ export default async function DiagnosticoPage() {
                         {c.erro}
                       </pre>
                     </details>
+                  )}
+                  {/* créditos cobrados nesse job: dá pra devolver daqui mesmo */}
+                  {c.creditos > 0 && (
+                    <div className="mt-2 flex items-center gap-2">
+                      {c.jaEstornado ? (
+                        <span className="text-[11px] font-semibold text-primary">
+                          {c.creditos} créditos já estornados ✅
+                        </span>
+                      ) : (
+                        <EstornarJob jobId={c.id} creditos={c.creditos} />
+                      )}
+                    </div>
                   )}
                 </div>
               ))}
