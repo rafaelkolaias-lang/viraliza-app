@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { ArrowLeft, ImagePlus, Loader2, Sparkles, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CUSTO_AVATAR } from "@/lib/avatar-modelo";
+import { normalizarImagem, ERRO_IMAGEM } from "@/lib/imagem-cliente";
 import type { AvatarCriado } from "@/components/app/avatar-quiz";
 
 /**
@@ -12,15 +13,6 @@ import type { AvatarCriado } from "@/components/app/avatar-quiz";
  * avatar (image-to-image). POST /api/avatar/da-foto. Ao concluir, o avatar entra
  * na galeria (onCriado) igual aos outros.
  */
-
-function lerArquivo(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result));
-    r.onerror = () => reject(new Error("falha ao ler o arquivo"));
-    r.readAsDataURL(file);
-  });
-}
 
 export function AvatarDaFoto({
   onSair,
@@ -43,11 +35,13 @@ export function AvatarDaFoto({
       toast.error("Escolha um arquivo de imagem.");
       return;
     }
-    try {
-      setFoto(await lerArquivo(file));
-    } catch {
-      toast.error("Não consegui ler essa imagem.");
+    // converte pra JPEG de verdade (HEIC/AVIF com nome .jpg quebram a IA)
+    const dataUrl = await normalizarImagem(file);
+    if (!dataUrl) {
+      toast.error(ERRO_IMAGEM);
+      return;
     }
+    setFoto(dataUrl);
   }
 
   async function gerar() {

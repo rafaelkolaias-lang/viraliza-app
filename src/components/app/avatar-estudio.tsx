@@ -24,6 +24,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { APRESENTACOES, DURACOES, DURACAO_NOTA, CENARIOS, custoVideoAvatar } from "@/lib/avatar-modelo";
+import { normalizarImagem, ERRO_IMAGEM } from "@/lib/imagem-cliente";
 
 /**
  * FRONT do "Vídeo com avatar" (criador estilo UGC). A pessoa escolhe um avatar,
@@ -45,14 +46,6 @@ const AVATARES = [
 
 type Analise = { nome: string; tipo: string; descricao: string; sugestao: string };
 type MeuAvatar = { id: string; nome: string; imagemUrl: string; origem?: string };
-
-function lerDataUrl(file: File): Promise<string> {
-  return new Promise((res) => {
-    const fr = new FileReader();
-    fr.onload = () => res(String(fr.result));
-    fr.readAsDataURL(file);
-  });
-}
 
 /** Cabeçalho de seção: bolinha numerada + título (+ conteúdo à direita). */
 function Secao({
@@ -107,8 +100,13 @@ export function AvatarEstudio({
     const arquivos = Array.from(e.target.files ?? []);
     if (!arquivos.length) return;
     e.target.value = "";
-    const lidos = await Promise.all(arquivos.map(lerDataUrl));
-    setProdutoFotos((prev) => [...prev, ...lidos].slice(0, 3));
+    // converte TUDO pra JPEG de verdade (foto da Shopee/iPhone costuma ser
+    // AVIF/HEIC com nome .jpg e o Grok recusa)
+    const lidos = await Promise.all(arquivos.map(normalizarImagem));
+    const ok = lidos.filter((x): x is string => !!x);
+    if (ok.length < lidos.length) toast.error(ERRO_IMAGEM);
+    if (!ok.length) return;
+    setProdutoFotos((prev) => [...prev, ...ok].slice(0, 3));
     // trocou as fotos: zera a análise antiga
     setAnalise(null);
   }
@@ -169,7 +167,11 @@ export function AvatarEstudio({
     }
     setSubindoAvatar(true);
     try {
-      const foto = await lerDataUrl(file);
+      const foto = await normalizarImagem(file);
+      if (!foto) {
+        toast.error(ERRO_IMAGEM);
+        return;
+      }
       const nome = (file.name.replace(/\.[^.]+$/, "").trim() || "Meu avatar").slice(0, 120);
       const res = await fetch("/api/avatar/subir", {
         method: "POST",

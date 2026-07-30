@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { ArrowLeft, ImagePlus, Loader2, Sparkles, X, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CUSTO_AVATAR, USOS_PRODUTO, CENARIOS } from "@/lib/avatar-modelo";
+import { normalizarImagem, ERRO_IMAGEM } from "@/lib/imagem-cliente";
 import type { AvatarCriado } from "@/components/app/avatar-quiz";
 
 /**
@@ -12,15 +13,6 @@ import type { AvatarCriado } from "@/components/app/avatar-quiz";
  * do PRODUTO e gera a imagem da pessoa usando o produto (segurando, passando no
  * rosto/cabelo...). POST /api/avatar/com-produto. A imagem entra na galeria.
  */
-
-function lerArquivo(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result));
-    r.onerror = () => reject(new Error("falha ao ler o arquivo"));
-    r.readAsDataURL(file);
-  });
-}
 
 export function AvatarComProduto({
   avatares = [],
@@ -54,11 +46,13 @@ export function AvatarComProduto({
       toast.error("Escolha um arquivo de imagem.");
       return;
     }
-    try {
-      set(await lerArquivo(file));
-    } catch {
-      toast.error("Não consegui ler essa imagem.");
+    // converte pra JPEG de verdade (HEIC/AVIF com nome .jpg quebram a IA)
+    const dataUrl = await normalizarImagem(file);
+    if (!dataUrl) {
+      toast.error(ERRO_IMAGEM);
+      return;
     }
+    set(dataUrl);
   }
 
   async function gerar() {

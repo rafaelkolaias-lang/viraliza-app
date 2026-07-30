@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { ArrowLeft, ImagePlus, Loader2, Upload, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { normalizarImagem, ERRO_IMAGEM } from "@/lib/imagem-cliente";
 import type { AvatarCriado } from "@/components/app/avatar-quiz";
 
 /**
@@ -11,15 +12,6 @@ import type { AvatarCriado } from "@/components/app/avatar-quiz";
  * gerar nada e SEM gastar crédito. POST /api/avatar/subir. Ao concluir, entra na
  * galeria (onCriado) igual aos outros avatares.
  */
-
-function lerArquivo(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result));
-    r.onerror = () => reject(new Error("falha ao ler o arquivo"));
-    r.readAsDataURL(file);
-  });
-}
 
 export function AvatarSubir({
   onSair,
@@ -42,11 +34,13 @@ export function AvatarSubir({
       toast.error("Escolha um arquivo de imagem.");
       return;
     }
-    try {
-      setFoto(await lerArquivo(file));
-    } catch {
-      toast.error("Não consegui ler essa imagem.");
+    // converte pra JPEG de verdade (HEIC/AVIF com nome .jpg quebram depois)
+    const dataUrl = await normalizarImagem(file);
+    if (!dataUrl) {
+      toast.error(ERRO_IMAGEM);
+      return;
     }
+    setFoto(dataUrl);
   }
 
   async function enviar() {
