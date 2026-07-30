@@ -2,11 +2,17 @@ import { NextResponse } from "next/server";
 import fs from "node:fs/promises";
 import { getCurrentUser } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
-import { pastaEntrada, pastaSaida } from "@/lib/jobs";
+import { pastaEntrada } from "@/lib/jobs";
 
 export const runtime = "nodejs";
 
-/** Exclui um job (vídeo/cortes) do usuário - remove os arquivos e a linha no banco. */
+/**
+ * "Exclui" um job (vídeo/cortes): some da conta do usuário, mas a linha FICA no
+ * banco como status "excluido" (com quem/quando) pro admin auditar em
+ * /admin/excluidos. Os arquivos de ENTRADA locais são apagados (libera disco);
+ * a saída hospedada (serverrk/Drive) fica, então o admin ainda consegue assistir.
+ * Créditos NÃO voltam ao excluir (reembolso é só via reporte/estorno do admin).
+ */
 export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -26,12 +32,17 @@ export async function DELETE(
     return NextResponse.json({ erro: "Sem permissão." }, { status: 403 });
   }
 
-  // apaga os arquivos (entrada + saída) - ignora se já não existirem
-  await Promise.all([
-    fs.rm(pastaSaida(id), { recursive: true, force: true }).catch(() => {}),
-    fs.rm(pastaEntrada(id), { recursive: true, force: true }).catch(() => {}),
-  ]);
+  // apaga só a mídia de ENTRADA local (a saída fica pra auditoria do admin)
+  await fs.rm(pastaEntrada(id), { recursive: true, force: true }).catch(() => {});
 
-  await prisma.job.delete({ where: { id } });
+  await prisma.job.update({
+    where: { id },
+    data: {
+      status: "excluido",
+      etapa: null,
+      excluidoEm: new Date(),
+      excluidoPor: user.email,
+    },
+  });
   return NextResponse.json({ ok: true });
 }

@@ -46,6 +46,7 @@ model User {
 // Sugestão/melhoria que o usuário manda. Ele só vê as dele; o admin vê todas.
 // Reporte de problema num vídeo gerado (a pessoa acha que saiu errado e pede
 // reembolso dos créditos). O admin decide: reembolsa (credita de volta) ou recusa.
+// (Job ganhou exclusão com histórico: status "excluido" + quem/quando - ver Job)
 model ReporteVideo {
   id         String    @id @default(cuid())
   userId     String
@@ -197,6 +198,9 @@ model Job {
   saidas    String?  @db.Text // JSON: caminhos web dos vídeos prontos
   midias    String?  @db.Text // JSON: [{arquivo, thumb, legenda, hashtags}] por variante
   erro      String?  @db.Text // mensagem quando status = "erro"
+  // exclusão com histórico: o vídeo some pro usuário mas a linha fica (admin audita)
+  excluidoEm  DateTime? // quando foi excluído (status vira "excluido")
+  excluidoPor String?   @db.VarChar(255) // email de quem excluiu (dono ou admin)
   criadoEm  DateTime @default(now())
 
   @@index([userId])

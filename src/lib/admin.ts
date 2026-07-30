@@ -88,12 +88,13 @@ export async function getPainelAdmin(): Promise<PainelAdmin> {
     pendBonus,
   ] = await Promise.all([
     prisma.user.count(),
-    prisma.job.count(),
+    prisma.job.count({ where: { status: { not: "excluido" } } }),
     prisma.job.count({ where: { status: { in: producao } } }),
     prisma.job.count({ where: { status: "pronto" } }),
     prisma.job.count({ where: { status: "erro" } }),
     prisma.user.count({ where: { vistoEm: { gt: online5min } } }),
     prisma.job.findMany({
+      where: { status: { not: "excluido" } },
       orderBy: { criadoEm: "desc" },
       take: 12,
       select: {

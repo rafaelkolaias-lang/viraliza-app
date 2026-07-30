@@ -61,8 +61,9 @@ export function paraVideoJob(job: {
 
 export async function getJobsDoUsuario(userId: string): Promise<VideoJob[]> {
   const jobs = await prisma.job.findMany({
-    // "recebendo" = rascunho ainda recebendo os pedaços do upload; não mostra
-    where: { userId, status: { not: "recebendo" } },
+    // "recebendo" = rascunho no upload; "excluido" = a pessoa apagou (fica só
+    // pro admin auditar em /admin/excluidos). Nenhum dos dois aparece aqui.
+    where: { userId, status: { notIn: ["recebendo", "excluido"] } },
     orderBy: { criadoEm: "desc" },
   });
   const lista = jobs.map(paraVideoJob);
@@ -123,6 +124,8 @@ export async function getJobDoUsuario(
   userId: string,
   id: string,
 ): Promise<VideoJob | null> {
-  const job = await prisma.job.findFirst({ where: { id, userId } });
+  const job = await prisma.job.findFirst({
+    where: { id, userId, status: { not: "excluido" } },
+  });
   return job ? paraVideoJob(job) : null;
 }
