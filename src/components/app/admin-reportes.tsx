@@ -16,6 +16,13 @@ export type ReporteDTO = {
   criadoEm: string;
   usuario: string;
   email: string;
+  // o vídeo reportado (do Job; some se o usuário excluiu o vídeo)
+  videoUrl?: string;
+  thumb?: string;
+  // mídias de ENTRADA que a pessoa mandou (salvas nos jobs novos)
+  avatarUrl?: string;
+  produtoFotos?: string[];
+  cenario?: string;
 };
 
 const fmtData = new Intl.DateTimeFormat("pt-BR", {
@@ -97,6 +104,76 @@ export function AdminReportes({ reportes }: { reportes: ReporteDTO[] }) {
           </div>
 
           <p className="mt-3 rounded-xl bg-muted/40 px-3 py-2 text-sm">{r.motivo}</p>
+
+          {/* o vídeo reportado + as mídias que a pessoa mandou (compara os dois) */}
+          <div className="mt-3 flex flex-wrap items-start gap-4">
+            {r.videoUrl ? (
+              <div>
+                <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Vídeo reportado
+                </p>
+                <video
+                  src={r.videoUrl}
+                  poster={r.thumb}
+                  controls
+                  preload="none"
+                  playsInline
+                  className="aspect-[9/16] w-[150px] rounded-xl border border-border bg-black object-cover"
+                />
+                <a
+                  href={r.videoUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-1 block text-[11px] font-medium text-primary hover:underline"
+                >
+                  Abrir em nova aba
+                </a>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                (o vídeo foi excluído pelo usuário ou não tem mídia)
+              </p>
+            )}
+
+            {(r.avatarUrl || (r.produtoFotos?.length ?? 0) > 0) && (
+              <div>
+                <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                  O que a pessoa enviou
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {r.avatarUrl && (
+                    <figure>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={r.avatarUrl}
+                        alt="avatar usado"
+                        className="aspect-[3/4] w-[84px] rounded-lg border border-border object-cover"
+                      />
+                      <figcaption className="mt-0.5 text-center text-[10px] text-muted-foreground">
+                        avatar
+                      </figcaption>
+                    </figure>
+                  )}
+                  {(r.produtoFotos ?? []).map((f, i) => (
+                    <figure key={i}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={f}
+                        alt={`produto ${i + 1}`}
+                        className="aspect-square w-[84px] rounded-lg border border-border object-cover"
+                      />
+                      <figcaption className="mt-0.5 text-center text-[10px] text-muted-foreground">
+                        produto {i + 1}
+                      </figcaption>
+                    </figure>
+                  ))}
+                </div>
+                {r.cenario && (
+                  <p className="mt-1 text-[11px] text-muted-foreground">cenário: {r.cenario}</p>
+                )}
+              </div>
+            )}
+          </div>
 
           {r.status === "novo" && (
             <div className="mt-3 flex items-center gap-2">

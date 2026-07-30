@@ -8,6 +8,7 @@ import { gerarVideoGrok, type ArquivoImagem } from "@/lib/video-robot";
 import { custoVideoAvatar } from "@/lib/avatar-modelo";
 import { getCarteira, debitarClamp } from "@/lib/creditos";
 import { criarNotificacao } from "@/lib/notificacoes";
+import { subirAvatar } from "@/lib/serverrk-upload";
 
 export const runtime = "nodejs";
 export const maxDuration = 1600;
@@ -136,6 +137,35 @@ export async function POST(req: Request) {
   // fechar a aba). O serverrk tem fila: se tiver gente na frente, espera a vez.
   const userId = user.id;
   after(async () => {
+    // guarda as MÍDIAS DE ENTRADA (avatar usado + fotos do produto) no job: o
+    // admin vê nos Reportes o que a pessoa mandou vs o que saiu. Falha não trava.
+    try {
+      const MIME: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp" };
+      const fotosUrls: string[] = [];
+      for (let i = 0; i < produtos.length; i++) {
+        const p = produtos[i];
+        const u = await subirAvatar(`entrada-${job.id}-${i}.${p.ext}`, p.bytes, MIME[p.ext] ?? "image/png");
+        if (u) fotosUrls.push(u);
+      }
+      await prisma.job.update({
+        where: { id: job.id },
+        data: {
+          opcoes: JSON.stringify({
+            entrada: {
+              avatarUrl: body.avatarUrl,
+              produtoFotos: fotosUrls,
+              cenario: body.cenario ?? null,
+              comFala,
+              plataforma,
+              imagemUnica,
+            },
+          }),
+        },
+      });
+    } catch (e) {
+      console.error("[avatar-video] falhou ao guardar as entradas", e);
+    }
+
     try {
       const r = await gerarVideoGrok({
         prompt,
