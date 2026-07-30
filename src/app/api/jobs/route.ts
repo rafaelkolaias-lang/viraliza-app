@@ -250,7 +250,10 @@ export async function POST(req: Request) {
     );
   }
 
-  // cria o job primeiro pra ter o id (= nome da pasta)
+  // cria o job como "recebendo" (o worker NÃO pega esse status) e só vira
+  // "na_fila" DEPOIS da mídia salva no disco. Antes ele nascia "na_fila" e o
+  // worker às vezes pegava o job na janela antes dos arquivos existirem ->
+  // fábrica montava 0 clipes e explodia com "concat n=0".
   const job = await prisma.job.create({
     data: {
       userId: user.id,
@@ -264,7 +267,7 @@ export async function POST(req: Request) {
       preco: preco || null,
       legendaPos,
       opcoes,
-      status: "na_fila",
+      status: "recebendo",
     },
   });
 
@@ -284,6 +287,9 @@ export async function POST(req: Request) {
       { status: 500 },
     );
   }
+
+  // mídia no disco: agora sim entra na fila do worker
+  await prisma.job.update({ where: { id: job.id }, data: { status: "na_fila" } });
 
   return NextResponse.json({ ok: true, id: job.id });
 }

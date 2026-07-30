@@ -56,7 +56,8 @@ export function classificarErro(erro?: string | null): ErroClassificado {
   else if (/resource_exhausted|gemini.*quota/.test(t))
     motivo = "Cota do Gemini esgotada.";
   else if (servico === "Grok (vídeo avatar)")
-    motivo = "O robô do Grok falhou (recusa, timeout ou sessão deslogada). Falha não cobra créditos.";
+    motivo =
+      "O Grok não devolveu o vídeo. Causa mais comum: MODERAÇÃO (produto com personagem/marca famosa, roupa transparente ou conteúdo sensível é recusado). Também pode ser timeout. Falha não cobra créditos.";
   else if (semCredito) motivo = "Cota/crédito esgotado.";
 
   return { servico, semCredito, motivo };

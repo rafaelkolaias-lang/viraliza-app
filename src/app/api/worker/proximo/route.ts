@@ -57,6 +57,24 @@ export async function GET(req: Request) {
     listar(job.id, "template"),
   ]);
 
+  // defesa: job de produto sem NENHUMA mídia e sem fonte não vai pro worker (a
+  // fábrica montaria 0 clipes e explodiria com "concat n=0"). Falha limpa aqui.
+  if (
+    (job.tipo ?? "produto") === "produto" &&
+    !job.fonte &&
+    videos.length === 0 &&
+    imagens.length === 0
+  ) {
+    await prisma.job.update({
+      where: { id: job.id },
+      data: {
+        status: "erro",
+        erro: "A mídia desse vídeo não chegou no servidor. Tente gerar de novo (não descontamos créditos).",
+      },
+    });
+    return NextResponse.json({ job: null });
+  }
+
   // BYO: se o dono do job tem chave ElevenLabs própria e o job é de voz, manda a
   // chave decifrada pro worker renderizar na conta dele (canal já fica protegido
   // pelo WORKER_TOKEN). Só nesse caso o segredo viaja.
