@@ -194,6 +194,15 @@ export const DURACAO_NOTA: Record<number, string> = {
   15: "Mais completo, fala caprichada",
 };
 
+// Idioma da fala no VÍDEO LIVRE (client-safe: a UI mostra o label; o servidor
+// usa `fala` na abertura do prompt). Padrão: português do Brasil.
+export type IdiomaFala = { chave: string; label: string; fala: string };
+export const IDIOMAS_FALA: IdiomaFala[] = [
+  { chave: "pt", label: "Português (BR)", fala: "português do Brasil" },
+  { chave: "en", label: "Inglês", fala: "inglês" },
+  { chave: "es", label: "Espanhol", fala: "espanhol" },
+];
+
 export function limitePalavras(seg: number) {
   return Math.round(seg * PALAVRAS_POR_SEG);
 }
@@ -236,10 +245,10 @@ export const USOS_PRODUTO: Opcao[] = [
 ];
 
 // Custo pra gerar 1 vídeo com avatar (creditos = centavos): COM fala 6s=50,
-// 10s=60, 15s=70. SEM fala custa DESCONTO_SEM_FALA a menos (é mais simples de gerar).
+// 10s e 15s=60. SEM fala custa DESCONTO_SEM_FALA a menos (é mais simples de gerar).
 export const CUSTO_VIDEO_AVATAR = 50;
 export const CUSTO_VIDEO_AVATAR_10S = 60;
-export const CUSTO_VIDEO_AVATAR_15S = 70;
+export const CUSTO_VIDEO_AVATAR_15S = 60;
 export const DESCONTO_SEM_FALA = 10;
 export function custoVideoAvatar(duracaoSeg: number, comFala = true): number {
   const base =

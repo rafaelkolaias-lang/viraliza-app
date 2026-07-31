@@ -95,6 +95,29 @@ export function montarPromptProduto(opts: {
 }
 
 /**
+ * Prompt do VÍDEO LIVRE: a pessoa escreve o que quiser e o texto vai EXATAMENTE
+ * como foi escrito. A gente só coloca a abertura UGC (formato vertical + duração
+ * + idioma da fala) no comecinho e troca quebras de linha por espaço (no campo
+ * do Grok, Enter envia o prompt antes da hora). O idioma trava a fala: sem essa
+ * linha o Grok às vezes solta a voz em inglês.
+ */
+export function montarPromptLivre(opts: {
+  texto: string;
+  duracaoSeg?: number;
+  comFala?: boolean;
+  idiomaFala?: string; // ex: "português do Brasil" (padrão), "inglês", "espanhol"
+}): string {
+  const dur = opts.duracaoSeg === 10 ? 10 : opts.duracaoSeg === 15 ? 15 : 6;
+  const texto = opts.texto.replace(/\s*\n+\s*/g, " ").trim();
+  const comFala = opts.comFala !== false;
+  const idioma = (opts.idiomaFala ?? "").trim() || "português do Brasil";
+  const linhaIdioma = comFala
+    ? ` Toda fala do vídeo deve ser SÓ em ${idioma}, sem misturar nenhuma palavra de outro idioma.`
+    : "";
+  return `Vídeo vertical 9:16 de cerca de ${dur} segundos, estilo UGC gravado no celular.${linhaIdioma} ${texto}`;
+}
+
+/**
  * Prompt do vídeo quando mandamos UMA imagem só: a foto do avatar que JÁ está
  * com o produto na mão/vestido, no cenário dela. O Grok só ANIMA essa imagem (não
  * precisa juntar produto/cenário separados). É o modo do vídeo de 15s. `comFala`

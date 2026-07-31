@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { APRESENTACOES, DURACOES, DURACAO_NOTA, CENARIOS, custoVideoAvatar } from "@/lib/avatar-modelo";
 import { normalizarImagem, ERRO_IMAGEM } from "@/lib/imagem-cliente";
+import { VideoLivre } from "@/components/app/video-livre";
 
 /**
  * FRONT do "Vídeo com avatar" (criador estilo UGC). A pessoa escolhe um avatar,
@@ -74,6 +75,8 @@ export function AvatarEstudio({
   meusAvatares?: MeuAvatar[];
   admin?: boolean;
 }) {
+  // aba do estúdio: "guiado" (passo a passo) ou "livre" (chat: prompt do jeito da pessoa)
+  const [aba, setAba] = useState<"guiado" | "livre">("guiado");
   const [modo, setModo] = useState<"prontos" | "meus">("prontos");
   // lista local: começa com os avatares salvos e cresce quando sobe um novo aqui
   const [avatares, setAvatares] = useState<MeuAvatar[]>(meusAvatares);
@@ -300,11 +303,48 @@ export function AvatarEstudio({
             </span>
           </h1>
           <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-            Escolha um avatar, mande as fotos do produto e gere o vídeo. A IA
-            analisa o produto pra deixar tudo mais fiel.
+            {aba === "livre"
+              ? "Anexe as imagens, escreva o vídeo do seu jeito e a IA gera. Você no controle total."
+              : "Escolha um avatar, mande as fotos do produto e gere o vídeo. A IA analisa o produto pra deixar tudo mais fiel."}
           </p>
         </div>
       </div>
+
+      {/* ===== ABAS: modo guiado x vídeo livre ===== */}
+      <div className="grid grid-cols-2 gap-1 rounded-2xl bg-muted p-1">
+        <button
+          type="button"
+          onClick={() => setAba("guiado")}
+          className={cn(
+            "rounded-xl py-2.5 text-sm font-bold transition-colors",
+            aba === "guiado"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          Modo guiado
+        </button>
+        <button
+          type="button"
+          onClick={() => setAba("livre")}
+          className={cn(
+            "relative rounded-xl py-2.5 text-sm font-bold transition-colors",
+            aba === "livre"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          Vídeo livre
+          <span className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
+            Novo
+          </span>
+        </button>
+      </div>
+
+      {aba === "livre" ? (
+        <VideoLivre meusAvatares={avatares} prontos={AVATARES} />
+      ) : (
+        <>
 
       {/* ===== 1. AVATAR ===== */}
       <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
@@ -889,6 +929,8 @@ export function AvatarEstudio({
         </p>
 
       </div>
+        </>
+      )}
     </div>
   );
 }

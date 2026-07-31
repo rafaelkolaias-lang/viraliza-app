@@ -117,7 +117,7 @@ export async function POST(req: Request) {
             send({ type: "progress", msg: "(aviso: não consegui salvar no banco)" });
           }
 
-          // débito (preço fixo de processamento) — só pra quem paga (admin não)
+          // débito (preço fixo de processamento): só pra quem paga (admin não)
           if (leads.length > 0 && user.role !== "admin") {
             await debitarClamp(user.id, CREDITOS_FIXO.leads, "debito_processamento", {
               descricao: "Busca de leads",

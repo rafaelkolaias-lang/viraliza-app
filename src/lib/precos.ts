@@ -1,14 +1,14 @@
 /**
  * Tabela de preços da PRODUÇÃO (em créditos). 1 crédito = R$ 0,01.
  *
- * ⚠️ VALORES PROVISÓRIOS — calibrar com o custo real do Gemini/ElevenLabs + o
+ * ⚠️ VALORES PROVISÓRIOS: calibrar com o custo real do Gemini/ElevenLabs + o
  *    worker (ver reminder.md). Servem agora pra: (a) estimar "usará no máximo X
  *    créditos" antes de gerar e (b) o preço fixo das ferramentas sem API.
  *
  * Este módulo é puro (sem "server-only") pra poder estimar também no cliente.
  */
 
-// Estimativa por SEGUNDO de vídeo (limite superior — o débito real costuma ser menor).
+// Estimativa por SEGUNDO de vídeo (limite superior; o débito real costuma ser menor).
 // Calibrado com dados reais (ex.: ~21s de voz custou ~46 créditos ≈ 2,2/seg); deixamos
 // uma folga de segurança acima disso. Ainda PROVISÓRIO (ver reminder.md).
 export const CREDITOS_POR_SEG = {
@@ -43,8 +43,8 @@ export function textoEstimativa(creditos: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// CUSTO REAL — converte o "consumo" que o worker reporta em créditos (+20%).
-// ⚠️ PREÇOS PROVISÓRIOS (USD) — calibrar com a tabela atual do Gemini/ElevenLabs.
+// CUSTO REAL: converte o "consumo" que o worker reporta em créditos (+20%).
+// ⚠️ PREÇOS PROVISÓRIOS (USD): calibrar com a tabela atual do Gemini/ElevenLabs.
 // ---------------------------------------------------------------------------
 export const PRECO_USD = {
   geminiFlashPorMTokens: 0.3, // gemini-2.5-flash: $/1M tokens

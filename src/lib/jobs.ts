@@ -68,7 +68,7 @@ export async function getJobsDoUsuario(userId: string): Promise<VideoJob[]> {
   });
   const lista = jobs.map(paraVideoJob);
 
-  // créditos debitados por job (custo real) — pra mostrar no card
+  // créditos debitados por job (custo real), pra mostrar no card
   const ids = lista.map((j) => j.id);
   if (ids.length) {
     const txs = await prisma.creditoTransacao.findMany({
