@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { APRESENTACOES, DURACOES, DURACAO_NOTA, CENARIOS, custoVideoAvatar } from "@/lib/avatar-modelo";
 import { normalizarImagem, ERRO_IMAGEM } from "@/lib/imagem-cliente";
 import { VideoLivre } from "@/components/app/video-livre";
+import { GeradorPrompt } from "@/components/app/gerador-prompt";
 
 /**
  * FRONT do "Vídeo com avatar" (criador estilo UGC). A pessoa escolhe um avatar,
@@ -75,8 +76,10 @@ export function AvatarEstudio({
   meusAvatares?: MeuAvatar[];
   admin?: boolean;
 }) {
-  // aba do estúdio: "guiado" (passo a passo) ou "livre" (chat: prompt do jeito da pessoa)
-  const [aba, setAba] = useState<"guiado" | "livre">("guiado");
+  // aba do estúdio: "guiado" (passo a passo), "livre" (chat) ou "prompt" (gerador)
+  const [aba, setAba] = useState<"guiado" | "livre" | "prompt">("guiado");
+  // prompt + imagens vindos do Gerador (pré-preenchem o Vídeo livre)
+  const [livreInicial, setLivreInicial] = useState<{ texto: string; midias: string[] } | null>(null);
   const [modo, setModo] = useState<"prontos" | "meus">("prontos");
   // lista local: começa com os avatares salvos e cresce quando sobe um novo aqui
   const [avatares, setAvatares] = useState<MeuAvatar[]>(meusAvatares);
@@ -305,13 +308,15 @@ export function AvatarEstudio({
           <p className="mt-2 max-w-xl text-sm text-muted-foreground">
             {aba === "livre"
               ? "Anexe as imagens, escreva o vídeo do seu jeito e a IA gera. Você no controle total."
-              : "Escolha um avatar, mande as fotos do produto e gere o vídeo. A IA analisa o produto pra deixar tudo mais fiel."}
+              : aba === "prompt"
+                ? "Suba suas fotos e a IA escreve o prompt perfeito pra você, com a técnica dos profissionais."
+                : "Escolha um avatar, mande as fotos do produto e gere o vídeo. A IA analisa o produto pra deixar tudo mais fiel."}
           </p>
         </div>
       </div>
 
-      {/* ===== ABAS: modo guiado x vídeo livre ===== */}
-      <div className="grid grid-cols-2 gap-1 rounded-2xl bg-muted p-1">
+      {/* ===== ABAS: modo guiado x vídeo livre x gerador de prompt ===== */}
+      <div className="grid grid-cols-3 gap-1 rounded-2xl bg-muted p-1">
         <button
           type="button"
           onClick={() => setAba("guiado")}
@@ -328,21 +333,46 @@ export function AvatarEstudio({
           type="button"
           onClick={() => setAba("livre")}
           className={cn(
-            "relative rounded-xl py-2.5 text-sm font-bold transition-colors",
+            "rounded-xl py-2.5 text-sm font-bold transition-colors",
             aba === "livre"
               ? "bg-background text-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground",
           )}
         >
           Vídeo livre
-          <span className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
+        </button>
+        <button
+          type="button"
+          onClick={() => setAba("prompt")}
+          className={cn(
+            "relative rounded-xl py-2.5 text-sm font-bold transition-colors",
+            aba === "prompt"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          Gerador de prompt
+          <span className="absolute -top-1.5 right-1 rounded-full bg-primary/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-primary">
             Novo
           </span>
         </button>
       </div>
 
-      {aba === "livre" ? (
-        <VideoLivre meusAvatares={avatares} prontos={AVATARES} />
+      {aba === "prompt" ? (
+        <GeradorPrompt
+          onUsarNoLivre={(texto, midias) => {
+            setLivreInicial({ texto, midias });
+            setAba("livre");
+          }}
+        />
+      ) : aba === "livre" ? (
+        <VideoLivre
+          key={livreInicial ? livreInicial.texto.slice(0, 40) : "vazio"}
+          meusAvatares={avatares}
+          prontos={AVATARES}
+          textoInicial={livreInicial?.texto ?? ""}
+          midiasIniciais={livreInicial?.midias ?? []}
+        />
       ) : (
         <>
 

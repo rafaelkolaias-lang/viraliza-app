@@ -29,12 +29,17 @@ type Midia = { src: string; nome?: string };
 export function VideoLivre({
   meusAvatares = [],
   prontos = [],
+  textoInicial = "",
+  midiasIniciais = [],
 }: {
   meusAvatares?: MeuAvatar[];
   prontos?: { id: string; nome: string; src: string }[];
+  // pré-preenche o composer (ex: prompt vindo do Gerador de prompt)
+  textoInicial?: string;
+  midiasIniciais?: string[];
 }) {
-  const [midias, setMidias] = useState<Midia[]>([]);
-  const [texto, setTexto] = useState("");
+  const [midias, setMidias] = useState<Midia[]>(midiasIniciais.map((src) => ({ src })));
+  const [texto, setTexto] = useState(textoInicial);
   const [duracao, setDuracao] = useState<number>(6);
   const [comFala, setComFala] = useState(true);
   const [idioma, setIdioma] = useState("pt"); // idioma da fala (pt padrão)
@@ -176,7 +181,7 @@ export function VideoLivre({
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
           placeholder="Descreva o vídeo do seu jeito. Ex: ela mostra o sérum pra câmera, passa no dorso da mão e sorri..."
-          maxLength={1500}
+          maxLength={4000}
           rows={3}
           className="w-full resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground"
         />

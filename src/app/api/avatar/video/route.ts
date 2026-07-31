@@ -66,7 +66,7 @@ export async function POST(req: Request) {
   let avatarUrlEntrada: string | null = body.avatarUrl ?? null;
 
   if (livre) {
-    textoLivre = typeof body.promptLivre === "string" ? body.promptLivre.trim().slice(0, 1500) : "";
+    textoLivre = typeof body.promptLivre === "string" ? body.promptLivre.trim().slice(0, 4000) : "";
     if (!textoLivre) {
       return NextResponse.json({ erro: "Escreva o que você quer no vídeo." }, { status: 400 });
     }
@@ -172,10 +172,14 @@ export async function POST(req: Request) {
       });
 
   // 1. cria o Job JÁ como "processando": aparece na hora em Meus vídeos
+  // no livre o nome vem da 1ª linha do prompt (sem "#" de título de ficha)
+  const nomeLivre = livre
+    ? textoLivre.split("\n")[0].replace(/^#+\s*/, "").trim()
+    : "";
   const nomeVideo = (
     body.titulo?.trim() ||
     body.produtoNome?.trim() ||
-    (livre ? textoLivre : "") ||
+    nomeLivre ||
     "Vídeo com avatar"
   ).slice(0, 255);
   const job = await prisma.job.create({

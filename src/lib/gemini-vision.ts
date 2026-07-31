@@ -61,6 +61,20 @@ async function gerar(
   return "";
 }
 
+/** Chamada genérica: instrução + imagens -> texto. Usada pelo gerador de prompt
+ *  como plano B quando o GPT falha. "" se todas as chaves falharem. */
+export async function gerarTextoComImagens(
+  instrucao: string,
+  imagens: { mime: string; base64: string }[],
+  temperature = 0.7,
+): Promise<string> {
+  const parts: Record<string, unknown>[] = [{ text: instrucao }];
+  for (const img of imagens.slice(0, 4)) {
+    parts.push({ inline_data: { mime_type: img.mime, data: img.base64 } });
+  }
+  return gerar(parts, temperature);
+}
+
 // ---- Análise de produto (visão) ----
 
 export type AnaliseProduto = {
