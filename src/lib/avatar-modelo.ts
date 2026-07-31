@@ -256,11 +256,11 @@ export const USOS_PRODUTO: Opcao[] = [
   },
 ];
 
-// Custo pra gerar 1 vídeo com avatar (creditos = centavos): COM fala 6s=50,
-// 10s e 15s=60. SEM fala custa DESCONTO_SEM_FALA a menos (é mais simples de gerar).
-export const CUSTO_VIDEO_AVATAR = 50;
-export const CUSTO_VIDEO_AVATAR_10S = 60;
-export const CUSTO_VIDEO_AVATAR_15S = 60;
+// Custo pra gerar 1 vídeo com avatar (creditos = centavos): COM fala 6s=40,
+// 10s e 15s=50. SEM fala custa DESCONTO_SEM_FALA a menos (é mais simples de gerar).
+export const CUSTO_VIDEO_AVATAR = 40;
+export const CUSTO_VIDEO_AVATAR_10S = 50;
+export const CUSTO_VIDEO_AVATAR_15S = 50;
 export const DESCONTO_SEM_FALA = 10;
 export function custoVideoAvatar(duracaoSeg: number, comFala = true): number {
   const base =
