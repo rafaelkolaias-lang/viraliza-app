@@ -164,7 +164,13 @@ export async function POST(req: Request) {
         estilo: typeof body.estilo === "string" ? body.estilo : undefined,
       })
     : imagemUnica
-    ? montarPromptAvatarPronto({ titulo: tituloLimpo, duracaoSeg: dur, comFala, plataforma })
+    ? montarPromptAvatarPronto({
+        titulo: tituloLimpo,
+        duracaoSeg: dur,
+        comFala,
+        plataforma,
+        estilo: typeof body.estilo === "string" ? body.estilo : undefined,
+      })
     : montarPromptProduto({
         apresentacao: String(body.apresentacao),
         gerarClose: body.gerarClose !== false,

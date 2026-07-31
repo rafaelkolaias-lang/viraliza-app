@@ -37,6 +37,17 @@ const ESTILO: Record<string, string> = {
   review: "Formato REVIEW SINCERO: ela fala como uma cliente real que comprou e testou o produto, dando a opinião honesta e apontando o que mais gostou, num tom de recomendação de amiga.",
 };
 
+// ESTILO no vídeo de 15s (anima UMA imagem fixa): a cena não muda, então o
+// estilo entra na FALA e nos GESTOS da pessoa, adaptado pra imagem parada.
+const ESTILO_15S: Record<string, string> = {
+  ugc: "",
+  pov: "Ela fala olhando direto pra câmera, bem próxima e pessoal, como se estivesse numa chamada de vídeo com quem assiste.",
+  unboxing: "Ela apresenta com a empolgação de quem ACABOU de tirar o produto da embalagem: tom de novidade e descoberta, mostrando os detalhes de perto.",
+  demo: "Ela demonstra o produto na prática com as mãos, apontando e mostrando os detalhes de como funciona ou veste.",
+  antes_depois: "A fala tem estrutura de antes e depois: começa citando o problema de antes e termina celebrando o resultado com o produto.",
+  review: "Tom de review sincero: ela fala como uma cliente real que comprou e testou, opinião honesta, recomendação de amiga.",
+};
+
 // cenário de casa real (frase curta em pt por chave). É no VÍDEO que o cenário
 // entra (não no retrato do avatar), reforçando o ambiente de casa de verdade.
 const CENARIO: Record<string, string> = {
@@ -151,11 +162,14 @@ export function montarPromptAvatarPronto(opts: {
   duracaoSeg?: number;
   comFala?: boolean;
   plataforma?: string; // "carrinho" (Shopee/TikTok Shop, padrão) | "link"
+  estilo?: string; // no 15s o estilo entra na fala/gestos (a cena vem da imagem)
 }): string {
   const dur = opts.duracaoSeg === 6 ? 6 : opts.duracaoSeg === 10 ? 10 : 15;
   const comFala = opts.comFala !== false;
   const tit = (opts.titulo ?? "").trim();
   const cta = CTA[opts.plataforma === "link" ? "link" : "carrinho"];
+  const estiloTexto = ESTILO_15S[opts.estilo ?? "ugc"] ?? "";
+  const linhaEstilo = estiloTexto ? ` ${estiloTexto}` : "";
 
   const base =
     `Vídeo vertical 9:16 de cerca de ${dur} segundos, estilo UGC gravado no celular: natural, em casa, sem cara de estúdio e sem cara de IA. ` +
@@ -164,13 +178,13 @@ export function montarPromptAvatarPronto(opts: {
   if (!comFala) {
     return [
       base,
-      "SEM FALA: a pessoa NÃO fala e NÃO mexe a boca como se estivesse falando. Ela só mostra e valoriza o produto com gestos naturais e expressões (sorriso, aprovação), num vídeo pronto pra colocar voz ou texto por cima depois. Sem áudio de voz, sem legendas na tela.",
+      `SEM FALA: a pessoa NÃO fala e NÃO mexe a boca como se estivesse falando. Ela só mostra e valoriza o produto com gestos naturais e expressões (sorriso, aprovação), num vídeo pronto pra colocar voz ou texto por cima depois. Sem áudio de voz, sem legendas na tela.${linhaEstilo}`,
     ].join(" ");
   }
 
   const nomeFala = tit ? ` Ela cita o nome do produto de forma natural: "${tit}".` : "";
   return [
     base,
-    `Faça ela apresentar e anunciar o produto, falando SÓ em português do Brasil (sem misturar inglês), de forma natural e animada, como uma influenciadora. Comece com um gancho e ${cta}.${nomeFala} Ela fala no ritmo natural dela, sem robotizar.`,
+    `Faça ela apresentar e anunciar o produto, falando SÓ em português do Brasil (sem misturar inglês), de forma natural e animada, como uma influenciadora.${linhaEstilo} Comece com um gancho e ${cta}.${nomeFala} Ela fala no ritmo natural dela, sem robotizar.`,
   ].join(" ");
 }

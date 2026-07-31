@@ -206,7 +206,7 @@ export function AvatarEstudio({
 
   // numeração dinâmica das seções (some produto/cenário no 15s)
   const ordem = imagemUnica
-    ? ["avatar", "titulo", "plataforma", "fala", "duracao"]
+    ? ["avatar", "estilo", "titulo", "plataforma", "fala", "duracao"]
     : ["avatar", "produto", "aparece", "estilo", "cenario", "titulo", "plataforma", "fala", "duracao"];
   const nSecao = (k: string) => ordem.indexOf(k) + 1;
 
@@ -245,7 +245,7 @@ export function AvatarEstudio({
       // 15s (imagemUnica): manda SÓ o avatar (que já tem produto+cenário) + título + fala.
       // 6s/10s: manda avatar + fotos do produto + como aparece + cenário (várias imagens).
       const payload = imagemUnica
-        ? { avatarUrl, duracao, titulo, comFala, plataforma, qualidade: "720p", imagemUnica: true }
+        ? { avatarUrl, duracao, titulo, comFala, plataforma, estilo, qualidade: "720p", imagemUnica: true }
         : {
             avatarUrl,
             produtoFotos,
@@ -726,10 +726,14 @@ export function AvatarEstudio({
       </div>
       )}
 
-      {/* ===== ESTILO DO VÍDEO (só 6s/10s) ===== */}
-      {!imagemUnica && (
+      {/* ===== ESTILO DO VÍDEO (em todas as durações; no 15s vira fala/gestos) ===== */}
       <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
         <Secao n={nSecao("estilo")} titulo="Estilo do vídeo" />
+        {imagemUnica && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            No 15s a cena vem da sua imagem: o estilo entra na fala e nos gestos do avatar.
+          </p>
+        )}
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
           {ESTILOS_VIDEO.map((e) => {
             const ativo = estilo === e.chave;
@@ -757,7 +761,6 @@ export function AvatarEstudio({
           })}
         </div>
       </div>
-      )}
 
       {/* ===== CENÁRIO (só 6s/10s; no 15s já está na imagem) ===== */}
       {!imagemUnica && (
