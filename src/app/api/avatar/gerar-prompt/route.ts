@@ -23,6 +23,7 @@ export async function POST(req: Request) {
     duracao?: number;
     comFala?: boolean;
     idioma?: string; // chave de IDIOMAS_FALA
+    estilo?: string; // chave de ESTILOS_VIDEO (ugc padrão)
   } = {};
   try {
     body = await req.json();
@@ -57,6 +58,7 @@ export async function POST(req: Request) {
     comFala: body.comFala !== false,
     idiomaFala:
       IDIOMAS_FALA.find((i) => i.chave === body.idioma)?.fala ?? IDIOMAS_FALA[0].fala,
+    estilo: typeof body.estilo === "string" ? body.estilo : undefined,
   });
 
   if (!prompt) {

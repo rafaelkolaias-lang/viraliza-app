@@ -194,6 +194,18 @@ export const DURACAO_NOTA: Record<number, string> = {
   15: "Mais completo, fala caprichada",
 };
 
+// Estilos de vídeo do modo guiado (client-safe: a UI mostra label+desc; o
+// servidor traduz a chave numa direção de cena no prompt). Padrão: ugc.
+export type EstiloVideo = { chave: string; label: string; desc: string };
+export const ESTILOS_VIDEO: EstiloVideo[] = [
+  { chave: "ugc", label: "UGC clássico", desc: "Ela apresenta o produto como creator" },
+  { chave: "pov", label: "POV", desc: "Primeira pessoa: a câmera é o olhar dela" },
+  { chave: "unboxing", label: "Unboxing", desc: "Abrindo a embalagem e revelando" },
+  { chave: "demo", label: "Demonstração", desc: "Produto funcionando na prática" },
+  { chave: "antes_depois", label: "Antes e Depois", desc: "O problema e a transformação" },
+  { chave: "review", label: "Review sincero", desc: "Opinião de quem comprou e testou" },
+];
+
 // Idioma da fala no VÍDEO LIVRE (client-safe: a UI mostra o label; o servidor
 // usa `fala` na abertura do prompt). Padrão: português do Brasil.
 export type IdiomaFala = { chave: string; label: string; fala: string };

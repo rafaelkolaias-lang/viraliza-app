@@ -26,6 +26,17 @@ const CTA: Record<string, string> = {
   link: "termine com uma chamada rápida e clara pra comprar no link (tipo: corre lá, garante o seu)",
 };
 
+// direção de cena por ESTILO de vídeo (modo guiado). "ugc" é o padrão e não
+// adiciona nada (o comportamento clássico). Os outros mudam o jeito de gravar.
+const ESTILO: Record<string, string> = {
+  ugc: "",
+  pov: "Grave em POV (primeira pessoa): a câmera é o olhar da própria pessoa, com as mãos dela em cena segurando e usando o produto, como se quem assiste estivesse no lugar dela.",
+  unboxing: "Formato UNBOXING: ela abre a embalagem do produto na frente da câmera com curiosidade e empolgação, revelando o produto aos poucos e mostrando ele de pertinho.",
+  demo: "Formato DEMONSTRAÇÃO: ela usa o produto na prática, mostrando ele funcionando de verdade e o resultado aparecendo na hora.",
+  antes_depois: "Formato ANTES E DEPOIS: começa mostrando a situação SEM o produto (o problema, expressão de frustração) e termina mostrando o resultado COM o produto (a transformação, expressão de satisfação), com um corte claro entre os dois momentos.",
+  review: "Formato REVIEW SINCERO: ela fala como uma cliente real que comprou e testou o produto, dando a opinião honesta e apontando o que mais gostou, num tom de recomendação de amiga.",
+};
+
 // cenário de casa real (frase curta em pt por chave). É no VÍDEO que o cenário
 // entra (não no retrato do avatar), reforçando o ambiente de casa de verdade.
 const CENARIO: Record<string, string> = {
@@ -50,11 +61,13 @@ export function montarPromptProduto(opts: {
   temRefCenario?: boolean;
   comFala?: boolean;
   plataforma?: string; // "carrinho" (Shopee/TikTok Shop, padrão) | "link"
+  estilo?: string; // ugc (padrão) | pov | unboxing | demo | antes_depois | review
 }): string {
   const dur = opts.duracaoSeg === 10 ? 10 : opts.duracaoSeg === 15 ? 15 : 6;
   const comFala = opts.comFala !== false; // padrão: com fala
   const cta = CTA[opts.plataforma === "link" ? "link" : "carrinho"];
   const acao = ACAO[opts.apresentacao] ?? ACAO.mao;
+  const estiloTexto = ESTILO[opts.estilo ?? "ugc"] ?? "";
   const prod = (opts.produtoNome ?? "").trim();
   const linhaProduto = prod ? ` O produto é: ${prod}.` : "";
   const tit = (opts.titulo ?? "").trim();
@@ -77,6 +90,7 @@ export function montarPromptProduto(opts: {
     return [
       abertura,
       pessoa,
+      ...(estiloTexto ? [estiloTexto] : []),
       `SEM FALA: a pessoa NÃO fala e NÃO mexe a boca como se estivesse falando. Ela só mostra e valoriza o produto com gestos naturais e expressões (sorriso, aprovação), num vídeo pronto pra colocar voz ou texto por cima depois.${close}`,
       `Movimentos suaves e naturais, sem áudio de voz, sem legendas na tela.${refCenario}`,
     ].join(" ");
@@ -87,6 +101,7 @@ export function montarPromptProduto(opts: {
   return [
     abertura,
     pessoa,
+    ...(estiloTexto ? [estiloTexto] : []),
     `Faça ela mostrar o produto e anunciar, falando SÓ em português do Brasil (sem misturar nenhuma palavra em inglês), de forma natural e animada, como uma influenciadora. Comece com um gancho e ${cta}.${nomeFala}${close}`,
     `Ela fala no ritmo natural dela, sem arrastar e sem robotizar.${refCenario}`,
     // uma linha só de propósito: no campo do Grok, quebra de linha (Enter) ENVIA
@@ -106,6 +121,7 @@ export function montarPromptLivre(opts: {
   duracaoSeg?: number;
   comFala?: boolean;
   idiomaFala?: string; // ex: "português do Brasil" (padrão), "inglês", "espanhol"
+  estilo?: string; // ugc (padrão) | pov | unboxing | demo | antes_depois | review
 }): string {
   const dur = opts.duracaoSeg === 10 ? 10 : opts.duracaoSeg === 15 ? 15 : 6;
   const texto = opts.texto.replace(/\s*\n+\s*/g, " ").trim();
@@ -114,7 +130,14 @@ export function montarPromptLivre(opts: {
   const linhaIdioma = comFala
     ? ` Toda fala do vídeo deve ser SÓ em ${idioma}, sem misturar nenhuma palavra de outro idioma.`
     : "";
-  return `Vídeo vertical 9:16 de cerca de ${dur} segundos, estilo UGC gravado no celular.${linhaIdioma} ${texto}`;
+  const estiloTexto = ESTILO[opts.estilo ?? "ugc"] ?? "";
+  const linhaEstilo = estiloTexto ? ` ${estiloTexto}` : "";
+  return `Vídeo vertical 9:16 de cerca de ${dur} segundos, estilo UGC gravado no celular.${linhaIdioma}${linhaEstilo} ${texto}`;
+}
+
+/** Direção de cena de um estilo (pro gerador de prompt usar na instrução). */
+export function direcaoEstilo(chave?: string): string {
+  return ESTILO[chave ?? "ugc"] ?? "";
 }
 
 /**

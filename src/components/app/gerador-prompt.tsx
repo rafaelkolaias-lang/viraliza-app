@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { DURACOES, IDIOMAS_FALA, custoVideoAvatar } from "@/lib/avatar-modelo";
+import { DURACOES, ESTILOS_VIDEO, IDIOMAS_FALA, custoVideoAvatar } from "@/lib/avatar-modelo";
 import { normalizarImagem, ERRO_IMAGEM } from "@/lib/imagem-cliente";
 
 /**
@@ -73,6 +73,7 @@ export function GeradorPrompt({
   const [duracao, setDuracao] = useState<number>(10);
   const [comFala, setComFala] = useState(true);
   const [idioma, setIdioma] = useState("pt");
+  const [estilo, setEstilo] = useState("ugc");
   const [gerando, setGerando] = useState(false);
   const [resultado, setResultado] = useState("");
   const [copiado, setCopiado] = useState(false);
@@ -123,6 +124,7 @@ export function GeradorPrompt({
           duracao,
           comFala,
           idioma,
+          estilo,
         }),
       });
       const data = (await r.json().catch(() => ({}))) as { erro?: string; prompt?: string };
@@ -276,6 +278,37 @@ export function GeradorPrompt({
           className="mt-2 w-full resize-none rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
         />
 
+        {/* estilo do vídeo */}
+        <p className="mt-3 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+          Estilo do vídeo
+        </p>
+        <div className="mt-1.5 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {ESTILOS_VIDEO.map((es) => {
+            const ativo = estilo === es.chave;
+            return (
+              <button
+                key={es.chave}
+                type="button"
+                onClick={() => setEstilo(es.chave)}
+                className={cn(
+                  "rounded-xl border px-3 py-2 text-left transition-all",
+                  ativo
+                    ? "border-primary bg-primary/10 ring-2 ring-primary/30"
+                    : "border-border hover:border-primary/50 hover:bg-muted/40",
+                )}
+              >
+                <span className={cn("flex items-center justify-between gap-1 text-xs font-semibold", ativo && "text-primary")}>
+                  {es.label}
+                  {ativo && <Check className="size-3.5 shrink-0" strokeWidth={3} />}
+                </span>
+                <span className="mt-0.5 block text-[10px] leading-snug text-muted-foreground">
+                  {es.desc}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {/* formato de saída */}
           <div className="grid grid-cols-2 gap-1 rounded-full bg-muted p-1">
@@ -345,7 +378,7 @@ export function GeradorPrompt({
             <select
               value={idioma}
               onChange={(e) => setIdioma(e.target.value)}
-              className="rounded-full border border-border bg-transparent px-2.5 py-1.5 text-xs font-semibold text-muted-foreground outline-none transition-colors hover:text-foreground focus:border-primary"
+              className="rounded-full border border-border bg-background px-2.5 py-1.5 text-xs font-semibold text-muted-foreground outline-none transition-colors hover:text-foreground focus:border-primary"
               aria-label="Idioma da fala"
             >
               {IDIOMAS_FALA.map((i) => (

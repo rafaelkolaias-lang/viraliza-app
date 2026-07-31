@@ -52,7 +52,14 @@ export function VideoCard({ video }: { video: VideoJob }) {
     return <CortesCard video={video} />;
   }
 
-  const formatoLabel = video.formato === "voz" ? "Voz narrada" : "Legenda";
+  const formatoLabel =
+    video.formato === "voz"
+      ? "Voz narrada"
+      : video.formato === "transcrever"
+        ? "Fala transcrita"
+        : video.formato === "nenhum"
+          ? "Sem legenda"
+          : "Legenda";
   const dur = duracao(video.duracaoSeg);
   const midias = video.midias ?? [];
   const saidas = video.saidas ?? [];
@@ -72,6 +79,17 @@ export function VideoCard({ video }: { video: VideoJob }) {
     return undefined;
   })();
   const baixarPrimeira = primeiraSrc ? linkBaixar(primeiraSrc, video.produto) : null;
+
+  // REGRA DE NEGÓCIO: vídeo que saiu do editor (tipo "produto") já tem voz e
+  // legenda QUEIMADAS no arquivo. Mandar ele de volta pro editor dobra tudo
+  // (2 vozes, 2 legendas). Pra esses o caminho é o Refazer, que reabre o editor
+  // com o briefing original e as mídias limpas. "Editar" fica só pros vídeos
+  // sem narração embutida (ex: cortes). Vídeo de avatar (Grok) também não
+  // re-edita: a fala faz parte do vídeo.
+  const ehAvatar =
+    !!primeiraSrc && primeiraSrc.includes("/avatares/");
+  const podeEditar = !!primeiraSrc && video.tipo !== "produto";
+  const podeRefazer = video.tipo === "produto" && !ehAvatar;
 
   // "Colocar marca": manda o vídeo pronto pra ferramenta de marca em lote (só serverrk)
   const podeMarca = pronto && podeColocarMarca(primeiraSrc);
@@ -213,13 +231,13 @@ export function VideoCard({ video }: { video: VideoJob }) {
                 Baixar
               </Button>
             )}
-            {primeiraSrc && (
+            {podeEditar && (
               <Button
                 size="sm"
                 variant="outline"
                 render={
                   <Link
-                    href={`/painel/novo?video=${encodeURIComponent(primeiraSrc)}&nome=${encodeURIComponent(video.produto)}`}
+                    href={`/painel/novo?video=${encodeURIComponent(primeiraSrc!)}&nome=${encodeURIComponent(video.produto)}`}
                   />
                 }
               >
@@ -233,7 +251,7 @@ export function VideoCard({ video }: { video: VideoJob }) {
                 Colocar marca
               </Button>
             )}
-            {video.tipo === "produto" && (
+            {podeRefazer && (
               <Button
                 size="sm"
                 variant="ghost"

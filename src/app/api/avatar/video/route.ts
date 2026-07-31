@@ -38,6 +38,7 @@ export async function POST(req: Request) {
     comFala?: boolean;
     qualidade?: string;
     plataforma?: string; // "carrinho" (Shopee/TikTok Shop) | "link" (muda o CTA da fala)
+    estilo?: string; // ugc (padrão) | pov | unboxing | demo | antes_depois | review
     imagemUnica?: boolean; // 15s: manda SÓ a imagem do avatar-com-produto pro Grok
     livre?: boolean; // Vídeo livre: prompt exato da pessoa + imagens de referência
     promptLivre?: string;
@@ -155,7 +156,13 @@ export async function POST(req: Request) {
   const idiomaFala =
     IDIOMAS_FALA.find((i) => i.chave === body.idioma)?.fala ?? IDIOMAS_FALA[0].fala;
   const prompt = livre
-    ? montarPromptLivre({ texto: textoLivre, duracaoSeg: dur, comFala, idiomaFala })
+    ? montarPromptLivre({
+        texto: textoLivre,
+        duracaoSeg: dur,
+        comFala,
+        idiomaFala,
+        estilo: typeof body.estilo === "string" ? body.estilo : undefined,
+      })
     : imagemUnica
     ? montarPromptAvatarPronto({ titulo: tituloLimpo, duracaoSeg: dur, comFala, plataforma })
     : montarPromptProduto({
@@ -169,6 +176,7 @@ export async function POST(req: Request) {
         temRefCenario: !!cenarioRef,
         comFala,
         plataforma,
+        estilo: typeof body.estilo === "string" ? body.estilo : undefined,
       });
 
   // 1. cria o Job JÁ como "processando": aparece na hora em Meus vídeos
@@ -225,6 +233,7 @@ export async function POST(req: Request) {
               cenario: body.cenario ?? null,
               comFala,
               plataforma,
+              estilo: body.estilo ?? null,
               imagemUnica,
               ...(livre ? { livre: true, promptLivre: textoLivre } : {}),
             },

@@ -2,7 +2,7 @@ import "server-only";
 
 import path from "node:path";
 import { prisma } from "@/lib/prisma";
-import type { VideoJob, VideoMidia } from "@/lib/types";
+import type { VideoFormato, VideoJob, VideoMidia } from "@/lib/types";
 
 // Mídia enviada pelo usuário (entrada da fábrica) - fora do public, baixada pelo worker.
 export const UPLOADS_DIR = path.join(process.cwd(), "data", "uploads");
@@ -47,7 +47,7 @@ export function paraVideoJob(job: {
     id: job.id,
     produto: job.produto,
     tipo: job.tipo || "produto",
-    formato: job.formato === "voz" ? "voz" : "legenda",
+    formato: (["voz", "transcrever", "nenhum"].includes(job.formato) ? job.formato : "legenda") as VideoFormato,
     status: job.status as VideoJob["status"],
     variantes: job.variantes,
     criadoEm: job.criadoEm.toISOString(),
@@ -112,7 +112,7 @@ export async function getConfigReuso(userId: string, id: string) {
     nome: j.produto,
     descricao: j.descricao ?? "",
     preco: j.preco ?? "",
-    formato: (j.formato === "voz" ? "voz" : "legenda") as "legenda" | "voz",
+    formato: (["voz", "transcrever", "nenhum"].includes(j.formato) ? j.formato : "legenda") as "legenda" | "voz" | "transcrever" | "nenhum",
     tom: j.tom || "agressivo",
     legendaPos: j.legendaPos || "baixo",
     voz: j.vozId ?? undefined,

@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { DURACOES, IDIOMAS_FALA, custoVideoAvatar } from "@/lib/avatar-modelo";
+import { DURACOES, ESTILOS_VIDEO, IDIOMAS_FALA, custoVideoAvatar } from "@/lib/avatar-modelo";
 import { normalizarImagem, ERRO_IMAGEM } from "@/lib/imagem-cliente";
 
 type MeuAvatar = { id: string; nome: string; imagemUrl: string; origem?: string };
@@ -43,6 +43,7 @@ export function VideoLivre({
   const [duracao, setDuracao] = useState<number>(6);
   const [comFala, setComFala] = useState(true);
   const [idioma, setIdioma] = useState("pt"); // idioma da fala (pt padrão)
+  const [estilo, setEstilo] = useState("ugc"); // estilo do vídeo (ugc padrão)
   const [pickerAberto, setPickerAberto] = useState(false);
   const [gerando, setGerando] = useState(false);
 
@@ -108,6 +109,7 @@ export function VideoLivre({
           duracao,
           comFala,
           idioma,
+          estilo,
           qualidade: "720p",
         }),
       });
@@ -235,12 +237,26 @@ export function VideoLivre({
             {comFala ? "Com fala" : "Sem fala"}
           </button>
 
+          {/* estilo do vídeo */}
+          <select
+            value={estilo}
+            onChange={(e) => setEstilo(e.target.value)}
+            className="rounded-full border border-border bg-background px-2.5 py-1.5 text-xs font-semibold text-muted-foreground outline-none transition-colors hover:text-foreground focus:border-primary"
+            aria-label="Estilo do vídeo"
+          >
+            {ESTILOS_VIDEO.map((es) => (
+              <option key={es.chave} value={es.chave}>
+                {es.label}
+              </option>
+            ))}
+          </select>
+
           {/* idioma da fala (só faz sentido com fala) */}
           {comFala && (
             <select
               value={idioma}
               onChange={(e) => setIdioma(e.target.value)}
-              className="rounded-full border border-border bg-transparent px-2.5 py-1.5 text-xs font-semibold text-muted-foreground outline-none transition-colors hover:text-foreground focus:border-primary"
+              className="rounded-full border border-border bg-background px-2.5 py-1.5 text-xs font-semibold text-muted-foreground outline-none transition-colors hover:text-foreground focus:border-primary"
               aria-label="Idioma da fala"
             >
               {IDIOMAS_FALA.map((i) => (

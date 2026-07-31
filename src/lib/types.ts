@@ -7,7 +7,7 @@ export type VideoStatus =
   | "pronto"
   | "erro";
 
-export type VideoFormato = "legenda" | "voz";
+export type VideoFormato = "legenda" | "voz" | "transcrever" | "nenhum";
 
 /** Uma variante pronta: o vídeo + miniatura + legenda + hashtags pra postar. */
 export interface VideoMidia {

@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { APRESENTACOES, DURACOES, DURACAO_NOTA, CENARIOS, custoVideoAvatar } from "@/lib/avatar-modelo";
+import { APRESENTACOES, DURACOES, DURACAO_NOTA, CENARIOS, ESTILOS_VIDEO, custoVideoAvatar } from "@/lib/avatar-modelo";
 import { normalizarImagem, ERRO_IMAGEM } from "@/lib/imagem-cliente";
 import { VideoLivre } from "@/components/app/video-livre";
 import { GeradorPrompt } from "@/components/app/gerador-prompt";
@@ -90,6 +90,7 @@ export function AvatarEstudio({
   const [analisando, setAnalisando] = useState(false);
   const [analise, setAnalise] = useState<Analise | null>(null);
   const [apresentacao, setApresentacao] = useState<string>("");
+  const [estilo, setEstilo] = useState<string>("ugc");
   const [gerarClose, setGerarClose] = useState(true);
   const [cenario, setCenario] = useState<string>("sala");
   const [cenarioTexto, setCenarioTexto] = useState("");
@@ -206,7 +207,7 @@ export function AvatarEstudio({
   // numeração dinâmica das seções (some produto/cenário no 15s)
   const ordem = imagemUnica
     ? ["avatar", "titulo", "plataforma", "fala", "duracao"]
-    : ["avatar", "produto", "aparece", "cenario", "titulo", "plataforma", "fala", "duracao"];
+    : ["avatar", "produto", "aparece", "estilo", "cenario", "titulo", "plataforma", "fala", "duracao"];
   const nSecao = (k: string) => ordem.indexOf(k) + 1;
 
   const temAvatar = !!avatarSel;
@@ -249,6 +250,7 @@ export function AvatarEstudio({
             avatarUrl,
             produtoFotos,
             apresentacao,
+            estilo,
             cenario,
             cenarioTexto: cenario === "outros" ? cenarioTexto : undefined,
             gerarClose,
@@ -721,6 +723,39 @@ export function AvatarEstudio({
             Gerar também um close no produto
           </span>
         </button>
+      </div>
+      )}
+
+      {/* ===== ESTILO DO VÍDEO (só 6s/10s) ===== */}
+      {!imagemUnica && (
+      <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+        <Secao n={nSecao("estilo")} titulo="Estilo do vídeo" />
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {ESTILOS_VIDEO.map((e) => {
+            const ativo = estilo === e.chave;
+            return (
+              <button
+                key={e.chave}
+                type="button"
+                onClick={() => setEstilo(e.chave)}
+                className={cn(
+                  "rounded-xl border px-3 py-2.5 text-left transition-all",
+                  ativo
+                    ? "border-primary bg-primary/10 ring-2 ring-primary/30"
+                    : "border-border hover:border-primary/50 hover:bg-muted/40",
+                )}
+              >
+                <span className={cn("flex items-center justify-between gap-1 text-sm font-medium", ativo && "text-primary")}>
+                  {e.label}
+                  {ativo && <Check className="size-4 shrink-0" strokeWidth={3} />}
+                </span>
+                <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
+                  {e.desc}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
       )}
 

@@ -38,7 +38,18 @@ import { SeletorVoz } from "@/components/app/seletor-voz";
 const FORMATOS = [
   { value: "legenda", label: "Legenda" },
   { value: "voz", label: "Voz narrada" },
+  { value: "transcrever", label: "Transcrever fala" },
+  { value: "nenhum", label: "Nenhum" },
 ] as const;
+
+// o que cada formato faz (aparece embaixo do seletor)
+const FORMATO_NOTA: Record<string, string> = {
+  legenda: "A IA escreve a copy e queima a legenda no vídeo.",
+  voz: "A IA escreve a copy e narra com voz de IA.",
+  transcrever:
+    "Seu vídeo já tem fala? A gente transcreve o áudio e coloca a legenda no tempo certo da fala. O som original fica ligado.",
+  nenhum: "Sem legenda e sem voz de IA: sai só a sua montagem, com o áudio e a música que você escolher.",
+};
 // onde a pessoa vai vender: muda o CTA/hashtags da copy (Shopee = sacolinha laranja)
 const PLATAFORMAS = [
   { value: "shopee", label: "Shopee" },
@@ -106,7 +117,7 @@ export function EditorEstudio({
     nome: string;
     descricao: string;
     preco: string;
-    formato: "legenda" | "voz";
+    formato: "legenda" | "voz" | "transcrever" | "nenhum";
     tom: string;
     legendaPos: string;
     voz?: string;
@@ -136,6 +147,7 @@ export function EditorEstudio({
   const [vozes, setVozes] = useState<VozOpcao[]>(VOZES);
 
   // áudio
+  const [comMusica, setComMusica] = useState(true);
   const [musica, setMusica] = useState<File[]>([]);
   const [musicaUrl, setMusicaUrl] = useState("");
   const [volumeMusica, setVolumeMusica] = useState(50);
@@ -146,6 +158,8 @@ export function EditorEstudio({
   const atual = clips[sel];
   const mudo = audioVideo === "remover";
   const conflitoAudio = ehProduto && formato === "voz" && audioVideo === "manter";
+  // formatos que usam a copy da IA (tom/plataforma/descrição só importam nesses)
+  const usaCopy = formato === "legenda" || formato === "voz";
 
   // duração total (soma dos clipes já cortados) e tempo na linha geral
   const totalDur = clips.reduce((s, c) => s + (c.outSec - c.inSec), 0);
@@ -381,7 +395,7 @@ export function EditorEstudio({
       pararTimer();
     } else {
       setTocando(true);
-      if (audioRef.current && musicaUrl) {
+      if (audioRef.current && musicaUrl && comMusica) {
         audioRef.current.currentTime = 0;
         audioRef.current.volume = volumeMusica / 100;
         audioRef.current.play().catch(() => {});
@@ -440,6 +454,7 @@ export function EditorEstudio({
       }
       fd.set("variantes", "1");
       fd.set("audioVideo", audioVideo);
+      fd.set("comMusica", comMusica ? "1" : "0");
       fd.set("volumeMusica", String(volumeMusica));
 
       // textos (camada de legendas com posição + tempo)
@@ -474,7 +489,7 @@ export function EditorEstudio({
         if (c.kind === "video") fd.append("videos", c.file);
         else fd.append("imagens", c.file);
       });
-      musica.forEach((f) => fd.append("musica", f));
+      if (comMusica) musica.forEach((f) => fd.append("musica", f));
 
       const res = await fetch("/api/jobs", { method: "POST", body: fd });
       const data = (await res.json().catch(() => ({}))) as { erro?: string };
@@ -762,7 +777,14 @@ export function EditorEstudio({
               />
               <BotaoOpcao
                 ativo={mudo}
-                onClick={() => setAudioVideo("remover")}
+                onClick={() => {
+                  // no "Transcrever fala" o som original é a fonte da legenda
+                  if (ehProduto && formato === "transcrever") {
+                    toast.info("No formato Transcrever fala o som original fica ligado. 🙂");
+                    return;
+                  }
+                  setAudioVideo("remover");
+                }}
                 icon={VolumeX}
                 label="Mudo"
               />
@@ -780,37 +802,56 @@ export function EditorEstudio({
 
           <div>
             <p className="mb-1.5 text-xs text-muted-foreground">
-              Música de fundo (opcional)
+              Música de fundo
             </p>
-            <MediaPicker
-              kind="audio"
-              files={musica}
-              onChange={setMusica}
-              multiple={false}
-              hint="Se não subir nenhuma, entra uma música automática"
-            />
-
-            {/* volume: sempre visível, pra controlar tanto a sua música quanto a automática */}
-            <div className="mt-3">
-              <div className="flex items-center gap-3">
-                <Music className="size-4 shrink-0 text-primary" />
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  value={volumeMusica}
-                  onChange={(e) => setVolumeMusica(Number(e.target.value))}
-                  className="h-1.5 flex-1 cursor-pointer accent-primary"
-                  aria-label="Volume da música"
-                />
-                <span className="w-9 text-right text-xs tabular-nums text-muted-foreground">
-                  {volumeMusica}%
-                </span>
-              </div>
-              <p className="mt-1 text-[10px] text-muted-foreground">
-                Controla o volume da música (sua ou a automática). Deixe baixo pra não abafar a voz.
-              </p>
+            <div className="grid grid-cols-2 gap-2">
+              <BotaoOpcao
+                ativo={comMusica}
+                onClick={() => setComMusica(true)}
+                icon={Music}
+                label="Com música"
+              />
+              <BotaoOpcao
+                ativo={!comMusica}
+                onClick={() => setComMusica(false)}
+                icon={VolumeX}
+                label="Sem música"
+              />
             </div>
+
+            {comMusica && (
+              <div className="mt-3 space-y-3">
+                <MediaPicker
+                  kind="audio"
+                  files={musica}
+                  onChange={setMusica}
+                  multiple={false}
+                  hint="Suba a sua música, ou deixe vazio que a IA escolhe uma pra você"
+                />
+
+                {/* volume: controla tanto a sua música quanto a automática */}
+                <div>
+                  <div className="flex items-center gap-3">
+                    <Music className="size-4 shrink-0 text-primary" />
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={volumeMusica}
+                      onChange={(e) => setVolumeMusica(Number(e.target.value))}
+                      className="h-1.5 flex-1 cursor-pointer accent-primary"
+                      aria-label="Volume da música"
+                    />
+                    <span className="w-9 text-right text-xs tabular-nums text-muted-foreground">
+                      {volumeMusica}%
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    Controla o volume da música (sua ou a automática). Deixe baixo pra não abafar a voz.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </Secao>
 
@@ -850,12 +891,14 @@ export function EditorEstudio({
                 value={nome}
                 onChange={(e) => setNome(e.target.value)}
               />
-              <Textarea
-                rows={3}
-                placeholder="Descrição (a IA escreve a copy a partir disso)"
-                value={descricao}
-                onChange={(e) => setDescricao(e.target.value)}
-              />
+              {usaCopy && (
+                <Textarea
+                  rows={3}
+                  placeholder="Descrição (a IA escreve a copy a partir disso)"
+                  value={descricao}
+                  onChange={(e) => setDescricao(e.target.value)}
+                />
+              )}
               <Input
                 inputMode="decimal"
                 placeholder="Preço (ex: 69,90)"
@@ -865,8 +908,22 @@ export function EditorEstudio({
               />
               <div className="space-y-1.5">
                 <Label className="text-xs">Formato</Label>
-                <Segmented options={FORMATOS} value={formato} onChange={setFormato} />
+                <Segmented
+                  options={FORMATOS}
+                  value={formato}
+                  onChange={(v) => {
+                    setFormato(v);
+                    // transcrever precisa do som original ligado (é ele que vira legenda)
+                    if (v === "transcrever" && audioVideo === "remover") {
+                      setAudioVideo("manter");
+                      toast.info("Liguei o som original: é ele que vira a legenda. 🙂");
+                    }
+                  }}
+                />
+                <p className="text-[11px] text-muted-foreground">{FORMATO_NOTA[formato]}</p>
               </div>
+              {usaCopy && (
+                <>
               <div className="space-y-1.5">
                 <Label className="text-xs">Tom</Label>
                 <Segmented options={TONS} value={tom} onChange={setTom} />
@@ -880,6 +937,8 @@ export function EditorEstudio({
                     : "A copy usa um CTA neutro (corre no link) e hashtags do nicho - sem citar a Shopee."}
                 </p>
               </div>
+                </>
+              )}
               {formato === "voz" && (
                 <div className="space-y-1.5">
                   <Label className="text-xs">Voz da narração</Label>
@@ -905,7 +964,7 @@ export function EditorEstudio({
             <span className="font-semibold text-primary">
               no máximo{" "}
               {estimarCreditos(
-                ehProduto ? formato : "legenda",
+                ehProduto && formato === "voz" ? "voz" : "legenda",
                 totalDur,
               ).toLocaleString("pt-BR")}{" "}
               créditos

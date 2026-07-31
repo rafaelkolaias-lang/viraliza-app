@@ -104,6 +104,15 @@
     background-color: var(--background);
     overscroll-behavior: none;
   }
+  /* dropdown NATIVO dos <select>: sem isso o Chrome abre a lista com fundo
+     branco (tema claro do sistema), ilegível no nosso tema escuro */
+  select {
+    color-scheme: dark;
+  }
+  select option {
+    background-color: var(--background);
+    color: var(--foreground);
+  }
 }
 
 /* ===========================================================================

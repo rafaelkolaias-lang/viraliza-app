@@ -153,7 +153,10 @@ export async function POST(req: Request) {
   const produto = String(form.get("produto") ?? "").trim();
   const descricao = String(form.get("descricao") ?? "").trim();
   const preco = String(form.get("preco") ?? "").trim();
-  const formato = String(form.get("formato") ?? "legenda");
+  const formatoRaw = String(form.get("formato") ?? "legenda");
+  // formatos: legenda/voz (copy da IA), transcrever (whisper no áudio do vídeo),
+  // nenhum (sem legenda e sem voz). Qualquer outra coisa cai em "legenda".
+  const formato = ["voz", "transcrever", "nenhum"].includes(formatoRaw) ? formatoRaw : "legenda";
   const tom = String(form.get("tom") ?? "agressivo");
   const variantes = Math.max(1, Math.min(5, Number(form.get("variantes") ?? 1) || 1));
   const posRaw = String(form.get("legendaPos") ?? "baixo");
@@ -179,12 +182,18 @@ export async function POST(req: Request) {
     marcaX >= 0 && marcaX <= 100 && marcaY >= 0 && marcaY <= 100;
   // volume da música (0-100; o worker converte). Vale pra música própria e pra automática.
   const volumeMusica = Math.max(0, Math.min(100, Number(form.get("volumeMusica") ?? 40) || 40));
+  // "É um produto?" = Não -> a IA NÃO escreve copy nem queima legenda (antes ela
+  // alucinava uma legenda aleatória). "Sem música" -> nem a automática entra.
+  const ehProduto = String(form.get("ehProduto") ?? "1") !== "0";
+  const comMusica = String(form.get("comMusica") ?? "1") !== "0";
   const opcoes = JSON.stringify({
     audioVideo,
     volumeMusica,
     marcaTamanho,
     marcaPosicao,
     plataforma,
+    ...(ehProduto ? {} : { semCopy: true }),
+    ...(comMusica ? {} : { semMusica: true }),
     ...(temLivre ? { marcaX, marcaY } : {}),
   });
   // tipo do job: "marca" = Aplicar marca em lote (só carimba o template, sem fábrica);
@@ -221,7 +230,7 @@ export async function POST(req: Request) {
         produto,
         descricao: descricao || null,
         tipo: tipoJob,
-        formato: formato === "voz" ? "voz" : "legenda",
+        formato,
         vozId,
         tom,
         variantes,
@@ -260,7 +269,7 @@ export async function POST(req: Request) {
       produto,
       descricao: descricao || null,
       tipo: tipoJob,
-      formato: formato === "voz" ? "voz" : "legenda",
+      formato,
       vozId,
       tom,
       variantes,

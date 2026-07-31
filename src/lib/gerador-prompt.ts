@@ -1,6 +1,7 @@
 import "server-only";
 
 import { gerarTextoComImagens, geminiConfigurado } from "@/lib/gemini-vision";
+import { direcaoEstilo } from "@/lib/produto-shot";
 
 /**
  * GERADOR DE PROMPT (aba do estúdio): escreve o melhor prompt possível pro vídeo
@@ -20,6 +21,7 @@ export type OpcoesGerador = {
   duracaoSeg: number;
   comFala: boolean;
   idiomaFala: string; // ex: "português do Brasil"
+  estilo?: string; // ugc (padrão) | pov | unboxing | demo | antes_depois | review
 };
 
 /** A metodologia da aula, resumida pro modelo seguir à risca. */
@@ -35,7 +37,7 @@ function instrucaoBase(o: OpcoesGerador): string {
 3. REALISMO SEM CARA DE IA: use vocabulário técnico de fotografia: photorealistic, ultra-realistic, RAW candid style, textura de pele real com poros visíveis, imperfeições sutis da pele, fios de cabelo realistas, dobras reais do tecido, granulação natural de filme, luz natural, câmera de celular na mão com leve tremida, sem filtros de beleza.
 4. FORMATO UGC: vídeo vertical 9:16, estilo caseiro autêntico de creator brasileiro, cenário real do dia a dia.
 ${fala}
-6. LISTA NEGATIVA: o prompt precisa ter uma seção EVITAR com tudo que é proibido: CGI, cartoon, estilização, aparência de IA, artefatos de IA, retoque de beleza, harmonização facial, mudança de identidade (facial drift, body drift), proporções irreais, texto na tela, legendas, marca d'água, distorções, nitidez exagerada, inventar detalhes do produto.
+${direcaoEstilo(o.estilo) ? `5b. ESTILO DO VÍDEO (obrigatório seguir): ${direcaoEstilo(o.estilo)} Estruture a CENA e a AÇÃO do prompt em volta desse formato.\n` : ""}6. LISTA NEGATIVA: o prompt precisa ter uma seção EVITAR com tudo que é proibido: CGI, cartoon, estilização, aparência de IA, artefatos de IA, retoque de beleza, harmonização facial, mudança de identidade (facial drift, body drift), proporções irreais, texto na tela, legendas, marca d'água, distorções, nitidez exagerada, inventar detalhes do produto.
 7. VALIDAÇÃO: o prompt termina mandando comparar o resultado com as fotos de referência e descartar/refazer se qualquer detalhe da pessoa ou do produto estiver diferente.
 
 DURAÇÃO: o vídeo terá cerca de ${o.duracaoSeg} segundos. A ação descrita precisa caber com folga nesse tempo (pouca ação em 6s; mais completa em 15s).
