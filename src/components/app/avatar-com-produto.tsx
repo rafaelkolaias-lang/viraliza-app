@@ -6,6 +6,7 @@ import { ArrowLeft, ImagePlus, Loader2, Sparkles, X, Check } from "lucide-react"
 import { cn } from "@/lib/utils";
 import { CUSTO_AVATAR, USOS_PRODUTO, CENARIOS } from "@/lib/avatar-modelo";
 import { normalizarImagem, ERRO_IMAGEM } from "@/lib/imagem-cliente";
+import { AVATARES_PRONTOS } from "@/lib/avatares-prontos";
 import type { AvatarCriado } from "@/components/app/avatar-quiz";
 
 /**
@@ -24,9 +25,15 @@ export function AvatarComProduto({
   onCriado?: (a: AvatarCriado) => void;
 }) {
   const [nome, setNome] = useState("");
-  // fonte da pessoa: um avatar salvo ou uma foto nova
-  const [fonte, setFonte] = useState<"salvo" | "foto">(avatares.length ? "salvo" : "foto");
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(avatares[0]?.imagemUrl ?? null);
+  // pessoas selecionáveis: os avatares DA PESSOA + os PRONTOS da plataforma
+  // (grátis, todo mundo pode usar em tudo, inclusive aqui)
+  const selecionaveis = [
+    ...avatares.map((a) => ({ id: a.id, nome: a.nome, url: a.imagemUrl, gratis: false })),
+    ...AVATARES_PRONTOS.map((a) => ({ id: `pronto-${a.id}`, nome: a.nome, url: a.src, gratis: true })),
+  ];
+  // fonte da pessoa: um avatar (salvo ou pronto) ou uma foto nova
+  const [fonte, setFonte] = useState<"salvo" | "foto">("salvo");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(selecionaveis[0]?.url ?? null);
   const [pessoaFoto, setPessoaFoto] = useState<string | null>(null);
   const [produtoFoto, setProdutoFoto] = useState<string | null>(null);
   const [produtoNome, setProdutoNome] = useState("");
@@ -123,15 +130,14 @@ export function AvatarComProduto({
           <button
             type="button"
             onClick={() => setFonte("salvo")}
-            disabled={!avatares.length}
             className={cn(
-              "flex-1 rounded-xl border px-3 py-2 text-sm font-medium transition-colors disabled:opacity-40",
+              "flex-1 rounded-xl border px-3 py-2 text-sm font-medium transition-colors",
               fonte === "salvo"
                 ? "border-primary bg-primary/10 text-primary"
                 : "border-border text-muted-foreground hover:border-primary/50",
             )}
           >
-            Avatar salvo
+            Meus avatares e prontos
           </button>
           <button
             type="button"
@@ -148,33 +154,35 @@ export function AvatarComProduto({
         </div>
 
         {fonte === "salvo" ? (
-          avatares.length ? (
-            <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
-              {avatares.map((a) => (
-                <button
-                  key={a.id}
-                  type="button"
-                  onClick={() => setAvatarUrl(a.imagemUrl)}
-                  className={cn(
-                    "group relative overflow-hidden rounded-xl border-2 transition-colors",
-                    avatarUrl === a.imagemUrl ? "border-primary" : "border-transparent hover:border-primary/40",
-                  )}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={a.imagemUrl} alt={a.nome} className="aspect-[3/4] w-full object-cover" />
-                  {avatarUrl === a.imagemUrl && (
-                    <span className="absolute right-1 top-1 grid size-5 place-items-center rounded-full bg-primary text-primary-foreground">
-                      <Check className="size-3.5" />
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <p className="mt-3 text-xs text-muted-foreground">
-              Você ainda não tem avatares salvos. Suba uma foto.
-            </p>
-          )
+          <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
+            {selecionaveis.map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                onClick={() => setAvatarUrl(a.url)}
+                className={cn(
+                  "group relative overflow-hidden rounded-xl border-2 transition-colors",
+                  avatarUrl === a.url ? "border-primary" : "border-transparent hover:border-primary/40",
+                )}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={a.url} alt={a.nome} className="aspect-[3/4] w-full object-cover" />
+                <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1 pt-4 text-center text-[11px] font-semibold text-white">
+                  {a.nome}
+                </span>
+                {a.gratis && (
+                  <span className="absolute left-1 top-1 rounded-full bg-primary/90 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-primary-foreground">
+                    Grátis
+                  </span>
+                )}
+                {avatarUrl === a.url && (
+                  <span className="absolute right-1 top-1 grid size-5 place-items-center rounded-full bg-primary text-primary-foreground">
+                    <Check className="size-3.5" />
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
         ) : (
           <div className="mt-3">
             <input

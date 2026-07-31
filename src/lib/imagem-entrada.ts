@@ -1,5 +1,7 @@
 import "server-only";
 
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import type { ImagemEntrada } from "@/lib/openai-image";
 
 /**
@@ -23,9 +25,25 @@ export function dataUrlParaEntrada(dataUrl?: string): ImagemEntrada | null {
   return { base64, mime: mime === "image/jpg" ? "image/jpeg" : mime };
 }
 
-/** Baixa uma imagem (ex: avatar salvo no serverrk) e devolve ImagemEntrada. Null se falhar. */
+/** Baixa uma imagem (avatar salvo no serverrk OU um avatar PRONTO da plataforma,
+ *  que é arquivo local em public, ex: /avatares/yasmin.jpg). Null se falhar. */
 export async function baixarImagemEntrada(url?: string): Promise<ImagemEntrada | null> {
-  if (!url || !/^https?:\/\//i.test(url)) return null;
+  if (!url) return null;
+  // caminho local do app (avatares prontos em public): lê direto do disco
+  if (url.startsWith("/")) {
+    try {
+      const rel = url.replace(/^\/+/, "").replace(/\.\./g, "");
+      const abs = path.join(process.cwd(), "public", rel);
+      const buf = await readFile(abs);
+      if (buf.length === 0 || buf.length > MAX_BYTES) return null;
+      const ext = path.extname(abs).toLowerCase();
+      const mime = ext === ".jpg" || ext === ".jpeg" ? "image/jpeg" : ext === ".webp" ? "image/webp" : "image/png";
+      return { base64: buf.toString("base64"), mime };
+    } catch {
+      return null;
+    }
+  }
+  if (!/^https?:\/\//i.test(url)) return null;
   try {
     const res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(30_000) });
     if (!res.ok) return null;
