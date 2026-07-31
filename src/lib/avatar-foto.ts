@@ -53,11 +53,12 @@ export function promptAvatarComProduto(
 
   return [
     "You are given two photos. The FIRST photo is a person. The SECOND photo is a product.",
-    "Generate ONE single photorealistic vertical photograph of the SAME person from the first photo, now interacting with the EXACT product from the second photo.",
+    "MOST IMPORTANT RULE: the person in the result must be EXACTLY the same person from the first photo, 100% recognizable. Same face, same facial features, same skin tone, same hair color and texture, same body type, same gender and age, same accessories (glasses, jewelry) if present. Do NOT beautify, do NOT slim, do NOT change the ethnicity, do NOT generate a different or generic person. Anyone who knows this person must instantly recognize them.",
+    "Generate ONE single photorealistic vertical photograph of that SAME person, now interacting with the EXACT product from the second photo.",
     nome
       ? `The product is: ${nome}. Keep it identical to the second photo (same shape, color, label and details).`
       : "Keep the product identical to the second photo (same shape, color, label and details).",
-    "Keep the person's identity intact: same face, skin tone, hair, gender and age as the first photo. Do not beautify or change them.",
+    "If the product photo shows the product in MULTIPLE color or model variants, pick ONLY ONE variant (the most prominent) and use that same single variant consistently (for footwear or paired items, both sides in the SAME color).",
     `Interaction: ${comoUsa}.`,
     // VESTINDO = roupa: corpo INTEIRO obrigatório (meia foto escondia calça/vestido)
     uso === "vestindo"

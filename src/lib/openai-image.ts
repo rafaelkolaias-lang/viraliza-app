@@ -22,7 +22,7 @@ export async function gerarImagem(prompt: string): Promise<ImagemGerada | null> 
   if (!key) return null;
 
   const body = {
-    model: process.env.OPENAI_IMAGE_MODEL || "gpt-image-1",
+    model: process.env.OPENAI_IMAGE_MODEL || "gpt-image-1.5",
     prompt,
     n: 1,
     size: process.env.OPENAI_IMAGE_SIZE || "1024x1536",
@@ -69,11 +69,14 @@ export async function editarImagem(
   if (!key || imagens.length === 0) return null;
 
   const form = new FormData();
-  form.append("model", process.env.OPENAI_IMAGE_MODEL || "gpt-image-1");
+  form.append("model", process.env.OPENAI_IMAGE_MODEL || "gpt-image-1.5");
   form.append("prompt", prompt);
   form.append("n", "1");
   form.append("size", process.env.OPENAI_IMAGE_SIZE || "1024x1536");
   form.append("quality", process.env.OPENAI_IMAGE_QUALITY || "medium");
+  // preserva a identidade da pessoa da foto (rosto, cabelo, corpo): sem isso o
+  // modelo "recriava" a pessoa e ela saía diferente. Só existe no gpt-image-1/1.5.
+  form.append("input_fidelity", process.env.OPENAI_IMAGE_FIDELITY || "high");
   for (const img of imagens) {
     const ext = /jpe?g/i.test(img.mime) ? "jpg" : /webp/i.test(img.mime) ? "webp" : "png";
     const blob = new Blob([Buffer.from(img.base64, "base64")], { type: img.mime });
