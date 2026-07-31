@@ -1,4 +1,5 @@
 import { AppFrame } from "@/components/app/app-frame";
+import { ChatWidget } from "@/components/app/chat-widget";
 import { requireUser } from "@/lib/dal";
 import { tocarPresenca } from "@/lib/presenca";
 import { avisosAtivosPara } from "@/lib/notificacoes";
@@ -43,6 +44,8 @@ export default async function AppLayout({
       bonusIgStatus={bonusIg.status}
     >
       {children}
+      {/* caixinha do chat: só aparece se o admin abriu conversa com a pessoa */}
+      {user.role !== "admin" && <ChatWidget />}
     </AppFrame>
   );
 }

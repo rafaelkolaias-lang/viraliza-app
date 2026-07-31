@@ -39,8 +39,25 @@ model User {
   avatares     Avatar[]
   sugestoes    Sugestao[]
   reportes     ReporteVideo[]
+  chatMensagens ChatMensagem[]
 
   @@index([vistoEm])
+}
+
+// Chat interno 1:1 (admin <-> usuario). SO o admin abre a conversa; a caixinha
+// aparece pro usuario quando existe mensagem. Texto ou audio (URL no serverrk).
+model ChatMensagem {
+  id       String   @id @default(cuid())
+  userId   String // dono da conversa (a pessoa)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  autor    String   @default("admin") // "admin" | "user"
+  texto    String?  @db.Text
+  audioUrl String?  @db.VarChar(500) // audio gravado (media.univershoop.com/avatares/chat-*.webm)
+  lida     Boolean  @default(false) // lida pelo DESTINATARIO (admin le do user e vice-versa)
+  criadoEm DateTime @default(now())
+
+  @@index([userId, criadoEm])
+  @@index([userId, lida])
 }
 
 // Sugestão/melhoria que o usuário manda. Ele só vê as dele; o admin vê todas.
