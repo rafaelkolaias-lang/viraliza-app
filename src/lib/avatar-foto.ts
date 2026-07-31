@@ -59,8 +59,13 @@ export function promptAvatarComProduto(
       : "Keep the product identical to the second photo (same shape, color, label and details).",
     "Keep the person's identity intact: same face, skin tone, hair, gender and age as the first photo. Do not beautify or change them.",
     `Interaction: ${comoUsa}.`,
-    `Half body framing, the person centered and facing the camera with a natural friendly expression. ${fundo}`,
-    "Everyday casual clothing. Hands must be anatomically correct with five fingers, never covering or distorting the product.",
+    // VESTINDO = roupa: corpo INTEIRO obrigatório (meia foto escondia calça/vestido)
+    uso === "vestindo"
+      ? `FULL BODY framing, from head to feet: the whole body visible inside the frame, with a small margin above the head and below the feet, standing in a natural relaxed pose facing the camera. The worn product must appear COMPLETE and clearly visible in the photo, never cropped by the frame: if it is pants, shorts or a skirt, the legs must be fully visible down to the feet; if it is a dress or outfit, the entire garment must be in frame. ${fundo}`
+      : `Half body framing, the person centered and facing the camera with a natural friendly expression. ${fundo}`,
+    uso === "vestindo"
+      ? "The rest of the outfit is simple and neutral so the worn product is the visual highlight. Hands must be anatomically correct with five fingers."
+      : "Everyday casual clothing. Hands must be anatomically correct with five fingers, never covering or distorting the product.",
     `Realism: ${REALISMO}.`,
     `Strictly avoid: ${PROIBIDO}. Do not invent a different product, do not add extra copies of it.`,
     "Output: one single vertical photograph, 2:3, authentic natural photo, like a real UGC review photo.",

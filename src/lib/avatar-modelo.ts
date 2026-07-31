@@ -247,7 +247,7 @@ export const USOS_PRODUTO: Opcao[] = [
   {
     chave: "vestindo",
     label: "Vestindo / usando",
-    en: "the person is wearing or using the product on their body, showing how it looks when worn, natural relaxed pose",
+    en: "the person is WEARING the product on their body, the FULL garment clearly visible and complete in the frame, showing how it fits when worn, natural relaxed standing pose, full body from head to toe",
   },
   {
     chave: "mostrando",
