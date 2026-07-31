@@ -125,7 +125,10 @@ ${desc ? `O que eu quero no vídeo: ${desc}` : "Não tenho pedido específico: d
 Escreva o prompt agora.`;
 }
 
-/** GPT com visão (chat completions). null se faltar chave ou falhar. */
+/** GPT com visão (chat completions). Tenta o modelo principal e depois o reserva.
+ *  A conta tem tokens grátis diários nos minis (data sharing ativado), então o
+ *  padrão é o gpt-5-mini (mais esperto, mesmo balde grátis do gpt-4o-mini).
+ *  null se faltar chave ou tudo falhar. */
 async function viaOpenAI(sistema: string, usuario: string, imagens: ImagemVisao[]): Promise<string | null> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) return null;
@@ -133,34 +136,43 @@ async function viaOpenAI(sistema: string, usuario: string, imagens: ImagemVisao[
   for (const img of imagens.slice(0, 4)) {
     conteudo.push({ type: "image_url", image_url: { url: `data:${img.mime};base64,${img.base64}` } });
   }
-  try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-      body: JSON.stringify({
-        model: process.env.OPENAI_PROMPT_MODEL || "gpt-4o-mini",
-        messages: [
-          { role: "system", content: sistema },
-          { role: "user", content: conteudo },
-        ],
-        temperature: 0.7,
-        max_tokens: 2500,
-      }),
-      cache: "no-store",
-      signal: AbortSignal.timeout(60_000),
-    });
-    if (!res.ok) {
-      const txt = await res.text().catch(() => "");
-      console.error("[gerador-prompt] openai falhou", res.status, txt.slice(0, 300));
-      return null;
+  const modelos = [...new Set([process.env.OPENAI_PROMPT_MODEL || "gpt-5-mini", "gpt-4o-mini"])];
+
+  for (const modelo of modelos) {
+    // gpt-5*: raciocina antes de responder; não aceita temperature custom e usa
+    // max_completion_tokens (com folga pro raciocínio). gpt-4o*: parâmetros clássicos.
+    const ehG5 = modelo.startsWith("gpt-5");
+    const body: Record<string, unknown> = {
+      model: modelo,
+      messages: [
+        { role: "system", content: sistema },
+        { role: "user", content: conteudo },
+      ],
+      ...(ehG5
+        ? { max_completion_tokens: 5000, reasoning_effort: "low" }
+        : { temperature: 0.7, max_tokens: 2500 }),
+    };
+    try {
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+        body: JSON.stringify(body),
+        cache: "no-store",
+        signal: AbortSignal.timeout(90_000),
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        console.error("[gerador-prompt] openai falhou", modelo, res.status, txt.slice(0, 300));
+        continue; // tenta o próximo modelo
+      }
+      const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+      const out = data.choices?.[0]?.message?.content?.trim();
+      if (out) return out;
+    } catch (e) {
+      console.error("[gerador-prompt] openai erro de rede/timeout", modelo, e);
     }
-    const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-    const out = data.choices?.[0]?.message?.content?.trim();
-    return out || null;
-  } catch (e) {
-    console.error("[gerador-prompt] openai erro de rede/timeout", e);
-    return null;
   }
+  return null;
 }
 
 /** Limpa cercas de markdown que os modelos às vezes teimam em colocar. As quebras
