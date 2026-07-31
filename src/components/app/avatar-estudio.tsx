@@ -35,16 +35,7 @@ import { GeradorPrompt } from "@/components/app/gerador-prompt";
  * ("motor") chega depois; por ora o botão monta o prompt (admin vê e copia).
  */
 
-const AVATARES = [
-  { id: "ana", nome: "Ana", src: "/avatares/ana.png" },
-  { id: "lucas", nome: "Lucas", src: "/avatares/lucas.png" },
-  { id: "cleide", nome: "Cleide", src: "/avatares/cleide.png" },
-  { id: "isabela", nome: "Isabela", src: "/avatares/isabela.png" },
-  { id: "marina", nome: "Marina", src: "/avatares/marina.png" },
-  { id: "taina", nome: "Tainá", src: "/avatares/taina.png" },
-  { id: "jefferson", nome: "Jefferson", src: "/avatares/jefferson.png" },
-  { id: "rodrigo", nome: "Rodrigo", src: "/avatares/rodrigo.png" },
-];
+import { AVATARES_PRONTOS as AVATARES } from "@/lib/avatares-prontos";
 
 type Analise = { nome: string; tipo: string; descricao: string; sugestao: string };
 type MeuAvatar = { id: string; nome: string; imagemUrl: string; origem?: string };

@@ -15,6 +15,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { AvatarQuiz, type AvatarCriado } from "@/components/app/avatar-quiz";
+import { AVATARES_PRONTOS } from "@/lib/avatares-prontos";
 import { AvatarDaFoto } from "@/components/app/avatar-da-foto";
 import { AvatarComProduto } from "@/components/app/avatar-com-produto";
 import { AvatarSubir } from "@/components/app/avatar-subir";
@@ -240,6 +241,38 @@ export function MeusAvatares({
             </p>
           </div>
         )}
+      </div>
+
+      {/* ===== AVATARES PRONTOS DA PLATAFORMA (grátis pra todo mundo) ===== */}
+      <div>
+        <div className="mb-3 flex items-center gap-2">
+          <h2 className="text-sm font-semibold">Avatares prontos da plataforma</h2>
+          <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
+            Grátis
+          </span>
+        </div>
+        <p className="-mt-2 mb-3 text-xs text-muted-foreground">
+          Esses já vêm com a plataforma e todo mundo pode usar nos vídeos, sem gastar
+          nada. É só escolher um deles na hora de gerar.
+        </p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {AVATARES_PRONTOS.map((a) => (
+            <div
+              key={a.id}
+              className="group relative overflow-hidden rounded-2xl border border-border"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={a.src}
+                alt={a.nome}
+                className="aspect-[3/4] w-full object-cover"
+              />
+              <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-2.5 pb-2 pt-6 text-sm font-semibold text-white">
+                {a.nome}
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
