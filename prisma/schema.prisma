@@ -11,35 +11,36 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  nome      String
-  email     String   @unique
-  senhaHash String?  // null = conta só com Google (sem senha local)
-  googleId  String?  @unique // id do Google (sub) quando entra com Google
-  role      String   @default("user") // "admin" | "user" | "demo"
-  bloqueado Boolean  @default(false)  // true = derruba a sessão e impede novo login
-  ferramentasLiberadas Boolean @default(true) // false = admin cortou o acesso de gerar (editor/cortes/lote/leads)
-  criadoEm  DateTime @default(now())
-  vistoEm   DateTime? // última atividade (presença "online/visto há X"); atualizado no layout
+  id                   String    @id @default(cuid())
+  nome                 String
+  email                String    @unique
+  senhaHash            String? // null = conta só com Google (sem senha local)
+  googleId             String?   @unique // id do Google (sub) quando entra com Google
+  role                 String    @default("user") // "admin" | "user" | "demo"
+  bloqueado            Boolean   @default(false) // true = derruba a sessão e impede novo login
+  ferramentasLiberadas Boolean   @default(true) // false = admin cortou o acesso de gerar (editor/cortes/lote/leads)
+  criadoEm             DateTime  @default(now())
+  vistoEm              DateTime? // última atividade (presença "online/visto há X"); atualizado no layout
 
   // Carteira de crédito (produção) + assinatura (biblioteca)
-  saldoCentavos   Int       @default(0)     // saldo de crédito em centavos de R$
+  saldoCentavos   Int       @default(0) // saldo de crédito em centavos de R$
   assinante       Boolean   @default(false) // assinatura ativa libera a biblioteca
-  assinaturaAte   DateTime?                 // vencimento da assinatura
-  creditoMensalEm DateTime?                 // última vez que recebeu o 1 min mensal
+  assinaturaAte   DateTime? // vencimento da assinatura
+  creditoMensalEm DateTime? // última vez que recebeu o 1 min mensal
 
   // BYO key: chave ElevenLabs do usuário, CIFRADA (AES-256-GCM). null = usa a plataforma.
   elevenKey String? @db.Text
 
-  jobs         Job[]
-  leads        Lead[]
-  transacoes   CreditoTransacao[]
-  notificacoes Notificacao[]
+  jobs           Job[]
+  leads          Lead[]
+  transacoes     CreditoTransacao[]
+  notificacoes   Notificacao[]
   bonusInstagram BonusInstagram?
-  avatares     Avatar[]
-  sugestoes    Sugestao[]
-  reportes     ReporteVideo[]
-  chatMensagens ChatMensagem[]
+  avatares       Avatar[]
+  produtos       ProdutoUsuario[]
+  sugestoes      Sugestao[]
+  reportes       ReporteVideo[]
+  chatMensagens  ChatMensagem[]
 
   @@index([vistoEm])
 }
@@ -81,15 +82,15 @@ model ReporteVideo {
 }
 
 model Sugestao {
-  id       String   @id @default(cuid())
-  userId   String
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  texto    String   @db.Text
-  tipo     String   @default("sugestao") // "sugestao" | "melhoria" | "problema"
-  status   String   @default("nova")     // "nova" | "lida" | "resolvida" (admin gerencia)
-  resposta String?  @db.Text // resposta do admin (o autor vê na aba dele + sininho)
-  creditosDados Int @default(0) // créditos dados de recompensa junto com a resposta
-  criadoEm DateTime @default(now())
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  texto         String   @db.Text
+  tipo          String   @default("sugestao") // "sugestao" | "melhoria" | "problema"
+  status        String   @default("nova") // "nova" | "lida" | "resolvida" (admin gerencia)
+  resposta      String?  @db.Text // resposta do admin (o autor vê na aba dele + sininho)
+  creditosDados Int      @default(0) // créditos dados de recompensa junto com a resposta
+  criadoEm      DateTime @default(now())
 
   @@index([userId])
   @@index([status])
@@ -98,6 +99,19 @@ model Sugestao {
 // Avatar criado pelo usuário no "Meus avatares" (quiz -> gpt-image-1). A foto é
 // gerada pela OpenAI no app e HOSPEDADA no serverrk (media.univershoop.com/avatares/<id>.png),
 // igual ao resto da mídia. Guardamos só a URL e as escolhas do quiz. Custa creditos.
+// Produto do PRÓPRIO usuário (foto que ele subiu no Viraliza Lab). Os produtos
+// da Shopee ficam em ProdutoShopee e são iguais pra todo mundo; estes são dele.
+model ProdutoUsuario {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nome      String   @db.VarChar(200)
+  imagemUrl String   @db.Text // URL pública no serverrk
+  criadoEm  DateTime @default(now())
+
+  @@index([userId, criadoEm])
+}
+
 model Avatar {
   id        String   @id @default(cuid())
   userId    String
@@ -105,8 +119,8 @@ model Avatar {
   nome      String   @db.VarChar(120)
   genero    String   @default("female") // "female" | "male"
   status    String   @default("pronto") // "pronto" | "erro"
-  imagemUrl String   @db.Text  // URL publica no serverrk
-  escolhas  String?  @db.Text  // JSON das escolhas do quiz (referencia)
+  imagemUrl String   @db.Text // URL publica no serverrk
+  escolhas  String?  @db.Text // JSON das escolhas do quiz (referencia)
   criadoEm  DateTime @default(now())
 
   @@index([userId])
@@ -162,16 +176,16 @@ model Aviso {
 
 // Extrato da carteira: cada entrada/saída de crédito do usuário.
 model CreditoTransacao {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tipo      String // compra | debito_geracao | debito_processamento | bonus_assinatura | ajuste_admin | estorno
-  valor     Int // centavos; positivo = entrada, negativo = saída
-  saldoApos Int // saldo depois desta transação (centavos)
-  descricao String?  @db.Text
-  jobId     String? // liga ao Job quando o débito for de uma geração
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tipo          String // compra | debito_geracao | debito_processamento | bonus_assinatura | ajuste_admin | estorno
+  valor         Int // centavos; positivo = entrada, negativo = saída
+  saldoApos     Int // saldo depois desta transação (centavos)
+  descricao     String?  @db.Text
+  jobId         String? // liga ao Job quando o débito for de uma geração
   kiwifyOrderId String? // id do pedido na Kiwify (crédito de compra / estorno) - idempotência
-  criadoEm  DateTime @default(now())
+  criadoEm      DateTime @default(now())
 
   @@index([userId])
   @@index([criadoEm])
@@ -182,43 +196,43 @@ model CreditoTransacao {
 // Crédito de uma compra Kiwify de quem AINDA não tem conta (pagou antes de cadastrar).
 // Aplicado no cadastro (ou no login) quando a pessoa entra com o mesmo e-mail.
 model CreditoPendente {
-  id            String   @id @default(cuid())
-  email         String
-  valorCentavos Int
-  kiwifyOrderId String   @unique
-  assinaturaDias Int     @default(0) // dias de assinatura a conceder junto
-  descricao     String?  @db.Text
-  aplicado      Boolean  @default(false)
-  criadoEm      DateTime @default(now())
+  id             String   @id @default(cuid())
+  email          String
+  valorCentavos  Int
+  kiwifyOrderId  String   @unique
+  assinaturaDias Int      @default(0) // dias de assinatura a conceder junto
+  descricao      String?  @db.Text
+  aplicado       Boolean  @default(false)
+  criadoEm       DateTime @default(now())
 
   @@index([email, aplicado])
 }
 
 model Job {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  produto   String   @db.VarChar(255)
-  descricao String?  @db.Text
-  tipo      String   @default("produto") // "produto" | "marca" | "cortes" (link YouTube)
-  fonte     String?  @db.Text // link de origem (cortes de qualquer vídeo)
-  opcoes    String?  @db.Text // JSON de opções extras (legenda, cor, posição...)
-  formato   String   @default("legenda") // "legenda" | "voz"
-  vozId     String?  @db.VarChar(64) // voz ElevenLabs escolhida (só no formato "voz"); null = voz padrão
-  tom       String   @default("agressivo")
-  variantes Int      @default(1)
-  preco     String?
-  legendaPos String  @default("baixo") // posição da legenda: "cima" | "meio" | "baixo"
-  status    String   @default("na_fila") // na_fila | renderizando | processando | pronto | erro
-  etapa     String?  @db.VarChar(120) // fase atual do render (ex: "Renderizando 1/2"); null fora do render
-  duracao   Int?
-  saidas    String?  @db.Text // JSON: caminhos web dos vídeos prontos
-  midias    String?  @db.Text // JSON: [{arquivo, thumb, legenda, hashtags}] por variante
-  erro      String?  @db.Text // mensagem quando status = "erro"
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  produto     String    @db.VarChar(255)
+  descricao   String?   @db.Text
+  tipo        String    @default("produto") // "produto" | "marca" | "cortes" (link YouTube)
+  fonte       String?   @db.Text // link de origem (cortes de qualquer vídeo)
+  opcoes      String?   @db.Text // JSON de opções extras (legenda, cor, posição...)
+  formato     String    @default("legenda") // "legenda" | "voz"
+  vozId       String?   @db.VarChar(64) // voz ElevenLabs escolhida (só no formato "voz"); null = voz padrão
+  tom         String    @default("agressivo")
+  variantes   Int       @default(1)
+  preco       String?
+  legendaPos  String    @default("baixo") // posição da legenda: "cima" | "meio" | "baixo"
+  status      String    @default("na_fila") // na_fila | renderizando | processando | pronto | erro
+  etapa       String?   @db.VarChar(120) // fase atual do render (ex: "Renderizando 1/2"); null fora do render
+  duracao     Int?
+  saidas      String?   @db.Text // JSON: caminhos web dos vídeos prontos
+  midias      String?   @db.Text // JSON: [{arquivo, thumb, legenda, hashtags}] por variante
+  erro        String?   @db.Text // mensagem quando status = "erro"
   // exclusão com histórico: o vídeo some pro usuário mas a linha fica (admin audita)
   excluidoEm  DateTime? // quando foi excluído (status vira "excluido")
   excluidoPor String?   @db.VarChar(255) // email de quem excluiu (dono ou admin)
-  criadoEm  DateTime @default(now())
+  criadoEm    DateTime  @default(now())
 
   @@index([userId])
   @@index([status])
@@ -279,12 +293,12 @@ model AcervoVideo {
 
 // Produtos virais Shopee (imagem hospedada no Drive). Serve thumbnail + link.
 model ProdutoShopee {
-  id          String   @id // id do telegram (tg_...)
-  driveId     String   @unique // arquivo da imagem no Drive
-  titulo      String   @db.VarChar(500)
-  link        String?  @db.VarChar(500)
-  canal       String?
-  migrado     Boolean  @default(false) // true = imagem já está no serverrk (media.univershoop.com), não usa mais o Drive
+  id           String   @id // id do telegram (tg_...)
+  driveId      String   @unique // arquivo da imagem no Drive
+  titulo       String   @db.VarChar(500)
+  link         String?  @db.VarChar(500)
+  canal        String?
+  migrado      Boolean  @default(false) // true = imagem já está no serverrk (media.univershoop.com), não usa mais o Drive
   adicionadoEm DateTime @default(now())
 
   @@index([adicionadoEm])
@@ -292,16 +306,16 @@ model ProdutoShopee {
 
 // Vídeos virais Shopee. Antigos no Drive; novos (ingest do Telegram) direto no serverrk.
 model VideoShopee {
-  id          String   @id // id do telegram (tg_...)
-  driveId     String?  @unique // arquivo do vídeo no Drive (null = veio direto pro serverrk)
+  id           String   @id // id do telegram (tg_...)
+  driveId      String?  @unique // arquivo do vídeo no Drive (null = veio direto pro serverrk)
   thumbDriveId String? // JPG do frame real no Drive (capa instantânea; lh3 não faz poster de vídeo)
-  titulo      String   @db.VarChar(500)
-  link        String?  @db.VarChar(500)
-  duracaoSeg  Int      @default(0)
-  canal       String?
-  categoria   String   @default("") @db.VarChar(255) // nicho do vídeo (ex.: "Utilidades")
-  emAlta      Boolean  @default(false)                // 🔥 Em alta agora (veio com nicho)
-  migrado     Boolean  @default(false) // true = vídeo+thumb já no serverrk (media.univershoop.com), não usa mais o Drive
+  titulo       String   @db.VarChar(500)
+  link         String?  @db.VarChar(500)
+  duracaoSeg   Int      @default(0)
+  canal        String?
+  categoria    String   @default("") @db.VarChar(255) // nicho do vídeo (ex.: "Utilidades")
+  emAlta       Boolean  @default(false) // 🔥 Em alta agora (veio com nicho)
+  migrado      Boolean  @default(false) // true = vídeo+thumb já no serverrk (media.univershoop.com), não usa mais o Drive
   adicionadoEm DateTime @default(now())
 
   @@index([adicionadoEm])
@@ -324,7 +338,7 @@ model AcessoPago {
 // ~30 min e vira "usado" após redefinir (uso único).
 model PasswordReset {
   id        String   @id @default(cuid())
-  email     String   // e-mail que pediu o reset (minúsculo)
+  email     String // e-mail que pediu o reset (minúsculo)
   tokenHash String   @unique // SHA-256 do token enviado no link
   expiraEm  DateTime
   usado     Boolean  @default(false)
@@ -342,4 +356,14 @@ model RateHit {
   criadoEm DateTime @default(now())
 
   @@index([chave, criadoEm])
+}
+
+// Chaves gerais da plataforma (liga/desliga funcionalidade sem deploy). Uma linha
+// por chave, valor em texto. Ex.: "geracao_imagem" = "off" pausa o Lab pra todo
+// mundo enquanto o admin resolve algum problema no motor.
+model Configuracao {
+  chave         String   @id @db.VarChar(60)
+  valor         String   @db.VarChar(500)
+  atualizadoEm  DateTime @updatedAt
+  atualizadoPor String?  @db.VarChar(160) // e-mail do admin que mexeu
 }

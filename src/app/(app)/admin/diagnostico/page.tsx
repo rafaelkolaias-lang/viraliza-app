@@ -3,6 +3,8 @@ import { Activity, AlertCircle, KeyRound, RefreshCw, ShieldCheck } from "lucide-
 import { prisma } from "@/lib/prisma";
 import { classificarErro, elevenSaldo } from "@/lib/diagnostico";
 import { EstornarJob } from "@/components/app/estornar-job";
+import { ChavesGeracao } from "@/components/app/chaves-geracao";
+import { estadoGeracao } from "@/lib/configuracao";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Admin · Diagnóstico" };
@@ -25,7 +27,7 @@ const fmtReset = new Intl.DateTimeFormat("pt-BR", {
 });
 
 export default async function DiagnosticoPage() {
-  const [jobsErro, saldo] = await Promise.all([
+  const [jobsErro, saldo, geracao] = await Promise.all([
     prisma.job.findMany({
       where: { status: "erro" },
       orderBy: { criadoEm: "desc" },
@@ -40,6 +42,7 @@ export default async function DiagnosticoPage() {
       },
     }),
     elevenSaldo(),
+    estadoGeracao(),
   ]);
 
   // créditos debitados e estornos já feitos nesses jobs (pro botão de estorno)
@@ -86,6 +89,8 @@ export default async function DiagnosticoPage() {
           foi por falta de crédito.
         </p>
       </div>
+
+      <ChavesGeracao imagemInicial={geracao.imagem} videoInicial={geracao.video} />
 
       {/* ---- Saldo ElevenLabs ---- */}
       <section className="space-y-3">

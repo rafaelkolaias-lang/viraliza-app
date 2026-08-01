@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/dal";
+import { AVISO_PAUSADO, CHAVES, estaLigado } from "@/lib/configuracao";
 import { montarJsonAvatar, promptImagemAvatar } from "@/lib/avatar-json";
 import type { EscolhasAvatar } from "@/lib/avatar-modelo";
 import { gerarImagem, openaiConfigurado } from "@/lib/openai-image";
@@ -21,6 +22,9 @@ export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ erro: "Faça login." }, { status: 401 });
+  }
+  if (!(await estaLigado(CHAVES.geracaoImagem))) {
+    return NextResponse.json({ erro: AVISO_PAUSADO, pausado: true }, { status: 503 });
   }
   if (!openaiConfigurado()) {
     return NextResponse.json({ erro: "Geração indisponível no momento." }, { status: 503 });
