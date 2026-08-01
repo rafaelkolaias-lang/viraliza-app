@@ -31,6 +31,10 @@ export type OpcoesImagemLab = {
   cenarioLivre?: string; // descrição do cenário quando não tem equivalente
   comAvatar: boolean; // false = POV/sem pessoa (só as mãos ou só o produto)
   produtoNome?: string;
+  /** enquadramento da variação escolhida (POV: mãos segurando ou produto parado) */
+  variacaoExtra?: string;
+  /** true no POV "produto parado": nem as mãos podem aparecer */
+  semMaos?: boolean;
 };
 
 /** Bloco do cenário: usa a descrição rica de CENARIOS quando existir. */
@@ -65,6 +69,10 @@ export function montarPromptImagemLab(o: OpcoesImagemLab): string {
     linhas.push(
       "Same face shape, same jawline, same nose, same eyes and eye spacing, same eyebrows, same lips, same teeth, same skin tone and freckles or marks, same hair color, texture, length and parting, same apparent age, same ethnicity, same body type, same glasses, jewelry, piercings and tattoos. No beautifying, no slimming, no younger face, no makeup added, no different haircut.",
     );
+  } else if (o.semMaos) {
+    linhas.push(
+      "NO PEOPLE in this image: no face, no body, no hands, not even a finger or an arm at the edge of the frame. The product is alone in the scene.",
+    );
   } else {
     linhas.push(
       "No face and no identity needed: the person is anonymous, only hands may appear, with natural realistic skin.",
@@ -84,7 +92,8 @@ export function montarPromptImagemLab(o: OpcoesImagemLab): string {
 
   linhas.push(`Scene: ${o.cena.trim()}`);
 
-  if (estilo?.extra) linhas.push(estilo.extra);
+  if (o.variacaoExtra) linhas.push(o.variacaoExtra);
+  else if (estilo?.extra) linhas.push(estilo.extra);
   else if (estilo)
     linhas.push(`${estilo.label} shot, product clearly visible and well lit, natural pose.`);
 
@@ -106,6 +115,7 @@ export function montarPromptImagemLab(o: OpcoesImagemLab): string {
         ? "FINAL CHECK, the most important one: put the two images side by side. If the face is not clearly the SAME WOMAN from the first photo (or the same man), the image is wrong: redo it keeping her exact face."
         : "FINAL CHECK:",
       "The product must be identical to its photo.",
+      o.semMaos ? "If any hand, arm or person appears in the frame, the image is wrong: redo it with the product alone." : "",
       corpoInteiro
         ? "The framing MUST be full body, head to shoes, with the worn product completely visible and not cropped: if the legs or the feet are cut off, the image is wrong, redo it wider."
         : "",

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { duracaoPorChave, TONS_LAB, VOZES_LAB, TONALIDADES_LAB } from "@/lib/lab-video";
 import { movimentoPorChave } from "@/lib/movimentos";
+import { midiaMovimento } from "@/lib/lab-midia";
 import type { ConfigVideoLab } from "@/components/app/lab-video";
 
 /**
@@ -35,16 +36,14 @@ export function LabResumoVideo({
   const voz = VOZES_LAB.find((v) => v.chave === config.voz);
   const tonal = TONALIDADES_LAB.find((t) => t.chave === config.tonalidade);
   const comFala = !!dur?.comFala;
-  const falasEscritas = config.falas.filter((f) => f?.trim()).length;
+  const temFala = !!config.fala.trim();
 
   const linhas = [
     {
       chave: "duracao",
       Icone: Clock,
       rotulo: "Duração",
-      valor: dur
-        ? `${dur.total} segundos${dur.takes > 1 ? ` (${dur.takes} takes de ${dur.segundos}s)` : ""}`
-        : "",
+      valor: dur ? `${dur.segundos} segundos (${dur.custo} créditos)` : "",
       destino: "config" as const,
     },
     {
@@ -62,9 +61,9 @@ export function LabResumoVideo({
       rotulo: "Fala",
       valor: !comFala
         ? "Não se aplica"
-        : falasEscritas === 0
-          ? "A IA improvisa na hora"
-          : `${falasEscritas} de ${config.falas.length} take${config.falas.length > 1 ? "s" : ""} com texto seu`,
+        : temFala
+          ? "Texto escrito por você"
+          : "A IA improvisa na hora",
       destino: "config" as const,
     },
     {
@@ -73,8 +72,8 @@ export function LabResumoVideo({
       rotulo: "Movimento",
       valor: mov ? mov.label : "Livre (a IA decide)",
       destino: "movimento" as const,
-      video: mov ? `/movimentos/${mov.chave}.mp4` : undefined,
-      poster: mov ? `/movimentos/${mov.chave}.jpg` : undefined,
+      video: mov ? midiaMovimento(mov.chave).video : undefined,
+      poster: mov ? midiaMovimento(mov.chave).poster : undefined,
     },
   ];
 
@@ -146,22 +145,13 @@ export function LabResumoVideo({
         </div>
       </div>
 
-      {/* as falas, quando a pessoa escreveu */}
-      {comFala && falasEscritas > 0 && (
+      {/* a fala, quando a pessoa escreveu */}
+      {comFala && temFala && (
         <div className="space-y-2 rounded-xl border border-border/60 bg-card/60 p-3">
           <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
             <MessageSquare className="size-3" />O que ela fala
           </p>
-          {config.falas.map((f, i) =>
-            f?.trim() ? (
-              <p key={i} className="text-sm leading-relaxed text-muted-foreground">
-                {config.falas.length > 1 && (
-                  <span className="mr-1.5 font-semibold text-primary">Take {i + 1}:</span>
-                )}
-                {f}
-              </p>
-            ) : null,
-          )}
+          <p className="text-sm leading-relaxed text-muted-foreground">{config.fala}</p>
         </div>
       )}
 

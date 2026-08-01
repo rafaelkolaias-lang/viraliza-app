@@ -252,10 +252,39 @@ export function movimentoPorChave(chave?: string | null) {
   return MOVIMENTOS.find((m) => m.chave === chave) ?? null;
 }
 
-/** Movimentos que combinam com o estilo de câmera escolhido (vêm primeiro). */
-export function movimentosParaEstilo(estilo?: string | null): Movimento[] {
-  if (!estilo) return MOVIMENTOS;
-  const combinam = MOVIMENTOS.filter((m) => !m.estilos || m.estilos.includes(estilo));
-  const resto = MOVIMENTOS.filter((m) => m.estilos && !m.estilos.includes(estilo));
+/**
+ * O que a imagem base aguarda animar. É o corte que importa: o motor ANIMA a
+ * foto, então movimento de POV numa foto com a pessoa de frente ou faz o modelo
+ * ignorar, ou pior, recriar a cena e trocar o rosto.
+ *
+ *  - imagem POV (só as mãos): SÓ os movimentos de POV;
+ *  - produto parado na bancada (sem mão nenhuma): só os de câmera;
+ *  - com pessoa: tudo, menos os de POV (não tem POV com o rosto no quadro).
+ */
+export type CenaDaImagem = { temPessoa: boolean; temMaos: boolean };
+
+export function movimentosDaCena(cena: CenaDaImagem): Movimento[] {
+  if (!cena.temPessoa) {
+    const cat: CategoriaMovimento = cena.temMaos ? "pov" : "camera";
+    return MOVIMENTOS.filter((m) => m.categoria === cat);
+  }
+  return MOVIMENTOS.filter((m) => m.categoria !== "pov");
+}
+
+/** Categorias que sobram pra essa cena (na ordem da barra de filtros). */
+export function categoriasDaCena(cena: CenaDaImagem) {
+  const disponiveis = new Set(movimentosDaCena(cena).map((m) => m.categoria));
+  return CATEGORIAS_MOVIMENTO.filter((c) => disponiveis.has(c.chave));
+}
+
+/** Dentro do que sobrou, os que combinam com o estilo escolhido vêm primeiro. */
+export function movimentosParaEstilo(
+  estilo: string | null | undefined,
+  cena: CenaDaImagem,
+): Movimento[] {
+  const lista = movimentosDaCena(cena);
+  if (!estilo) return lista;
+  const combinam = lista.filter((m) => !m.estilos || m.estilos.includes(estilo));
+  const resto = lista.filter((m) => m.estilos && !m.estilos.includes(estilo));
   return [...combinam, ...resto];
 }

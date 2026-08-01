@@ -1,3 +1,5 @@
+import { duracaoPorChave } from "@/lib/lab-video";
+
 /**
  * Custos do Viraliza Lab (créditos = centavos). Client-safe: a tela mostra o
  * valor antes de gerar.
@@ -6,3 +8,8 @@
  * sem custo de API); o gpt-image só entra como reserva quando o Grok falha.
  */
 export const CUSTO_IMAGEM_LAB = 20;
+
+/** Custo do vídeo do Lab: vem da duração escolhida (6s=30, 10s=50, 15s=75). */
+export function custoVideoLab(chave?: string | null): number {
+  return duracaoPorChave(chave)?.custo ?? 0;
+}

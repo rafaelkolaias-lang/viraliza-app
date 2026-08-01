@@ -3,10 +3,12 @@
 import { useMemo, useState } from "react";
 import { Check, Sparkles, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { midiaMovimento } from "@/lib/lab-midia";
 import {
-  CATEGORIAS_MOVIMENTO,
+  categoriasDaCena,
   movimentosParaEstilo,
   type CategoriaMovimento,
+  type CenaDaImagem,
   type Movimento,
 } from "@/lib/movimentos";
 
@@ -14,6 +16,9 @@ import {
  * Biblioteca de movimentos do Lab: cards com vídeo de exemplo em loop, filtrados
  * por categoria. Os que combinam com o estilo de câmera escolhido vêm primeiro e
  * ganham selo. É opcional: sem escolher nada o vídeo sai normal.
+ *
+ * A lista depende do que EXISTE na imagem base (`cena`), não do estilo marcado lá
+ * atrás: sem pessoa no quadro só rola POV/câmera, e com pessoa o POV nem aparece.
  */
 
 function CardMovimento({
@@ -41,8 +46,8 @@ function CardMovimento({
     >
       <div className="relative aspect-[3/4] overflow-hidden bg-black/40">
         <video
-          src={`/movimentos/${m.chave}.mp4`}
-          poster={`/movimentos/${m.chave}.jpg`}
+          src={midiaMovimento(m.chave).video}
+          poster={midiaMovimento(m.chave).poster}
           autoPlay
           loop
           muted
@@ -73,20 +78,28 @@ function CardMovimento({
 
 export function LabMovimentos({
   estilo,
+  cena,
   escolhido,
   onEscolher,
 }: {
   estilo?: string | null;
+  /** o que existe na imagem base: define quais movimentos são possíveis */
+  cena: CenaDaImagem;
   escolhido: string | null;
   onEscolher: (chave: string | null) => void;
 }) {
+  const categorias = useMemo(() => categoriasDaCena(cena), [cena]);
+  const lista = useMemo(() => movimentosParaEstilo(estilo, cena), [estilo, cena]);
   // abre já na categoria que combina com o estilo escolhido (POV abre em POV,
-  // espelho abre em espelho); nas outras, começa em "Movimentos"
-  const inicial: CategoriaMovimento =
+  // espelho abre em espelho); nas outras, começa na primeira disponível
+  const preferida: CategoriaMovimento =
     estilo === "maos" ? "pov" : estilo === "espelho" ? "espelho" : estilo === "selfie" ? "selfie" : "movimentos";
+  const inicial = categorias.some((c) => c.chave === preferida)
+    ? preferida
+    : (categorias[0]?.chave ?? "movimentos");
   const [cat, setCat] = useState<CategoriaMovimento>(inicial);
-  const lista = useMemo(() => movimentosParaEstilo(estilo), [estilo]);
-  const filtrada = lista.filter((m) => m.categoria === cat);
+  const catAtual = categorias.some((c) => c.chave === cat) ? cat : inicial;
+  const filtrada = lista.filter((m) => m.categoria === catAtual);
 
   return (
     <div className="space-y-3">
@@ -95,15 +108,24 @@ export function LabMovimentos({
         a IA anima do jeito dela.
       </p>
 
+      {!cena.temPessoa && (
+        <p className="flex items-start gap-2 rounded-xl border border-primary/25 bg-primary/8 px-3 py-2 text-xs text-muted-foreground">
+          <Sparkles className="mt-0.5 size-3.5 shrink-0 text-primary" />
+          {cena.temMaos
+            ? "Sua imagem é POV (só as mãos aparecem), então a lista traz os movimentos de mão e de câmera. Movimento de corpo não entra: não tem pessoa no quadro pra mexer."
+            : "Sua imagem mostra o produto parado, sem ninguém no quadro. Como não tem mão nem corpo pra animar, quem se move é a câmera."}
+        </p>
+      )}
+
       <div className="flex flex-wrap gap-1.5">
-        {CATEGORIAS_MOVIMENTO.map((c) => (
+        {categorias.map((c) => (
           <button
             key={c.chave}
             type="button"
             onClick={() => setCat(c.chave)}
             className={cn(
               "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-              cat === c.chave
+              catAtual === c.chave
                 ? "border-primary bg-primary/12 text-primary"
                 : "border-border/60 text-muted-foreground hover:border-primary/40 hover:text-foreground",
             )}

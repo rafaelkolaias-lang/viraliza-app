@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/dal";
 import { AVISO_PAUSADO, CHAVES, estaLigado } from "@/lib/configuracao";
 import { montarPromptImagemLab } from "@/lib/lab-prompt";
-import { estiloPorChave } from "@/lib/estilos-camera";
+import { estiloPorChave, variacaoPovPorChave } from "@/lib/estilos-camera";
 import { baixarImagemEntrada, dataUrlParaEntrada } from "@/lib/imagem-entrada";
 import { gerarImagemGrok } from "@/lib/imagem-robot";
 import { getCarteira, debitarClamp } from "@/lib/creditos";
@@ -52,6 +52,7 @@ export async function POST(req: Request) {
     produtoImagem?: string; // URL (Shopee/meus) ou dataURL
     produtoNome?: string;
     avatarUrl?: string; // URL do avatar; vazio = sem pessoa (POV)
+    variacao?: string; // POV: "maos" (segurando) ou "parado" (produto na bancada)
   } = {};
   try {
     body = await req.json();
@@ -90,6 +91,9 @@ export async function POST(req: Request) {
     }
   }
 
+  // a variação só existe no estilo Mãos (POV): segurando ou produto parado
+  const variacao = estilo.chave === "maos" ? variacaoPovPorChave(body.variacao) : null;
+
   const prompt = montarPromptImagemLab({
     estilo: estilo.chave,
     cena,
@@ -99,6 +103,8 @@ export async function POST(req: Request) {
     cenarioLivre: CENARIO_LIVRE[cenario],
     comAvatar,
     produtoNome: body.produtoNome,
+    variacaoExtra: variacao?.extra,
+    semMaos: variacao ? !variacao.temMaos : false,
   });
 
   // ordem das imagens: pessoa primeiro (identidade), produto depois

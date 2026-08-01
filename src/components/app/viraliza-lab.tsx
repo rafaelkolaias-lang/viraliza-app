@@ -12,7 +12,14 @@ import {
   SkipForward,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ESTILOS_CAMERA, estiloPorChave, type EstiloCamera } from "@/lib/estilos-camera";
+import {
+  ESTILOS_CAMERA,
+  estiloPorChave,
+  VARIACOES_POV,
+  variacaoPovPorChave,
+  type EstiloCamera,
+} from "@/lib/estilos-camera";
+import type { CenaDaImagem } from "@/lib/movimentos";
 import { LabProdutos, type ProdutoLab } from "@/components/app/lab-produtos";
 import { LabCena } from "@/components/app/lab-cena";
 import { LabCenario } from "@/components/app/lab-cenario";
@@ -22,6 +29,8 @@ import { LabImagem } from "@/components/app/lab-imagem";
 import { LabVideo, type ConfigVideoLab } from "@/components/app/lab-video";
 import { LabMovimentos } from "@/components/app/lab-movimentos";
 import { LabResumoVideo } from "@/components/app/lab-resumo-video";
+import { LabGerando } from "@/components/app/lab-gerando";
+import { custoVideoLab } from "@/lib/lab-custos";
 
 /**
  * Viraliza Lab V2: o caminho guiado que transforma um produto em criativo.
@@ -41,6 +50,9 @@ type Etapa = (typeof ETAPAS)[number]["chave"];
 /** Telas internas do "Criar cena" (a trilha do topo não muda entre elas). */
 const SUBS = ["estilo", "produto", "avatar", "cenario", "resumo"] as const;
 type SubCena = (typeof SUBS)[number];
+
+/** Telas internas do "Gerar vídeo". */
+type SubVideo = "config" | "movimento" | "resumo" | "gerando";
 
 /** Envelope com a animação de entrada de cada tela (sobe suave e aparece). */
 function Tela({ chave, children }: { chave: string; children: React.ReactNode }) {
@@ -228,9 +240,11 @@ export function ViralizaLab({
 }) {
   const [etapa, setEtapa] = useState<Etapa>("cena");
   const [sub, setSub] = useState<SubCena>("estilo");
-  // tela interna do "Gerar vídeo": configuração e depois os movimentos
-  const [subVideo, setSubVideo] = useState<"config" | "movimento" | "resumo">("config");
+  // tela interna do "Gerar vídeo": configuração, movimentos, revisão e a geração
+  const [subVideo, setSubVideo] = useState<SubVideo>("config");
   const [estilo, setEstilo] = useState<string | null>(null);
+  // variação do estilo Mãos (POV): "maos" segurando ou "parado" na bancada
+  const [variacao, setVariacao] = useState("maos");
   const [produto, setProduto] = useState<ProdutoLab | null>(null);
   const [cena, setCena] = useState("");
   const [avatar, setAvatar] = useState<AvatarLab | null>(null);
@@ -246,12 +260,30 @@ export function ViralizaLab({
     tom: "animado",
     voz: "feminina",
     tonalidade: "media",
-    falas: [""],
+    fala: "",
     instrucoes: "",
     movimento: null,
   });
 
   const estiloSel = estiloPorChave(estilo);
+  const custoVideo = custoVideoLab(video.duracao);
+  const ehPov = estilo === "maos";
+  const variacaoSel = variacaoPovPorChave(variacao);
+  // Quem manda na lista de movimentos é o ESTILO escolhido, e ponto: imagem POV
+  // só anima movimento de POV; imagem com pessoa nunca mostra POV.
+  const cenaImagem: CenaDaImagem = ehPov
+    ? { temPessoa: false, temMaos: variacaoSel.temMaos }
+    : { temPessoa: true, temMaos: true };
+
+  /**
+   * Guarda a imagem base e descobre o que existe nela: é isso que decide quais
+   * movimentos aparecem depois. Quando a imagem é nossa, o funil já sabe (POV não
+   * tem pessoa, "produto parado" não tem nem mão); quando veio de fora, só a IA
+   * olhando a foto resolve.
+   */
+  function definirImagem(url: string) {
+    setImagem(url);
+  }
   const cenarioOk = !!cenario && (cenario !== "outros" || cenarioTexto.trim().length >= 4);
   const prontoPraImagem = !!produto && cena.trim().length >= 15 && !!avatar && cenarioOk;
 
@@ -282,9 +314,24 @@ export function ViralizaLab({
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function irSubVideo(prox: "config" | "movimento" | "resumo") {
+  function irSubVideo(prox: SubVideo) {
     setSubVideo(prox);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  /** Zera o funil pra criar outro criativo do zero (mantém os avatares salvos). */
+  function recomecar() {
+    setEstilo(null);
+    setProduto(null);
+    setCena("");
+    setAvatar(null);
+    setCenario(null);
+    setCenarioTexto("");
+    setImagem(null);
+    setImagemPropria(false);
+    setSubVideo("config");
+    setSub("estilo");
+    irPara("cena");
   }
 
   return (
@@ -330,10 +377,56 @@ export function ViralizaLab({
                   key={e.chave}
                   estilo={e}
                   ativo={estilo === e.chave}
-                  onEscolher={() => setEstilo(e.chave)}
+                  onEscolher={() => {
+                    setEstilo(e.chave);
+                    // trocar de estilo troca a lista de movimentos: o que estava
+                    // marcado pode nem existir mais
+                    setVideo((v) => (v.movimento ? { ...v, movimento: null } : v));
+                  }}
                 />
               ))}
             </div>
+
+            {/* O POV tem dois enquadramentos possíveis, e a escolha muda o que dá
+                pra animar depois: com as mãos no quadro dá pra girar e abrir o
+                produto; com ele parado na bancada, só a câmera se move. */}
+            {ehPov && (
+              <div className="mt-5 space-y-2.5 rounded-2xl border border-primary/30 bg-primary/5 p-4 duration-300 animate-in fade-in slide-in-from-top-2">
+                <p className="text-sm font-medium">Como o POV vai ser?</p>
+                <div className="grid gap-2.5 sm:grid-cols-2">
+                  {VARIACOES_POV.map((v) => {
+                    const ativo = variacao === v.chave;
+                    return (
+                      <button
+                        key={v.chave}
+                        type="button"
+                        onClick={() => {
+                          setVariacao(v.chave);
+                          setVideo((c) => (c.movimento ? { ...c, movimento: null } : c));
+                        }}
+                        aria-pressed={ativo}
+                        className={cn(
+                          "rounded-xl border p-3 text-left transition-all",
+                          ativo
+                            ? "border-primary bg-primary/10 ring-2 ring-primary/30"
+                            : "border-border/60 hover:border-primary/40 hover:bg-card",
+                        )}
+                      >
+                        <p className={cn("text-sm font-semibold", ativo && "text-primary")}>
+                          {v.label}
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">{v.descricao}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  {variacaoSel.temMaos
+                    ? "No vídeo você vai poder girar, abrir e inclinar o produto com as mãos."
+                    : "Sem mãos no quadro, quem se move no vídeo é a câmera (aproximação e pan)."}
+                </p>
+              </div>
+            )}
           </Bloco>
 
           <Navegacao podeAvancar={!!estilo} onAvancar={() => irSub("produto")} />
@@ -361,6 +454,7 @@ export function ViralizaLab({
               produtoTitulo={produto?.titulo}
               valor={cena}
               onMudar={setCena}
+              sugestaoBase={ehPov ? variacaoSel.sugestao : undefined}
             />
           </Bloco>
 
@@ -494,9 +588,10 @@ export function ViralizaLab({
               cenario={cenario}
               cenarioTexto={cenarioTexto}
               imagem={imagem}
-              onGerou={setImagem}
+              onGerou={definirImagem}
               minhasImagens={meusAvatares}
               comecarPulando={imagemPropria}
+              variacao={ehPov ? variacao : undefined}
             />
           </Bloco>
 
@@ -532,6 +627,7 @@ export function ViralizaLab({
           <Bloco n={1} titulo="Movimento do vídeo">
             <LabMovimentos
               estilo={estilo}
+              cena={cenaImagem}
               escolhido={video.movimento}
               onEscolher={(m) => setVideo({ ...video, movimento: m })}
             />
@@ -564,12 +660,14 @@ export function ViralizaLab({
               <div>
                 <h2 className="font-semibold">Gerar vídeo com IA</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  A imagem ganha movimento e fala. Costuma levar de 3 a 5 minutos.
+                  A imagem ganha movimento e fala. Costuma levar de 3 a 5 minutos e
+                  custa {custoVideo} créditos, cobrados só quando o vídeo fica pronto.
                 </p>
               </div>
             </div>
             <button
               type="button"
+              onClick={() => irSubVideo("gerando")}
               className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition-all hover:opacity-90 hover:shadow-[0_0_30px_-6px_var(--color-primary)]"
             >
               <Sparkles className="size-4" />
@@ -581,8 +679,22 @@ export function ViralizaLab({
             onVoltar={() => irSubVideo("movimento")}
             podeAvancar
             rotulo="Gerar vídeo"
-            onAvancar={() => {}}
+            onAvancar={() => irSubVideo("gerando")}
           />
+        </Tela>
+      )}
+
+      {etapa === "video" && imagem && subVideo === "gerando" && (
+        <Tela chave="video-gerando">
+          <Bloco n={1} titulo="Seu vídeo">
+            <LabGerando
+              config={video}
+              imagem={imagem}
+              produtoNome={produto?.titulo}
+              onVoltar={() => irSubVideo("resumo")}
+              onRefazer={recomecar}
+            />
+          </Bloco>
         </Tela>
       )}
     </div>

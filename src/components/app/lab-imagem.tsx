@@ -47,6 +47,7 @@ export function LabImagem({
   onGerou,
   minhasImagens = [],
   comecarPulando = false,
+  variacao,
 }: {
   estilo: EstiloCamera;
   produto: ProdutoLab;
@@ -60,6 +61,8 @@ export function LabImagem({
   minhasImagens?: { id: string; nome: string; imagemUrl: string }[];
   /** true = a pessoa escolheu "já tenho a imagem", então não gera sozinho */
   comecarPulando?: boolean;
+  /** variação do estilo Mãos (POV): "maos" segurando ou "parado" na bancada */
+  variacao?: string;
 }) {
   const [gerando, setGerando] = useState(false);
   const [pulando, setPulando] = useState(comecarPulando);
@@ -144,6 +147,7 @@ export function LabImagem({
           produtoImagem: produto.imagem,
           produtoNome: produto.titulo,
           avatarUrl: avatar.imagemUrl || undefined,
+          variacao,
         }),
       });
       const d = await r.json();

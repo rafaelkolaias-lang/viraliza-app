@@ -81,18 +81,21 @@ export function LabCena({
   produtoTitulo,
   valor,
   onMudar,
+  sugestaoBase,
 }: {
   estilo: EstiloCamera;
   produtoTitulo?: string;
   valor: string;
   onMudar: (v: string) => void;
+  /** troca a sugestão do estilo (usado pela variação do POV) */
+  sugestaoBase?: string;
 }) {
   const [dicasAbertas, setDicasAbertas] = useState(false);
   const [assistenteAberto, setAssistenteAberto] = useState(false);
   const [respostas, setRespostas] = useState<Record<string, string>>({});
   const [gerando, setGerando] = useState(false);
   const faltam = MIN - valor.trim().length;
-  const sugestao = SUGESTAO[estilo.chave] ?? SUGESTAO.de_frente;
+  const sugestao = sugestaoBase ?? SUGESTAO[estilo.chave] ?? SUGESTAO.de_frente;
 
   async function pedirAjuda() {
     if (!produtoTitulo) {

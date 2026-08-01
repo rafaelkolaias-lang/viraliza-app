@@ -7,7 +7,11 @@
  * usado pelo "Avatar com produto"); `extra` é o tempero em inglês que entra no
  * prompt da imagem, só quando o estilo pede algo além do uso base.
  * Client-safe (sem server-only): a tela do Lab importa direto.
+ *
+ * Os vídeos de exemplo NÃO ficam no repositório: moram no serverrk (ver
+ * lab-midia.ts), então trocar um exemplo é só substituir o arquivo lá.
  */
+import { midiaEstilo } from "@/lib/lab-midia";
 
 export type EstiloCamera = {
   chave: string;
@@ -27,8 +31,7 @@ export const ESTILOS_CAMERA: EstiloCamera[] = [
     descricao:
       "Ideal para mostrar o produto inteiro em mãos: eletrônicos, brinquedos, livros e itens que precisam ser vistos em destaque.",
     paraQuem: "Eletrônicos, brinquedos, livros",
-    video: "/estilos/de-frente.mp4",
-    poster: "/estilos/de-frente.jpg",
+    ...midiaEstilo("de-frente"),
     uso: "segurando",
   },
   {
@@ -37,8 +40,7 @@ export const ESTILOS_CAMERA: EstiloCamera[] = [
     descricao:
       "Estilo close autêntico, perfeito para cosméticos, skincare, perfumes e produtos pequenos que ganham com a proximidade do rosto.",
     paraQuem: "Cosméticos, skincare, perfumes",
-    video: "/estilos/selfie.mp4",
-    poster: "/estilos/selfie.jpg",
+    ...midiaEstilo("selfie"),
     uso: "mostrando",
     extra:
       "Selfie framing: the photo looks like it was taken by the person with their own phone at arm's length, close to the face, slightly high angle, the product held up next to the face.",
@@ -49,8 +51,7 @@ export const ESTILOS_CAMERA: EstiloCamera[] = [
     descricao:
       "Visão em primeira pessoa (POV), recomendado para acessórios, gadgets, comidas e produtos que pedem demonstração de uso.",
     paraQuem: "Acessórios, gadgets, comidas",
-    video: "/estilos/maos.mp4",
-    poster: "/estilos/maos.jpg",
+    ...midiaEstilo("maos"),
     uso: "segurando",
     extra:
       "POV first person framing: ONLY the hands of the person appear in the frame holding and demonstrating the product, seen from the person's own eyes, no face and no body visible, clean simple background.",
@@ -61,8 +62,7 @@ export const ESTILOS_CAMERA: EstiloCamera[] = [
     descricao:
       "O avatar usa o produto no corpo: feito para roupas, calçados, óculos, relógios, bonés e qualquer item vestível.",
     paraQuem: "Roupas, calçados, óculos, relógios",
-    video: "/estilos/vestindo.mp4",
-    poster: "/estilos/vestindo.jpg",
+    ...midiaEstilo("vestindo"),
     uso: "vestindo",
     extra:
       "FULL BODY SHOT, MANDATORY: frame the person from the top of the head down to the shoes, with a small margin above the head and below the feet. The whole body must fit inside the frame, standing, in a natural relaxed pose facing the camera. The worn product must appear COMPLETE and never cropped by the frame: if it is pants, shorts, a skirt or a dress, the legs must be fully visible all the way down to the feet; if it is footwear, the shoes must be fully visible. Even if the person's reference photo is only a headshot or a half body portrait, generate her FULL BODY: complete the body naturally, keeping the same face, body type and proportions. Do NOT crop at the waist, do NOT crop at the knees. The rest of the outfit is simple and neutral so the product is the highlight.",
@@ -73,8 +73,7 @@ export const ESTILOS_CAMERA: EstiloCamera[] = [
     descricao:
       "Selfie no espelho: o avatar aparece refletido segurando o celular e mostrando o produto. Ótimo para moda, looks e roupas que valem corpo inteiro.",
     paraQuem: "Moda, looks, corpo inteiro",
-    video: "/estilos/espelho.mp4",
-    poster: "/estilos/espelho.jpg",
+    ...midiaEstilo("espelho"),
     uso: "vestindo",
     extra:
       "MIRROR SELFIE framing: the photo is the REFLECTION of the person in a full length mirror, holding a smartphone in one hand at chest height (the phone must not cover the product), in a real bedroom or hallway mirror of a lived-in home. FULL BODY, MANDATORY: the reflection shows the person from head to shoes, the whole body inside the frame, and the worn product complete and never cropped. Even if the person's reference photo is only a headshot or half body portrait, generate her FULL BODY, keeping the same face, body type and proportions.",
@@ -83,6 +82,46 @@ export const ESTILOS_CAMERA: EstiloCamera[] = [
 
 export function estiloPorChave(chave?: string | null) {
   return ESTILOS_CAMERA.find((e) => e.chave === chave) ?? null;
+}
+
+/**
+ * Variações do estilo "Mãos" (POV). O movimento do vídeo depende do que existe na
+ * FOTO: com as mãos no quadro dá pra girar e abrir o produto; com o produto
+ * parado na bancada não tem mão nenhuma pra mexer, então só a câmera se move.
+ * Escolher aqui muda o prompt da imagem E a lista de movimentos lá na frente.
+ */
+export type VariacaoPov = {
+  chave: string;
+  label: string;
+  descricao: string;
+  extra: string; // entra no lugar do extra do estilo no prompt da imagem
+  sugestao: string; // texto de partida da descrição da cena
+  temMaos: boolean;
+};
+
+export const VARIACOES_POV: VariacaoPov[] = [
+  {
+    chave: "maos",
+    label: "Mãos segurando",
+    descricao: "As mãos aparecem segurando e demonstrando o produto.",
+    extra:
+      "POV first person framing: ONLY the hands of the person appear in the frame holding and demonstrating the product, seen from the person's own eyes, no face and no body visible, clean simple background.",
+    sugestao: "Apenas as mãos aparecem, segurando o produto e demonstrando como usar",
+    temMaos: true,
+  },
+  {
+    chave: "parado",
+    label: "Produto parado",
+    descricao: "O produto sozinho na bancada ou na mesa, sem ninguém no quadro.",
+    extra:
+      "Product-only POV still life: the product sits by itself on a real surface (kitchen counter, wooden table, desk or bathroom sink) inside the scene, seen from slightly above at a natural angle, as if someone put it down and took a quick photo with the phone. NO person, NO hands, NO body part anywhere in the frame, only the product and its surroundings.",
+    sugestao: "O produto sozinho em cima da bancada, de frente pra câmera, sem ninguém no quadro",
+    temMaos: false,
+  },
+];
+
+export function variacaoPovPorChave(chave?: string | null) {
+  return VARIACOES_POV.find((v) => v.chave === chave) ?? VARIACOES_POV[0];
 }
 
 /**

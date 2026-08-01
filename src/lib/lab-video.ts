@@ -1,20 +1,18 @@
 /**
  * Regras do vídeo do Viraliza Lab. Client-safe (a tela usa pra montar os campos).
  *
- * O motor (Grok) gera no máximo 15s por geração, então vídeo maior é feito em
- * TAKES: cada take é uma geração de 15s partindo da MESMA imagem base, e a fala
- * é escrita em pedaços que se emendam. O texto de cada take precisa terminar
- * "puxando" o próximo, senão o vídeo final parece três vídeos colados.
+ * São três durações e ponto: 6s SEMPRE sem fala (capa/anúncio), 10s com uma frase
+ * de venda e 15s com a fala completa. O motor gera até 15s por vez, então nada
+ * aqui é montado em pedaços: um vídeo = uma geração.
  */
 
 export type DuracaoLab = {
   chave: string;
-  segundos: number; // duração de CADA take
-  takes: number;
-  total: number; // segundos no fim
+  segundos: number;
   label: string;
   nota: string;
   comFala: boolean;
+  custo: number; // créditos (centavos), cobrados só quando o vídeo fica pronto
 };
 
 // palavras que cabem por segundo de fala natural em pt-BR (medido nos vídeos que
@@ -29,47 +27,26 @@ export const DURACOES_LAB: DuracaoLab[] = [
   {
     chave: "6s",
     segundos: 6,
-    takes: 1,
-    total: 6,
     label: "6 segundos",
     nota: "Sem fala, só o produto aparecendo. Ideal pra capa e anúncio curto.",
     comFala: false,
+    custo: 30,
   },
   {
     chave: "10s",
     segundos: 10,
-    takes: 1,
-    total: 10,
     label: "10 segundos",
     nota: "Uma frase de venda. O básico bem feito.",
     comFala: true,
+    custo: 50,
   },
   {
     chave: "15s",
     segundos: 15,
-    takes: 1,
-    total: 15,
     label: "15 segundos",
     nota: "Fala completa: gancho, benefício e chamada. O mais usado.",
     comFala: true,
-  },
-  {
-    chave: "2takes",
-    segundos: 15,
-    takes: 2,
-    total: 30,
-    label: "30 segundos",
-    nota: "2 takes emendados: dá pra mostrar o produto e explicar direito.",
-    comFala: true,
-  },
-  {
-    chave: "3takes",
-    segundos: 15,
-    takes: 3,
-    total: 45,
-    label: "45 segundos",
-    nota: "3 takes: review completo, do gancho até a chamada final.",
-    comFala: true,
+    custo: 75,
   },
 ];
 
@@ -100,29 +77,15 @@ export const TONALIDADES_LAB = [
   { chave: "seria", label: "Séria", desc: "Profissional e firme", en: "a serious, professional and firm voice" },
 ] as const;
 
-/** Papel de cada take na narrativa: é o que dá conexão lógica entre eles. */
-export const PAPEL_TAKE = [
-  {
-    titulo: "Gancho",
-    resumo: "Chama a atenção e apresenta o produto",
-    exemplo: "Gente, olha o que eu achei e não consigo mais viver sem",
-  },
-  {
-    titulo: "Prova",
-    resumo: "Mostra o benefício e o que muda na prática",
-    exemplo: "Já uso faz duas semanas e a diferença é absurda",
-  },
-  {
-    titulo: "Chamada",
-    resumo: "Fecha mandando comprar",
-    exemplo: "Corre no carrinho laranja antes que acabe a promoção",
-  },
+/**
+ * A estrutura que vende, dentro do MESMO vídeo: prende, mostra e chama. É a dica
+ * que aparece embaixo do campo da fala.
+ */
+export const ESTRUTURA_FALA = [
+  { titulo: "Gancho", resumo: "Prende nos 2 primeiros segundos" },
+  { titulo: "Benefício", resumo: "O que o produto resolve" },
+  { titulo: "Chamada", resumo: "Manda comprar no fim" },
 ];
 
-/** O que a pessoa vê como dica no campo de cada take. */
-export function dicaDoTake(indice: number, total: number) {
-  if (total === 1) return PAPEL_TAKE[0];
-  if (indice === 0) return PAPEL_TAKE[0];
-  if (indice === total - 1) return PAPEL_TAKE[2];
-  return PAPEL_TAKE[1];
-}
+export const EXEMPLO_FALA =
+  "Gente, olha o que eu achei: uso todo dia e não largo mais. Corre no carrinho laranja que tá em promoção.";
