@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/dal";
-import { AVISO_PAUSADO, CHAVES, estaLigado } from "@/lib/configuracao";
+import { AVISO_PAUSADO, CHAVES, podeGerar } from "@/lib/configuracao";
 import { montarPromptImagemLab } from "@/lib/lab-prompt";
 import { estiloPorChave, variacaoPovPorChave } from "@/lib/estilos-camera";
 import { baixarImagemEntrada, dataUrlParaEntrada } from "@/lib/imagem-entrada";
 import { gerarImagemGrok } from "@/lib/imagem-robot";
 import { getCarteira, debitarClamp } from "@/lib/creditos";
 import { CUSTO_IMAGEM_LAB } from "@/lib/lab-custos";
+import { salvarNaGaleria } from "@/lib/galeria-servidor";
 
 export const runtime = "nodejs";
 export const maxDuration = 800;
@@ -16,8 +17,11 @@ export const maxDuration = 800;
  *
  * Motor: robô do Grok no serverrk (só ele; o gpt-image ficou de fora por custo e
  * por bloquear roupa comum na moderação). Qual conta do Grok usa vem do
- * imagem-robot.ts (env GROK_CONTA_IMAGEM). Só cobra depois que a imagem existe;
- * quem salva na galeria é o botão "Salvar como influencer" da tela.
+ * imagem-robot.ts (env GROK_CONTA_IMAGEM). Só cobra depois que a imagem existe.
+ *
+ * O resultado entra sozinho em "Minhas imagens" com o contexto da cena, pra
+ * pessoa nunca perder o que já pagou. Salvar como INFLUENCIADOR continua sendo
+ * um clique dela, senão a galeria de avatares enche de tentativa descartada.
  */
 
 /** Mapa cenário do Lab -> cenário do motor (mesma lista do lab-cenario.tsx). */
@@ -40,7 +44,7 @@ const CENARIO_LIVRE: Record<string, string> = {
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ erro: "Faça login." }, { status: 401 });
-  if (!(await estaLigado(CHAVES.geracaoImagem))) {
+  if (!(await podeGerar(CHAVES.geracaoImagem, user.role))) {
     return NextResponse.json({ erro: AVISO_PAUSADO, pausado: true }, { status: 503 });
   }
 
@@ -53,6 +57,11 @@ export async function POST(req: Request) {
     produtoNome?: string;
     avatarUrl?: string; // URL do avatar; vazio = sem pessoa (POV)
     variacao?: string; // POV: "maos" (segurando) ou "parado" (produto na bancada)
+    // só pra galeria "Minhas imagens" conseguir remontar a cena depois
+    produtoId?: string;
+    produtoMeu?: boolean;
+    avatarId?: string;
+    avatarNome?: string;
   } = {};
   try {
     body = await req.json();
@@ -80,7 +89,8 @@ export async function POST(req: Request) {
   const avatar = body.avatarUrl ? await baixarImagemEntrada(body.avatarUrl) : null;
   const comAvatar = !!avatar;
 
-  const isAdmin = user.role === "admin";
+  // demo entra junto com admin: em todo o resto do app ela gera sem pagar
+  const isAdmin = user.role === "admin" || user.role === "demo";
   if (!isAdmin) {
     const { saldoCentavos } = await getCarteira(user.id);
     if (saldoCentavos < CUSTO_IMAGEM_LAB) {
@@ -133,14 +143,37 @@ export async function POST(req: Request) {
     }).catch(() => {});
   }
 
-  // NÃO salva sozinho na galeria: a pessoa costuma gerar algumas vezes até
-  // gostar. Quem salva é o botão "Salvar como influencer" (POST /api/avatar/subir
-  // com a url), pra galeria não encher de tentativa descartada.
+  // Toda imagem gerada entra em "Minhas imagens" com as escolhas que a criaram:
+  // é isso que deixa o card virar "Novo vídeo" sem refazer a imagem. Virar
+  // INFLUENCIADOR continua sendo escolha dela (botão "Salvar como influencer").
+  const imagemId = await salvarNaGaleria({
+    userId: user.id,
+    origem: "lab",
+    titulo: body.produtoNome || `Imagem do Lab (${estilo.label})`,
+    imagemUrl: url,
+    contexto: {
+      estilo: estilo.chave,
+      variacao: variacao?.chave ?? null,
+      cena,
+      cenario,
+      cenarioTexto: body.cenarioTexto,
+      produtoId: body.produtoId,
+      produtoTitulo: body.produtoNome,
+      produtoImagem: body.produtoImagem,
+      produtoMeu: !!body.produtoMeu,
+      avatarId: body.avatarId,
+      avatarNome: body.avatarNome,
+      avatarImagem: body.avatarUrl,
+    },
+  });
+
   return NextResponse.json({
     ok: true,
     imagemUrl: url,
+    imagemId,
     motor: "grok",
     custo: isAdmin ? 0 : CUSTO_IMAGEM_LAB,
-    ...(isAdmin ? { prompt } : {}),
+    // o prompt cru é só pra depuração do admin (demo não vê)
+    ...(user.role === "admin" ? { prompt } : {}),
   });
 }

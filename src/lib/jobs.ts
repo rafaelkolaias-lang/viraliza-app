@@ -2,7 +2,7 @@ import "server-only";
 
 import path from "node:path";
 import { prisma } from "@/lib/prisma";
-import type { VideoFormato, VideoJob, VideoMidia } from "@/lib/types";
+import type { OrigemVideo, VideoFormato, VideoJob, VideoMidia } from "@/lib/types";
 
 // Mídia enviada pelo usuário (entrada da fábrica) - fora do public, baixada pelo worker.
 export const UPLOADS_DIR = path.join(process.cwd(), "data", "uploads");
@@ -30,6 +30,7 @@ export function paraVideoJob(job: {
   erro: string | null;
   etapa: string | null;
   criadoEm: Date;
+  opcoes?: string | null;
 }): VideoJob {
   let saidas: string[] = [];
   try {
@@ -43,10 +44,21 @@ export function paraVideoJob(job: {
   } catch {
     /* ignora json inválido */
   }
+  // de onde o vídeo veio: o Lab e o Boost marcam isso nas opções na hora de criar
+  let origem: OrigemVideo = job.tipo === "cortes" ? "cortes" : "editor";
+  try {
+    const o = job.opcoes ? (JSON.parse(job.opcoes) as { lab?: boolean; boost?: boolean }) : null;
+    if (o?.boost) origem = "boost";
+    else if (o?.lab) origem = "lab";
+  } catch {
+    /* opções inválidas: fica com o padrão */
+  }
+
   return {
     id: job.id,
     produto: job.produto,
     tipo: job.tipo || "produto",
+    origem,
     formato: (["voz", "transcrever", "nenhum"].includes(job.formato) ? job.formato : "legenda") as VideoFormato,
     status: job.status as VideoJob["status"],
     variantes: job.variantes,

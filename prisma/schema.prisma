@@ -38,6 +38,8 @@ model User {
   bonusInstagram BonusInstagram?
   avatares       Avatar[]
   produtos       ProdutoUsuario[]
+  personagens    PersonagemUsuario[]
+  imagens        ImagemGerada[]
   sugestoes      Sugestao[]
   reportes       ReporteVideo[]
   chatMensagens  ChatMensagem[]
@@ -366,4 +368,41 @@ model Configuracao {
   valor         String   @db.VarChar(500)
   atualizadoEm  DateTime @updatedAt
   atualizadoPor String?  @db.VarChar(160) // e-mail do admin que mexeu
+}
+
+// Personagem do Viral Boost criado pela pessoa: a fruta dela, a vó dela, o
+// mascote da loja. A imagem vira a referencia visual que trava o personagem no
+// video, igual as frutas da casa. Fica hospedada no serverrk.
+// Galeria "Minhas imagens": TODA imagem que a pessoa gera fica guardada aqui.
+// O pulo do gato e o "contexto": como a imagem nasceu dentro do Lab, a gente ja
+// sabe produto, influenciador, estilo e cenario dela, entao o botao "Novo video"
+// abre o Lab no passo do video sem refazer (e sem cobrar) nada.
+model ImagemGerada {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  origem    String   @default("lab") // "lab" | "boost" | "avatar"
+  titulo    String   @db.VarChar(500) // nome do produto, da historinha ou do avatar
+  imagemUrl String   @db.Text // URL publica no serverrk
+  contexto  String?  @db.Text // JSON das escolhas (so "lab" gera video direto)
+  favorita  Boolean  @default(false)
+  videos    Int      @default(0) // quantos videos ja sairam dessa imagem
+  criadoEm  DateTime @default(now())
+
+  @@index([userId, criadoEm])
+  @@index([userId, favorita])
+}
+
+model PersonagemUsuario {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nome      String   @db.VarChar(60)
+  jeito     String   @db.VarChar(160) // como ele e (entra no prompt)
+  formato   String   @default("frutas") // frutas | senhora | livre
+  genero    String   @default("f") // f | m
+  imagemUrl String   @db.Text
+  criadoEm  DateTime @default(now())
+
+  @@index([userId])
 }

@@ -3,7 +3,7 @@ import { MeusAvatares } from "@/components/app/meus-avatares";
 import { requireUser } from "@/lib/dal";
 import { listarAvatares } from "@/lib/avatares";
 
-export const metadata: Metadata = { title: "Meus avatares" };
+export const metadata: Metadata = { title: "Personalize com IA" };
 export const dynamic = "force-dynamic";
 
 export default async function MeusAvataresPage() {

@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { cn } from "@/lib/utils";
 
 function iniciais(nome: string) {
   return nome
@@ -26,24 +27,35 @@ function iniciais(nome: string) {
 export function UserMenu({
   nome,
   email,
+  compacto = false,
 }: {
   nome: string;
   email: string;
+  /** barra lateral recolhida: mostra só a bolinha com as iniciais */
+  compacto?: boolean;
 }) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none">
+      <DropdownMenuTrigger
+        title={compacto ? nome : undefined}
+        className={cn(
+          "flex w-full items-center rounded-lg p-2 text-left transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none",
+          compacto ? "justify-center" : "gap-3",
+        )}
+      >
         <Avatar className="size-9 border border-border">
           <AvatarFallback className="bg-primary/15 text-sm font-semibold text-primary">
             {iniciais(nome)}
           </AvatarFallback>
         </Avatar>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium">{nome}</span>
-          <span className="block truncate text-xs text-muted-foreground">
-            {email}
+        {!compacto && (
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-medium">{nome}</span>
+            <span className="block truncate text-xs text-muted-foreground">
+              {email}
+            </span>
           </span>
-        </span>
+        )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         {/* GroupLabel do base-ui precisa estar dentro de um Group (senão estoura) */}

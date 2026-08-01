@@ -1,14 +1,16 @@
 import { NextResponse, after } from "next/server";
 import { getCurrentUser } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
-import { AVISO_PAUSADO, CHAVES, estaLigado } from "@/lib/configuracao";
-import { duracaoPorChave } from "@/lib/lab-video";
+import { AVISO_PAUSADO, CHAVES, podeGerar } from "@/lib/configuracao";
+import { duracaoPorChave, vaiTerFala } from "@/lib/lab-video";
 import { montarPromptVideoLab } from "@/lib/lab-video-prompt";
+import { movimentoCompativel } from "@/lib/movimentos";
 import { custoVideoLab } from "@/lib/lab-custos";
-import { baixarImagemEntrada } from "@/lib/imagem-entrada";
+import { baixarImagemEntrada, ehImagemNossa } from "@/lib/imagem-entrada";
 import { gerarVideoGrok, type ArquivoImagem } from "@/lib/video-robot";
 import { getCarteira, debitarClamp } from "@/lib/creditos";
 import { criarNotificacao } from "@/lib/notificacoes";
+import { contarVideoDaImagem } from "@/lib/galeria-servidor";
 
 export const runtime = "nodejs";
 export const maxDuration = 1600;
@@ -31,7 +33,7 @@ const MIME_EXT: Record<string, string> = {
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ erro: "Faça login." }, { status: 401 });
-  if (!(await estaLigado(CHAVES.geracaoVideo))) {
+  if (!(await podeGerar(CHAVES.geracaoVideo, user.role))) {
     return NextResponse.json({ erro: AVISO_PAUSADO, pausado: true }, { status: 503 });
   }
 
@@ -45,6 +47,9 @@ export async function POST(req: Request) {
     instrucoes?: string;
     movimento?: string | null;
     produtoNome?: string;
+    pov?: boolean;
+    semMaos?: boolean; // POV "produto parado": ninguém na foto
+    semFala?: boolean; // a pessoa pediu vídeo mudo numa duração que aceita fala
   } = {};
   try {
     body = await req.json();
@@ -55,6 +60,10 @@ export async function POST(req: Request) {
   const dur = duracaoPorChave(body.duracao);
   if (!dur) return NextResponse.json({ erro: "Escolha a duração do vídeo." }, { status: 400 });
 
+  // a imagem base só pode ser uma das nossas (gerada aqui ou subida pra cá)
+  if (!ehImagemNossa(body.imagem)) {
+    return NextResponse.json({ erro: "Imagem inválida. Gere a cena de novo." }, { status: 400 });
+  }
   const entrada = await baixarImagemEntrada(body.imagem);
   if (!entrada) {
     return NextResponse.json({ erro: "Não consegui ler a imagem da cena." }, { status: 400 });
@@ -76,6 +85,13 @@ export async function POST(req: Request) {
     }
   }
 
+  // O movimento tem que combinar com a imagem: POV só anima movimento de POV e
+  // cena com pessoa nunca anima POV. A tela já filtra, mas quem decide é aqui.
+  const movimento = movimentoCompativel(body.movimento, {
+    temPessoa: !body.pov,
+    temMaos: !body.pov || !body.semMaos,
+  });
+
   const escolhas = {
     duracao: dur.chave,
     tom: body.tom,
@@ -84,8 +100,13 @@ export async function POST(req: Request) {
     fala: typeof body.fala === "string" ? body.fala.trim().slice(0, 600) : "",
     instrucoes: typeof body.instrucoes === "string" ? body.instrucoes.slice(0, 600) : "",
     produtoNome: typeof body.produtoNome === "string" ? body.produtoNome.slice(0, 160) : "",
-    movimento: body.movimento ?? undefined,
+    movimento: movimento?.chave,
+    pov: !!body.pov,
+    semMaos: !!body.pov && !!body.semMaos,
+    semFala: !!body.semFala,
   };
+  // fala de verdade = a duração aceita E a pessoa não pediu mudo
+  const comFala = vaiTerFala(dur.chave, escolhas.semFala);
   const prompt = montarPromptVideoLab(escolhas);
   if (!prompt) {
     return NextResponse.json({ erro: "Não consegui montar o roteiro." }, { status: 400 });
@@ -115,7 +136,7 @@ export async function POST(req: Request) {
         produtos: [],
         duracaoSeg: dur.segundos,
         qualidade: "720p",
-        semAudio: !dur.comFala,
+        semAudio: !comFala,
       });
 
       if (!r.ok || !r.videoUrl) {
@@ -139,10 +160,13 @@ export async function POST(req: Request) {
       // cobra SÓ agora que o vídeo saiu (falha não desconta)
       if (!isAdmin) {
         await debitarClamp(userId, custo, "debito_geracao", {
-          descricao: `Vídeo do Lab (${dur.segundos}s, ${dur.comFala ? "com fala" : "sem fala"})`,
+          descricao: `Vídeo do Lab (${dur.segundos}s, ${comFala ? "com fala" : "sem fala"})`,
           jobId: job.id,
         }).catch(() => {});
       }
+
+      // "3 vídeos gerados" no card da galeria: conta um a mais pra imagem base
+      await contarVideoDaImagem(userId, body.imagem);
 
       await prisma.job.update({
         where: { id: job.id },

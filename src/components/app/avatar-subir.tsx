@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { ArrowLeft, ImagePlus, Loader2, Upload, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { normalizarImagem, ERRO_IMAGEM } from "@/lib/imagem-cliente";
-import type { AvatarCriado } from "@/components/app/avatar-quiz";
+import type { AvatarCriado } from "@/lib/avatar-modelo";
 
 /**
  * "Subir avatar pronto": a pessoa sobe a imagem do avatar dela e usa direto, SEM

@@ -4,6 +4,10 @@
  * São três durações e ponto: 6s SEMPRE sem fala (capa/anúncio), 10s com uma frase
  * de venda e 15s com a fala completa. O motor gera até 15s por vez, então nada
  * aqui é montado em pedaços: um vídeo = uma geração.
+ *
+ * `comFala` na duração diz o que ela ACEITA, não o que ela vai ser: 10s e 15s
+ * também podem sair mudos quando a pessoa quiser só o movimento (é a escolha
+ * `semFala` da tela).
  */
 
 export type DuracaoLab = {
@@ -21,6 +25,28 @@ const PALAVRAS_POR_SEG = 2.3;
 
 export function limitePalavras(segundos: number): number {
   return Math.round(segundos * PALAVRAS_POR_SEG);
+}
+
+/** Conta palavras de um texto (mesma conta que a tela mostra). */
+export function contarPalavrasFala(t: string): number {
+  return t.trim() ? t.trim().split(/\s+/).length : 0;
+}
+
+/**
+ * A fala cabe no tempo do vídeo? Fala maior que o orçamento sai atropelada ou
+ * cortada no meio, e o crédito é cobrado do mesmo jeito, então isso trava o
+ * botão de gerar em vez de só avisar.
+ */
+export function falaCabeNoTempo(fala: string, duracao: string, semFala = false): boolean {
+  const d = duracaoPorChave(duracao);
+  if (!d || !d.comFala || semFala) return true;
+  return contarPalavrasFala(fala) <= limitePalavras(d.segundos);
+}
+
+/** O vídeo vai ter fala? Depende da duração E da escolha da pessoa. */
+export function vaiTerFala(duracao: string, semFala?: boolean): boolean {
+  const d = duracaoPorChave(duracao);
+  return !!d?.comFala && !semFala;
 }
 
 export const DURACOES_LAB: DuracaoLab[] = [

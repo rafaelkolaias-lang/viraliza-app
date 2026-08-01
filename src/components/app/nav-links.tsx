@@ -8,6 +8,7 @@ import {
   LayoutGrid,
   Film,
   ShoppingBag,
+  Music2,
   Wrench,
   Gem,
   Coins,
@@ -22,13 +23,17 @@ import {
   DollarSign,
   Pickaxe,
   Camera,
-  Video,
+  FlaskConical,
+  Palette,
   UserRound,
   MessageSquarePlus,
   MessageCircle,
   ChevronDown,
   Flag,
+  Flame,
   Trash2,
+  GraduationCap,
+  Gift,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -36,24 +41,51 @@ type NavItem = {
   href: string;
   label: string;
   icon: typeof Home;
-  novidade?: boolean; // mostra a badge "Novo"
+  novidade?: boolean; // mostra o foguinho de novidade
 };
+
+/**
+ * Foguinho das novidades: substituiu a etiqueta "Novo". A chama tem duas camadas
+ * (o brilho pulsando atrás e a chama tremulando na frente), então ele "queima" de
+ * verdade em vez de só piscar. Puro CSS, sem imagem e sem biblioteca.
+ */
+function Foguinho() {
+  return (
+    <span className="relative ml-auto grid size-6 place-items-center" aria-label="Novidade">
+      <span className="absolute inset-0 animate-ping rounded-full bg-orange-500/25" />
+      <span className="absolute inset-1 rounded-full bg-orange-500/25 blur-[6px]" />
+      <Flame
+        className="relative size-4 fill-amber-400 text-orange-500 drop-shadow-[0_0_6px_rgba(249,115,22,0.9)] [animation:tremula_1.1s_ease-in-out_infinite]"
+        strokeWidth={1.5}
+      />
+      <style>{`@keyframes tremula {
+        0%, 100% { transform: scale(1) rotate(-2deg); }
+        35% { transform: scale(1.14) rotate(3deg); }
+        70% { transform: scale(0.96) rotate(-1deg); }
+      }`}</style>
+    </span>
+  );
+}
 
 // Itens do topo (antes do grupo Ferramentas)
 const navTopo: NavItem[] = [
   { href: "/painel/inicio", label: "Início", icon: Home },
   { href: "/painel", label: "Meus vídeos", icon: LayoutGrid },
   { href: "/painel/shopee", label: "Shopee", icon: ShoppingBag },
+  { href: "/painel/tiktok", label: "Produtos TikTok", icon: Music2, novidade: true },
   { href: "/painel/acervo", label: "Acervo de cortes", icon: Film },
-  { href: "/painel/meus-avatares", label: "Meus avatares", icon: UserRound, novidade: true },
-  { href: "/painel/avatar", label: "Vídeo com avatar", icon: Video, novidade: true },
+  { href: "/painel/meus-avatares", label: "Personalize com IA", icon: Palette, novidade: true },
+  { href: "/painel/lab", label: "Viraliza Labs", icon: FlaskConical, novidade: true },
+  { href: "/painel/viral-boost", label: "Viral Boost", icon: Flame, novidade: true },
   { href: "/painel/minerador", label: "Minerador", icon: Pickaxe, novidade: true },
+  { href: "/painel/academy", label: "Viraliza Academy", icon: GraduationCap, novidade: true },
 ];
 
 // Itens depois do grupo Ferramentas
 const navFim: NavItem[] = [
   { href: "/painel/membro", label: "Membro", icon: Gem },
   { href: "/painel/creditos", label: "Créditos", icon: Coins },
+  { href: "/painel/indique", label: "Indique e Ganhe", icon: Gift, novidade: true },
   { href: "/painel/sugestoes", label: "Sugestões", icon: MessageSquarePlus, novidade: true },
 ];
 
@@ -117,6 +149,7 @@ function Item({
   novidade = false,
   onNavigate,
   sub = false,
+  compacto = false,
 }: {
   href: string;
   label: string;
@@ -126,7 +159,44 @@ function Item({
   novidade?: boolean;
   onNavigate?: () => void;
   sub?: boolean;
+  /** barra recolhida: só o ícone, com o nome num balãozinho no hover */
+  compacto?: boolean;
 }) {
+  if (compacto) {
+    return (
+      <Link
+        href={href}
+        onClick={onNavigate}
+        title={label}
+        aria-label={label}
+        className={cn(
+          "group relative grid h-11 place-items-center rounded-lg transition-colors",
+          active
+            ? "bg-primary/12 text-primary"
+            : "text-muted-foreground hover:bg-accent hover:text-foreground",
+        )}
+      >
+        <Icon className="size-5" />
+        {badge > 0 ? (
+          <span className="absolute right-1.5 top-1.5 grid size-4 place-items-center rounded-full bg-orange-500 text-[9px] font-bold text-white">
+            {badge > 9 ? "9+" : badge}
+          </span>
+        ) : novidade ? (
+          <span className="absolute right-1 top-1">
+            <Flame
+              className="size-3.5 fill-amber-400 text-orange-500 drop-shadow-[0_0_5px_rgba(249,115,22,0.9)] [animation:tremula_1.1s_ease-in-out_infinite]"
+              strokeWidth={1.5}
+            />
+          </span>
+        ) : null}
+        {/* nome do item aparece ao lado quando passa o mouse */}
+        <span className="pointer-events-none absolute left-full z-50 ml-2 hidden whitespace-nowrap rounded-lg border border-border bg-popover px-2.5 py-1.5 text-xs font-medium shadow-xl group-hover:block">
+          {label}
+        </span>
+      </Link>
+    );
+  }
+
   return (
     <Link
       href={href}
@@ -149,12 +219,7 @@ function Item({
           {badge > 9 ? "9+" : badge}
         </span>
       ) : novidade ? (
-        <span
-          className="ml-auto rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary"
-          aria-label="Novidade"
-        >
-          Novo
-        </span>
+        <Foguinho />
       ) : null}
     </Link>
   );
@@ -163,9 +228,12 @@ function Item({
 export function NavLinks({
   onNavigate,
   isAdmin = false,
+  compacto = false,
 }: {
   onNavigate?: () => void;
   isAdmin?: boolean;
+  /** barra lateral recolhida (desktop): a navegação vira uma coluna de ícones */
+  compacto?: boolean;
 }) {
   const pathname = usePathname();
   const isActive = (href: string) =>
@@ -250,10 +318,22 @@ export function NavLinks({
             badge={badgeDe(href)}
             novidade={novidade}
             onNavigate={onNavigate}
+            compacto={compacto}
           />
         ))}
 
-        {/* Ferramentas: o nome abre a grade; a setinha recolhe/expande os atalhos */}
+        {/* Ferramentas: o nome abre a grade; a setinha recolhe/expande os atalhos.
+            Com a barra recolhida sobra só o ícone, que leva pra grade cheia. */}
+        {compacto ? (
+          <Item
+            href="/painel/ferramentas"
+            label="Ferramentas"
+            Icon={Wrench}
+            active={isActive("/painel/ferramentas")}
+            onNavigate={onNavigate}
+            compacto
+          />
+        ) : (
         <div className="flex items-center gap-1">
           <Link
             href="/painel/ferramentas"
@@ -283,7 +363,8 @@ export function NavLinks({
             />
           </button>
         </div>
-        {ferramentasAberto && (
+        )}
+        {!compacto && ferramentasAberto && (
           <div className="mb-1 ml-3 flex flex-col gap-1 border-l border-border pl-2">
             {ferramentasSub.map(({ href, label, icon: Icon }) => (
               <Item
@@ -309,15 +390,20 @@ export function NavLinks({
             badge={badgeDe(href)}
             novidade={novidade}
             onNavigate={onNavigate}
+            compacto={compacto}
           />
         ))}
       </nav>
 
       {isAdmin && (
         <div className="flex flex-col gap-1">
-          <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
-            Admin
-          </p>
+          {compacto ? (
+            <span className="mx-auto mb-1 h-px w-8 bg-border" />
+          ) : (
+            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
+              Admin
+            </p>
+          )}
           {adminItems.map(({ href, label, icon: Icon }) => (
             <Item
               key={href}
@@ -326,6 +412,7 @@ export function NavLinks({
               Icon={Icon}
               active={isActive(href)}
               onNavigate={onNavigate}
+              compacto={compacto}
             />
           ))}
         </div>

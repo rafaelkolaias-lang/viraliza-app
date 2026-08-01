@@ -17,7 +17,7 @@ const EXT: Record<string, string> = {
 /**
  * "Subir avatar pronto": a pessoa manda a imagem do avatar dela e a gente SÓ
  * hospeda no serverrk e registra (NADA de IA, CUSTO ZERO). Ela usa direto nos
- * vídeos, igual aos avatares prontos. Ver openai-image.ts pros modos que geram.
+ * vídeos, igual aos avatares prontos. Ver imagem-robot.ts pros modos que geram.
  */
 export async function POST(req: Request) {
   const user = await getCurrentUser();

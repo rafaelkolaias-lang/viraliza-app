@@ -44,7 +44,19 @@ export interface VideoJob {
   etapa?: string;
   /** créditos debitados por este vídeo (custo real). undefined = não cobrado (admin/demo) */
   creditosGastos?: number;
+  /** de onde o vídeo saiu: "lab" | "boost" | "cortes" | "editor" (etiqueta do card) */
+  origem?: OrigemVideo;
 }
+
+export type OrigemVideo = "lab" | "boost" | "cortes" | "editor";
+
+/** Nome de cada origem no card do "Meus vídeos". */
+export const ROTULO_ORIGEM_VIDEO: Record<OrigemVideo, string> = {
+  lab: "Viraliza Labs",
+  boost: "Viral Boost",
+  cortes: "Cortes",
+  editor: "Editor automático",
+};
 
 /** Vídeo viral baixado do Telegram (feed da página "Vídeos virais"). */
 export interface ViralVideo {

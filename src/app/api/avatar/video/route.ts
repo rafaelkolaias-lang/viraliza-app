@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { NextResponse, after } from "next/server";
 import { getCurrentUser } from "@/lib/dal";
-import { AVISO_PAUSADO, CHAVES, estaLigado } from "@/lib/configuracao";
+import { AVISO_PAUSADO, CHAVES, podeGerar } from "@/lib/configuracao";
 import { prisma } from "@/lib/prisma";
 import { montarPromptProduto, montarPromptAvatarPronto, montarPromptLivre } from "@/lib/produto-shot";
 import { gerarVideoGrok, type ArquivoImagem } from "@/lib/video-robot";
@@ -25,7 +25,7 @@ export const maxDuration = 1600;
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ erro: "Faça login." }, { status: 401 });
-  if (!(await estaLigado(CHAVES.geracaoVideo))) {
+  if (!(await podeGerar(CHAVES.geracaoVideo, user.role))) {
     return NextResponse.json({ erro: AVISO_PAUSADO, pausado: true }, { status: 503 });
   }
 

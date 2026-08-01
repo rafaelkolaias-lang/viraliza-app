@@ -6,7 +6,7 @@ import { ArrowLeft, ImagePlus, Loader2, Sparkles, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CUSTO_AVATAR } from "@/lib/avatar-modelo";
 import { normalizarImagem, ERRO_IMAGEM } from "@/lib/imagem-cliente";
-import type { AvatarCriado } from "@/components/app/avatar-quiz";
+import type { AvatarCriado } from "@/lib/avatar-modelo";
 
 /**
  * "Avatar da minha foto": a pessoa sobe UMA foto dela e a IA gera um retrato de

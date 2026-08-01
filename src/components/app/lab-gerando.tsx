@@ -32,7 +32,7 @@ const FRASES = [
   "Mandando sua cena pro estúdio da IA...",
   "Travando o rosto e a roupa do influenciador...",
   "Ensaiando o movimento da câmera...",
-  "Gravando a cena, take após take...",
+  "Gravando a sua cena...",
   "Ajustando a voz e o ritmo da fala...",
   "Finalizando e salvando o seu vídeo...",
 ];
@@ -44,12 +44,18 @@ export function LabGerando({
   config,
   imagem,
   produtoNome,
+  pov = false,
+  semMaos = false,
   onVoltar,
   onRefazer,
 }: {
   config: ConfigVideoLab;
   imagem: string;
   produtoNome?: string;
+  /** a imagem base é POV (só mãos ou produto parado): muda as regras do prompt */
+  pov?: boolean;
+  /** POV "produto parado": não tem ninguém na foto, nem mãos */
+  semMaos?: boolean;
   /** volta pro resumo (pra corrigir alguma coisa antes de tentar de novo) */
   onVoltar: () => void;
   /** recomeça o Lab do zero, com outro produto */
@@ -117,6 +123,9 @@ export function LabGerando({
           instrucoes: config.instrucoes,
           movimento: config.movimento,
           produtoNome,
+          pov,
+          semMaos,
+          semFala: config.semFala,
         }),
       });
       const d = await r.json();
@@ -137,7 +146,7 @@ export function LabGerando({
       setStatus("erro");
       toast.error(msg);
     }
-  }, [acompanhar, config, custo, imagem, produtoNome]);
+  }, [acompanhar, config, custo, imagem, produtoNome, pov, semMaos]);
 
   // dispara sozinho ao entrar na tela (a pessoa já clicou em "Gerar vídeo")
   useEffect(() => {

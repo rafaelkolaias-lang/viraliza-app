@@ -25,6 +25,18 @@ export async function estaLigado(chave: ChaveConfig): Promise<boolean> {
   return c?.valor !== "off";
 }
 
+/**
+ * A pausa vale pra essa pessoa?
+ *
+ * A chave de manutenção é o admin desligando a geração PRA GALERA, geralmente
+ * quando o robô cai ou a conta desloga. Ele mesmo precisa continuar gerando pra
+ * testar quando pode religar, senão ele desliga e fica sem enxergar nada.
+ */
+export async function podeGerar(chave: ChaveConfig, role?: string | null): Promise<boolean> {
+  if (role === "admin") return true;
+  return estaLigado(chave);
+}
+
 /** Estado das duas chaves de geração de uma vez (usado no painel). */
 export async function estadoGeracao(): Promise<{ imagem: boolean; video: boolean }> {
   const linhas = await prisma.configuracao

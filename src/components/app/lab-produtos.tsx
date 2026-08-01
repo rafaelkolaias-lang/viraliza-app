@@ -8,6 +8,7 @@ import {
   Check,
   Loader2,
   ShoppingBag,
+  Music2,
   Sparkles,
   Lightbulb,
   ChevronDown,
@@ -27,6 +28,13 @@ import { dicaDeEstilo, type EstiloCamera } from "@/lib/estilos-camera";
  */
 
 export type ProdutoLab = { id: string; titulo: string; imagem?: string; meu: boolean };
+
+/** Os acervos que a pessoa pode navegar no passo do produto. */
+type Fonte = "shopee" | "tiktok";
+const FONTES: { chave: Fonte; label: string; Icone: typeof ShoppingBag }[] = [
+  { chave: "shopee", label: "Shopee", Icone: ShoppingBag },
+  { chave: "tiktok", label: "TikTok Shop", Icone: Music2 },
+];
 
 function CardProduto({
   p,
@@ -94,6 +102,10 @@ function SubirProduto({ onSalvo }: { onSalvo: (p: ProdutoLab) => void }) {
     if (!file) return;
     try {
       const dataUrl = await normalizarImagem(file);
+      if (!dataUrl) {
+        toast.error(ERRO_IMAGEM);
+        return;
+      }
       setFoto(dataUrl);
       if (!nome) setNome(file.name.replace(/\.[a-z0-9]+$/i, "").slice(0, 80));
     } catch (e) {
@@ -210,26 +222,28 @@ export function LabProdutos({
   onTrocarEstilo: (chave: string) => void;
 }) {
   const [meus, setMeus] = useState<ProdutoLab[]>([]);
-  const [shopee, setShopee] = useState<ProdutoLab[]>([]);
+  // de qual acervo os produtos estão vindo (a pessoa troca nos botões do topo)
+  const [fonte, setFonte] = useState<Fonte>("shopee");
+  const [produtos, setProdutos] = useState<ProdutoLab[]>([]);
   const [busca, setBusca] = useState("");
   const [carregando, setCarregando] = useState(true);
   const [pagina, setPagina] = useState(1);
   const [temMais, setTemMais] = useState(false);
 
-  const carregar = useCallback(async (termo: string, pag: number) => {
+  const carregar = useCallback(async (termo: string, pag: number, de: Fonte) => {
     setCarregando(true);
     try {
       const r = await fetch(
-        `/api/lab/produtos?busca=${encodeURIComponent(termo)}&pagina=${pag}`,
+        `/api/lab/produtos?busca=${encodeURIComponent(termo)}&pagina=${pag}&fonte=${de}`,
         { cache: "no-store" },
       );
       const d = await r.json();
       if (!r.ok) throw new Error(d?.erro ?? "Falha ao carregar produtos.");
       if (pag === 1) {
         setMeus(d.meus ?? []);
-        setShopee(d.shopee ?? []);
+        setProdutos(d.produtos ?? []);
       } else {
-        setShopee((atual) => [...atual, ...(d.shopee ?? [])]);
+        setProdutos((atual) => [...atual, ...(d.produtos ?? [])]);
       }
       setTemMais(!!d.temMais);
     } catch (e) {
@@ -239,14 +253,15 @@ export function LabProdutos({
     }
   }, []);
 
-  // busca com respiro de 400ms (não dispara a cada tecla)
+  // busca com respiro de 400ms (não dispara a cada tecla). Trocar de acervo
+  // recarrega na hora, sem esperar.
   useEffect(() => {
     const t = setTimeout(() => {
       setPagina(1);
-      carregar(busca, 1);
+      carregar(busca, 1, fonte);
     }, 400);
     return () => clearTimeout(t);
-  }, [busca, carregar]);
+  }, [busca, fonte, carregar]);
 
   const dica = produto ? dicaDeEstilo(produto.titulo, estilo.chave) : null;
 
@@ -259,6 +274,30 @@ export function LabProdutos({
           Estilo <strong className="text-primary">{estilo.label}</strong>: melhor para{" "}
           {estilo.paraQuem.toLowerCase()}.
         </span>
+      </div>
+
+      {/* de onde vêm os produtos: cada acervo tem a sua cara */}
+      <div className="flex flex-wrap gap-2">
+        {FONTES.map((f) => {
+          const ativo = fonte === f.chave;
+          return (
+            <button
+              key={f.chave}
+              type="button"
+              onClick={() => setFonte(f.chave)}
+              aria-pressed={ativo}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-medium transition-all",
+                ativo
+                  ? "border-primary bg-primary/10 text-primary shadow-[0_0_20px_-8px_var(--color-primary)]"
+                  : "border-border/60 text-muted-foreground hover:border-primary/40 hover:text-foreground",
+              )}
+            >
+              <f.Icone className="size-4" />
+              {f.label}
+            </button>
+          );
+        })}
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -314,20 +353,20 @@ export function LabProdutos({
 
       <div id="lab-produtos-shopee" className="space-y-2 scroll-mt-24">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Produtos da Shopee
+          {fonte === "tiktok" ? "Produtos do TikTok Shop" : "Produtos da Shopee"}
         </h3>
-        {carregando && shopee.length === 0 ? (
+        {carregando && produtos.length === 0 ? (
           <div className="grid place-items-center py-10 text-muted-foreground">
             <Loader2 className="size-6 animate-spin" />
           </div>
-        ) : shopee.length === 0 ? (
+        ) : produtos.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
             Nenhum produto encontrado. Tente outro nome ou suba a foto do seu produto.
           </p>
         ) : (
           <>
             <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-5 lg:grid-cols-8">
-              {shopee.map((p) => (
+              {produtos.map((p) => (
                 <CardProduto
                   key={p.id}
                   p={p}
@@ -344,7 +383,7 @@ export function LabProdutos({
                   onClick={() => {
                     const prox = pagina + 1;
                     setPagina(prox);
-                    carregar(busca, prox);
+                    carregar(busca, prox, fonte);
                   }}
                   className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-50"
                 >
@@ -364,7 +403,7 @@ export function LabProdutos({
                   disabled={carregando}
                   onClick={() => {
                     setPagina(1);
-                    carregar(busca, 1);
+                    carregar(busca, 1, fonte);
                     document
                       .getElementById("lab-produtos-shopee")
                       ?.scrollIntoView({ behavior: "smooth", block: "start" });

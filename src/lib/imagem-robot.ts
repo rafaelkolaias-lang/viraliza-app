@@ -31,7 +31,8 @@ export async function gerarImagemGrok(opts: {
   conta?: "antiga" | "nova"; // padrão: a reserva (definida no servidor)
   limiteMs?: number;
 }): Promise<{ imagemUrl: string } | null> {
-  if (!grokImagemConfigurado() || opts.imagens.length === 0) return null;
+  // sem imagem também vale: o influenciador nasce só do texto do prompt
+  if (!grokImagemConfigurado()) return null;
 
   let jobId = "";
   try {

@@ -1,13 +1,11 @@
-import type { Metadata } from "next";
-import { AvatarEstudio } from "@/components/app/avatar-estudio";
-import { requireUser } from "@/lib/dal";
-import { listarAvatares } from "@/lib/avatares";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Vídeo com avatar" };
-export const dynamic = "force-dynamic";
-
-export default async function AvatarPage() {
-  const user = await requireUser();
-  const meusAvatares = await listarAvatares(user.id);
-  return <AvatarEstudio meusAvatares={meusAvatares} admin={user.role === "admin"} />;
+/**
+ * O "Vídeo com avatar" virou o Viraliza Labs: o funil guiado do Lab faz o mesmo
+ * caminho com mais controle, e o Vídeo livre e o Gerador de prompt viraram
+ * ferramentas do dock de lá. A rota antiga fica de pé só pra não quebrar link
+ * salvo, favorito ou mensagem antiga no suporte.
+ */
+export default function AvatarPage() {
+  redirect("/painel/lab");
 }

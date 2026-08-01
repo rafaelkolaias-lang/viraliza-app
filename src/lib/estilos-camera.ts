@@ -33,6 +33,10 @@ export const ESTILOS_CAMERA: EstiloCamera[] = [
     paraQuem: "Eletrônicos, brinquedos, livros",
     ...midiaEstilo("de-frente"),
     uso: "segurando",
+    // Era o único estilo sem enquadramento próprio, e caía num texto genérico que
+    // deixava o modelo livre pra inflar o produto até o tamanho do tronco.
+    extra:
+      "MEDIUM SHOT framing: frame the person from the waist up, camera about 1.5 to 2 meters away at chest height, plenty of room around her, she is standing and holding the product in front of her chest with a natural relaxed grip, the product turned so the front label faces the camera and never covering her face. The product stays at its real life size in her hands: it is the person holding a normal object, not a giant prop.",
   },
   {
     chave: "selfie",

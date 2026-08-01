@@ -72,6 +72,7 @@ export function LabAvatares({
     setSubindo(true);
     try {
       const dataUrl = await normalizarImagem(file);
+      if (!dataUrl) throw new Error(ERRO_IMAGEM);
       const r = await fetch("/api/avatar/subir", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

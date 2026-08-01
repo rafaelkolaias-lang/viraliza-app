@@ -17,8 +17,8 @@ import { midiaMovimento } from "@/lib/lab-midia";
 import type { ConfigVideoLab } from "@/components/app/lab-video";
 
 /**
- * Revisão final antes de gerar o vídeo: duração, voz, movimento e a fala de cada
- * take, com atalho pra voltar e corrigir. Última parada antes de gastar crédito.
+ * Revisão final antes de gerar o vídeo: duração, voz, movimento e a fala, com
+ * atalho pra voltar e corrigir. Última parada antes de gastar crédito.
  */
 
 export function LabResumoVideo({

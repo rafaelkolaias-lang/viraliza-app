@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { VideoCard } from "@/components/app/video-card";
+import { VideosGaleria } from "@/components/app/videos-galeria";
 import { AutoAtualizar } from "@/components/app/auto-atualizar";
 import { requireUser } from "@/lib/dal";
 import { getJobsDoUsuario } from "@/lib/jobs";
@@ -72,11 +72,7 @@ export default async function PainelPage() {
           </Button>
         </div>
       ) : (
-        <div className="grid gap-4 xl:grid-cols-2">
-          {videos.map((v) => (
-            <VideoCard key={v.id} video={v} />
-          ))}
-        </div>
+        <VideosGaleria videos={videos} />
       )}
     </div>
   );

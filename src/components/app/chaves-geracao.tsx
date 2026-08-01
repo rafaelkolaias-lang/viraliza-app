@@ -121,10 +121,14 @@ export function ChavesGeracao({
         ou batendo cota: a pessoa vê um aviso de manutenção em vez de gastar
         tentativa. Créditos nunca são cobrados quando falha.
       </p>
+      <p className="rounded-xl border border-primary/30 bg-primary/8 px-3.5 py-2.5 text-xs text-primary">
+        A pausa vale só pros usuários. Você continua gerando normalmente, pra
+        conseguir testar e saber a hora de religar.
+      </p>
       <div className="grid gap-2.5 sm:grid-cols-2">
         <Chave
           titulo="Geração de imagens"
-          descricao="Lab, avatares e avatar com produto."
+          descricao="Lab, Viral Boost e Personalize com IA."
           Icone={ImageIcon}
           ligado={imagem}
           ocupado={ocupado === "geracao_imagem"}

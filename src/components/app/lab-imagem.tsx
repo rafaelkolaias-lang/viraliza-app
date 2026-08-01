@@ -104,6 +104,7 @@ export function LabImagem({
     setSubindo(true);
     try {
       const dataUrl = await normalizarImagem(file);
+      if (!dataUrl) throw new Error(ERRO_IMAGEM);
       const r = await fetch("/api/avatar/subir", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -148,6 +149,11 @@ export function LabImagem({
           produtoNome: produto.titulo,
           avatarUrl: avatar.imagemUrl || undefined,
           variacao,
+          // vai junto só pra galeria conseguir remontar essa mesma cena depois
+          produtoId: produto.id,
+          produtoMeu: produto.meu,
+          avatarId: avatar.id,
+          avatarNome: avatar.nome,
         }),
       });
       const d = await r.json();

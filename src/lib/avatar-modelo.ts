@@ -13,12 +13,56 @@ export const GENEROS: Opcao[] = [
 
 export const IDADES = [20, 25, 30, 35, 40, 45, 50];
 
-export const TONS_PELE: Opcao[] = [
-  { chave: "clara", label: "Pele clara", en: "fair with a neutral undertone" },
-  { chave: "morena_clara", label: "Morena clara", en: "light to medium tan with a warm golden undertone, morena clara" },
-  { chave: "morena", label: "Morena", en: "medium brown with a warm undertone" },
-  { chave: "negra", label: "Negra", en: "deep brown with a rich warm undertone" },
-  { chave: "asiatica", label: "Asiática", en: "light with a neutral warm undertone, east asian" },
+/**
+ * Tons de pele. Cada um tem uma AMOSTRA (o degradê que a pessoa vê no card): a
+ * escolha por foto de pele é muito mais precisa do que por nome, porque "morena"
+ * quer dizer uma coisa diferente pra cada pessoa.
+ */
+export type TomPele = Opcao & { amostra: string };
+export const TONS_PELE: TomPele[] = [
+  {
+    chave: "muito_clara",
+    label: "Muito clara",
+    en: "very fair porcelain skin with a cool neutral undertone, visible fine texture",
+    amostra: "linear-gradient(135deg,#fbeade,#f3d9c8)",
+  },
+  {
+    chave: "clara",
+    label: "Clara",
+    en: "fair with a neutral undertone",
+    amostra: "linear-gradient(135deg,#f4dcc4,#e9c6a8)",
+  },
+  {
+    chave: "clara_media",
+    label: "Clara média",
+    en: "light medium skin with a warm beige undertone",
+    amostra: "linear-gradient(135deg,#eac6a0,#dcae86)",
+  },
+  {
+    chave: "morena",
+    label: "Morena",
+    en: "medium brown with a warm undertone",
+    amostra: "linear-gradient(135deg,#bd7f52,#a4653c)",
+  },
+  {
+    chave: "morena_escura",
+    label: "Morena escura",
+    en: "deep tan brown skin with a rich warm undertone, morena escura",
+    amostra: "linear-gradient(135deg,#8f5633,#6f401f)",
+  },
+  {
+    chave: "negra",
+    label: "Negra",
+    en: "deep brown with a rich warm undertone",
+    amostra: "linear-gradient(135deg,#5c3520,#3a1f12)",
+  },
+  {
+    chave: "vitiligo",
+    label: "Vitiligo",
+    en: "brown skin with natural vitiligo, soft irregular depigmented patches on the face, neck and hands, real skin texture",
+    amostra:
+      "radial-gradient(circle at 30% 32%,#f0dcc6 12%,transparent 13%),radial-gradient(circle at 62% 58%,#f0dcc6 16%,transparent 17%),radial-gradient(circle at 78% 24%,#f0dcc6 9%,transparent 10%),linear-gradient(135deg,#b97a4e,#96603a)",
+  },
 ];
 
 export const FORMATOS_ROSTO: Opcao[] = [
@@ -40,11 +84,59 @@ export const OLHOS: Opcao[] = [
 
 export const CABELO_CORES: Opcao[] = [
   { chave: "preto", label: "Preto", en: "natural black, uniform, no highlights" },
-  { chave: "castanho_escuro", label: "Castanho escuro", en: "dark chocolate brown, uniform, no highlights, no ombre" },
-  { chave: "castanho_claro", label: "Castanho claro", en: "light brown, uniform, no highlights" },
+  { chave: "castanho", label: "Castanho", en: "natural brown, uniform, no highlights, no ombre" },
   { chave: "loiro", label: "Loiro", en: "natural honey blonde, uniform, no harsh bleach" },
   { chave: "ruivo", label: "Ruivo", en: "natural auburn red" },
+  { chave: "vermelho", label: "Vermelho", en: "vivid dyed red, bright and saturated" },
+  { chave: "rosa", label: "Rosa", en: "vivid dyed pink" },
+  { chave: "roxo", label: "Roxo", en: "vivid dyed purple" },
+  { chave: "azul", label: "Azul", en: "vivid dyed blue" },
+  { chave: "verde", label: "Verde", en: "vivid dyed green" },
+  { chave: "platinado", label: "Platinado", en: "platinum blonde, almost white, cool tone" },
+  { chave: "grisalho", label: "Grisalho", en: "natural salt and pepper gray hair" },
 ];
+
+/**
+ * ESTILO do cabelo (corte e textura numa coisa só). Cada um tem a foto de
+ * referência no serverrk. Uns são de mulher, outros de homem e alguns servem pros
+ * dois: a tela mostra os do gênero escolhido mais os unissex.
+ */
+export type EstiloCabelo = Opcao & { genero: "female" | "male" | "unisex" };
+export const CABELO_ESTILOS: EstiloCabelo[] = [
+  // ----- feminino -----
+  { chave: "long_straight", label: "Longo liso", genero: "female", en: "long straight hair falling below the shoulder blades, smooth with natural movement" },
+  { chave: "long_curly", label: "Longo cacheado", genero: "female", en: "long curly hair with defined curls and natural volume" },
+  { chave: "wavy", label: "Ondulado médio", genero: "female", en: "medium length wavy hair, soft loose waves" },
+  { chave: "bob", label: "Chanel", genero: "female", en: "chin length bob haircut, straight and neat" },
+  { chave: "pixie", label: "Pixie", genero: "female", en: "short pixie cut, cropped close with texture on top" },
+  { chave: "bangs", label: "Com franja", genero: "female", en: "shoulder length hair with straight blunt bangs over the forehead" },
+  { chave: "ponytail", label: "Rabo de cavalo", genero: "female", en: "hair pulled back into a high ponytail, smooth on top" },
+  { chave: "bun", label: "Coque", genero: "female", en: "hair tied in a neat bun at the back of the head, a few loose strands" },
+  { chave: "braids", label: "Tranças", genero: "female", en: "long box braids, neatly parted" },
+  { chave: "afro", label: "Black power", genero: "female", en: "natural afro hair, round volume, defined coily texture" },
+  // ----- masculino -----
+  { chave: "short_classic", label: "Curto clássico", genero: "male", en: "short classic haircut, neatly combed, natural finish" },
+  { chave: "fade", label: "Degradê", genero: "male", en: "fade haircut, short faded sides with more length on top" },
+  { chave: "undercut", label: "Undercut", genero: "male", en: "undercut, shaved sides with longer hair on top" },
+  { chave: "buzzcut", label: "Raspado", genero: "male", en: "buzz cut, very short hair all over" },
+  { chave: "bald", label: "Careca", genero: "male", en: "completely bald head, natural scalp" },
+  { chave: "slickback", label: "Penteado pra trás", genero: "male", en: "hair combed straight back, slicked back style" },
+  { chave: "medium_straight", label: "Médio liso", genero: "male", en: "medium length straight hair, loose and natural" },
+  { chave: "curly_short", label: "Cacheado curto", genero: "male", en: "short curly hair with defined curls" },
+  { chave: "afro_short", label: "Black curto", genero: "male", en: "short natural afro hair, defined coily texture" },
+  { chave: "mohawk", label: "Moicano", genero: "male", en: "mohawk haircut, shaved sides with a strip of longer hair on top" },
+  // ----- serve pros dois -----
+  { chave: "short_straight", label: "Curto liso", genero: "unisex", en: "short straight hair, simple neat cut" },
+  { chave: "medium_curly", label: "Cacheado médio", genero: "unisex", en: "medium length curly hair, defined curls with natural volume" },
+  { chave: "dreads", label: "Dreads", genero: "unisex", en: "medium length dreadlocks, natural and neat" },
+  { chave: "manbun", label: "Coque samurai", genero: "unisex", en: "hair tied in a small bun at the back, short at the sides" },
+];
+
+/** Estilos de cabelo que aparecem pro gênero escolhido (com os unissex junto). */
+export function estilosDeCabelo(genero: string): EstiloCabelo[] {
+  const g = genero === "male" ? "male" : "female";
+  return CABELO_ESTILOS.filter((e) => e.genero === g || e.genero === "unisex");
+}
 
 export const CABELO_COMPRIMENTOS: Opcao[] = [
   { chave: "curto", label: "Curto", en: "short bob" },
@@ -59,12 +151,59 @@ export const CABELO_TEXTURAS: Opcao[] = [
   { chave: "crespo", label: "Crespo", en: "natural coily hair, defined texture, natural volume" },
 ];
 
-export const TIPOS_FISICOS: Opcao[] = [
-  { chave: "magra", label: "Magro(a)", en: "slim with natural healthy curves, not skinny, not muscular" },
-  { chave: "atletica", label: "Atlético(a)", en: "athletic and toned, defined shoulders, natural proportions" },
-  { chave: "curvilinea", label: "Curvilíneo(a)", en: "curvy hourglass with natural proportions" },
-  { chave: "plus", label: "Plus size", en: "plus size with natural healthy proportions" },
+/**
+ * Tipo físico. O terceiro muda de sentido conforme o gênero (curvilínea pra
+ * mulher, robusto pro homem), então cada opção carrega a versão masculina do
+ * rótulo, da descrição e do texto que vai pro prompt.
+ */
+export type TipoFisico = Opcao & {
+  desc: string;
+  labelM?: string;
+  descM?: string;
+  enM?: string;
+};
+export const TIPOS_FISICOS: TipoFisico[] = [
+  {
+    chave: "magra",
+    label: "Magra",
+    labelM: "Magro",
+    desc: "Corpo magro e esguio",
+    en: "slim with natural healthy curves, not skinny, not muscular",
+    enM: "slim and lean, natural healthy build, not skinny, not muscular",
+  },
+  {
+    chave: "atletica",
+    label: "Atlética",
+    labelM: "Atlético",
+    desc: "Corpo tonificado e definido",
+    en: "athletic and toned, defined shoulders, natural proportions",
+  },
+  {
+    chave: "curvilinea",
+    label: "Curvilínea",
+    labelM: "Robusto",
+    desc: "Corpo com curvas naturais",
+    descM: "Corpo largo, com barriga",
+    en: "curvy hourglass with natural proportions",
+    enM: "stocky and broad, wide shoulders and a natural belly, strong build",
+  },
+  {
+    chave: "plus",
+    label: "Plus size",
+    desc: "Corpo grande e arredondado",
+    en: "plus size with natural healthy proportions",
+  },
 ];
+
+/** Rótulo, descrição e texto do prompt do tipo físico no gênero escolhido. */
+export function tipoFisicoNoGenero(t: TipoFisico, genero: string) {
+  const male = genero === "male";
+  return {
+    label: male ? (t.labelM ?? t.label) : t.label,
+    desc: male ? (t.descM ?? t.desc) : t.desc,
+    en: male ? (t.enM ?? t.en) : t.en,
+  };
+}
 
 export const EXPRESSOES: Opcao[] = [
   { chave: "sorriso_leve", label: "Sorriso leve", en: "calm and friendly, a light closed lip smile, relaxed eyes" },
@@ -280,6 +419,8 @@ export type EscolhasAvatar = {
   formatoRosto: string;
   olhos: string;
   cabeloCor: string;
+  /** chave de CABELO_ESTILOS (corte + textura numa coisa só) */
+  cabeloEstilo?: string;
   cabeloComprimento: string;
   cabeloTextura: string;
   tipoFisico: string;
@@ -288,9 +429,107 @@ export type EscolhasAvatar = {
   marcas: string;
   cenario: string;
   estilo: string;
+  /** cor da camisa (chave de CAMISAS ou "custom") */
+  camisa?: string;
+  /** cor livre quando a camisa é "custom" (hex) */
+  camisaCor?: string;
+  /** tipo da camiseta (chave de CAMISA_TIPOS) */
+  camisaTipo?: string;
+  /** detalhes do passo 6 */
+  barba?: boolean;
+  oculos?: boolean;
 };
+
+/** Tipo da camiseta do influenciador. */
+export const CAMISA_TIPOS: (Opcao & { desc: string })[] = [
+  { chave: "basica", label: "Convencional", desc: "Camiseta básica", en: "a plain basic cotton crew neck t-shirt" },
+  { chave: "polo", label: "Gola polo", desc: "Camisa polo com gola", en: "a plain cotton polo shirt with a collar" },
+];
+
+/**
+ * Cor da camisa. É o que mais aparece no card do influenciador e o que mais
+ * atrapalha o vídeo depois: camisa estampada rouba a atenção do produto, por isso
+ * são todas lisas. "Custom" deixa a pessoa escolher qualquer cor.
+ */
+export type CorCamisa = Opcao & { cor: string };
+export const CAMISAS: CorCamisa[] = [
+  { chave: "preta", label: "Preta", cor: "#151515", en: "black" },
+  { chave: "branca", label: "Branca", cor: "#f8f8f8", en: "white" },
+  { chave: "cinza", label: "Cinza", cor: "#9ca3af", en: "heather gray" },
+  { chave: "azul_marinho", label: "Azul marinho", cor: "#1e3a5f", en: "navy blue" },
+  { chave: "vermelha", label: "Vermelha", cor: "#dc2626", en: "red" },
+  { chave: "verde_escuro", label: "Verde escuro", cor: "#15803d", en: "dark green" },
+  { chave: "bege", label: "Bege", cor: "#e0c49a", en: "beige" },
+  { chave: "rosa", label: "Rosa", cor: "#ec4899", en: "pink" },
+];
+
+/**
+ * Nome em inglês da cor mais próxima de um hex. O seletor de cor devolve
+ * "#22c55e", e pedir "#22c55e colored" pro gerador funciona muito pior do que
+ * pedir "green": ele entende nome de cor, não código.
+ */
+export function corDoHex(hex: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return "black";
+  const n = parseInt(m[1], 16);
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const luz = (max + min) / 2 / 255;
+  const sat = max === min ? 0 : (max - min) / (255 - Math.abs(max + min - 255));
+
+  if (luz > 0.92) return "white";
+  if (luz < 0.1) return "black";
+  if (sat < 0.12) return luz > 0.6 ? "light gray" : luz > 0.35 ? "gray" : "dark gray";
+
+  let h = 0;
+  if (max === r) h = ((g - b) / (max - min) + (g < b ? 6 : 0)) * 60;
+  else if (max === g) h = ((b - r) / (max - min) + 2) * 60;
+  else h = ((r - g) / (max - min) + 4) * 60;
+
+  const nome =
+    h < 15 || h >= 345
+      ? "red"
+      : h < 40
+        ? "orange"
+        : h < 65
+          ? "yellow"
+          : h < 90
+            ? "lime green"
+            : h < 160
+              ? "green"
+              : h < 195
+                ? "teal"
+                : h < 250
+                  ? "blue"
+                  : h < 290
+                    ? "purple"
+                    : "pink";
+  return luz > 0.72 ? `light ${nome}` : luz < 0.28 ? `dark ${nome}` : nome;
+}
+
+/** Monta a descrição da roupa (tipo + cor) que vai pro prompt. */
+export function descricaoCamisa(tipo?: string, cor?: string, corCustom?: string): string {
+  const t = CAMISA_TIPOS.find((c) => c.chave === tipo) ?? CAMISA_TIPOS[0];
+  const c = CAMISAS.find((x) => x.chave === cor);
+  const nomeCor = cor === "custom" && corCustom ? corDoHex(corCustom) : (c?.en ?? "black");
+  return `${t.en}, plain ${nomeCor}, no print, no pattern, no visible brand logo`;
+}
 
 /** Acha o valor em inglês de uma opção pela chave (fallback = 1ª opção). */
 export function enDe(lista: Opcao[], chave: string): string {
   return (lista.find((o) => o.chave === chave) ?? lista[0]).en;
 }
+
+/** Avatar já criado, como as telas de "Personalize com IA" mostram no card. */
+export type AvatarCriado = {
+  id: string;
+  nome: string;
+  genero: string;
+  imagemUrl: string;
+  criadoEm: string;
+  /** linha de identificação do card ("Feminino, 25 anos, Morena...") */
+  ficha?: string;
+};

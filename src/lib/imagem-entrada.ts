@@ -27,6 +27,20 @@ export function dataUrlParaEntrada(dataUrl?: string): ImagemEntrada | null {
 
 /** Baixa uma imagem (avatar salvo no serverrk OU um avatar PRONTO da plataforma,
  *  que é arquivo local em public, ex: /avatares/yasmin.jpg). Null se falhar. */
+/**
+ * A URL é de uma imagem NOSSA? Vale caminho local do app (/algo.png) e o domínio
+ * de mídia do serverrk. Serve pra travar as rotas que animam uma imagem: sem
+ * isso o servidor buscava qualquer endereço que o cliente mandasse, e ainda dava
+ * pra pular (e não pagar) a etapa que gera a cena.
+ */
+export function ehImagemNossa(url?: string): boolean {
+  const u = (url ?? "").trim();
+  if (!u) return false;
+  if (u.startsWith("/")) return !u.startsWith("//") && !u.includes("..");
+  const base = (process.env.NEXT_PUBLIC_MEDIA_BASE || "https://media.univershoop.com").replace(/\/+$/, "");
+  return u.startsWith(`${base}/`);
+}
+
 export async function baixarImagemEntrada(url?: string): Promise<ImagemEntrada | null> {
   if (!url) return null;
   // caminho local do app (avatares prontos em public): lê direto do disco

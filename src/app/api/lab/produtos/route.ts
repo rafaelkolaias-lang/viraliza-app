@@ -6,14 +6,17 @@ import { MEDIA_BASE } from "@/lib/midia-shopee";
 import { driveThumb } from "@/lib/drive";
 import { dataUrlParaEntrada } from "@/lib/imagem-entrada";
 import { subirAvatar } from "@/lib/serverrk-upload";
+import { buscarProdutosTiktok, imagemProdutoTiktok } from "@/lib/produtos-tiktok";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
  * Produtos do Viraliza Lab (passo "Selecione um produto"):
- *  - GET  lista os produtos DA PESSOA (que ela subiu) + o acervo Shopee, com
- *         busca por título e paginação (o acervo tem muita coisa).
+ *  - GET  lista os produtos DA PESSOA (que ela subiu) + o acervo escolhido, com
+ *         busca por título e paginação. A FONTE vem por query (`fonte=shopee` ou
+ *         `fonte=tiktok`): o acervo Shopee vem do banco e o do TikTok Shop do
+ *         arquivo do Radar, mas os dois saem daqui no mesmo formato.
  *  - POST sobe a foto de um produto dela (nome + imagem) e guarda pra reusar.
  */
 
@@ -26,6 +29,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const busca = (url.searchParams.get("busca") ?? "").trim().slice(0, 80);
   const pagina = Math.max(1, Number(url.searchParams.get("pagina") ?? 1) || 1);
+  const fonte = url.searchParams.get("fonte") === "tiktok" ? "tiktok" : "shopee";
 
   // os meus vêm sempre na 1ª página (são poucos e é o que ela mais usa)
   const meus =
@@ -41,6 +45,22 @@ export async function GET(req: Request) {
         })
       : [];
 
+  // ---- acervo do TikTok Shop (arquivo do Radar, sem banco) ----
+  if (fonte === "tiktok") {
+    const r = buscarProdutosTiktok({ busca, pagina, porPagina: POR_PAGINA });
+    return NextResponse.json({
+      meus: meus.map((p) => ({ id: p.id, titulo: p.nome, imagem: p.imagemUrl, meu: true })),
+      produtos: r.itens.map((p) => ({
+        id: `tt-${p.id}`,
+        titulo: p.titulo,
+        imagem: imagemProdutoTiktok(p.imagem),
+        meu: false,
+      })),
+      pagina,
+      temMais: pagina < r.paginas,
+    });
+  }
+
   const [shopee, total] = await Promise.all([
     prisma.produtoShopee.findMany({
       where: busca ? { titulo: { contains: busca } } : {},
@@ -54,7 +74,7 @@ export async function GET(req: Request) {
 
   return NextResponse.json({
     meus: meus.map((p) => ({ id: p.id, titulo: p.nome, imagem: p.imagemUrl, meu: true })),
-    shopee: shopee.map((p) => ({
+    produtos: shopee.map((p) => ({
       id: p.id,
       titulo: p.titulo,
       imagem: p.migrado

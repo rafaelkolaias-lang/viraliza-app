@@ -20,6 +20,7 @@ import {
   TONALIDADES_LAB,
   duracaoPorChave,
   limitePalavras,
+  contarPalavrasFala,
   ESTRUTURA_FALA,
   EXEMPLO_FALA,
 } from "@/lib/lab-video";
@@ -38,11 +39,9 @@ export type ConfigVideoLab = {
   fala: string;
   instrucoes: string;
   movimento: string | null;
+  /** true = a pessoa pediu o vídeo mudo mesmo numa duração que aceita fala */
+  semFala?: boolean;
 };
-
-function contarPalavras(t: string) {
-  return t.trim() ? t.trim().split(/\s+/).length : 0;
-}
 
 /** Pílula de escolha (usada em tom, voz e tonalidade). */
 function Pilula({
@@ -85,9 +84,11 @@ export function LabVideo({
 }) {
   const [escrevendo, setEscrevendo] = useState(false);
   const dur = duracaoPorChave(config.duracao);
-  const comFala = !!dur?.comFala;
+  // a duração aceita fala E a pessoa não pediu mudo
+  const aceitaFala = !!dur?.comFala;
+  const comFala = aceitaFala && !config.semFala;
   const limite = limitePalavras(dur?.segundos ?? 15);
-  const palavras = contarPalavras(config.fala);
+  const palavras = contarPalavrasFala(config.fala);
   const passou = palavras > limite;
 
   function set<K extends keyof ConfigVideoLab>(campo: K, valor: ConfigVideoLab[K]) {
@@ -176,13 +177,43 @@ export function LabVideo({
         )}
       </div>
 
+      {/* nos 10s e 15s a pessoa escolhe: com fala ou mudo (o de 6s é sempre mudo) */}
+      {aceitaFala && (
+        <div className="space-y-2.5">
+          <p className="text-sm font-medium">Áudio do vídeo</p>
+          <div className="grid grid-cols-2 gap-2.5">
+            <Pilula
+              ativo={!config.semFala}
+              titulo="Com fala"
+              desc="A pessoa fala em português"
+              onClick={() => set("semFala", false)}
+            />
+            <Pilula
+              ativo={!!config.semFala}
+              titulo="Sem fala"
+              desc="Vídeo mudo, só o movimento"
+              onClick={() => set("semFala", true)}
+            />
+          </div>
+        </div>
+      )}
+
       {!comFala ? (
         <div className="flex gap-2.5 rounded-xl border border-border/60 bg-card/50 p-3 text-xs leading-relaxed text-muted-foreground sm:text-[13px]">
           <MicOff className="mt-0.5 size-4 shrink-0" />
           <p>
-            O vídeo de 6 segundos sai <strong>sem fala</strong>, só com o movimento do
-            produto. Fica limpo pra usar como capa ou anúncio, e você pode colocar
-            música e legenda depois no editor.
+            {aceitaFala ? (
+              <>
+                Esse vídeo vai sair <strong>mudo</strong>, só com o movimento da cena.
+                Dá pra colocar música e legenda depois no editor.
+              </>
+            ) : (
+              <>
+                O vídeo de 6 segundos sai <strong>sem fala</strong>, só com o movimento do
+                produto. Fica limpo pra usar como capa ou anúncio, e você pode colocar
+                música e legenda depois no editor.
+              </>
+            )}
           </p>
         </div>
       ) : (

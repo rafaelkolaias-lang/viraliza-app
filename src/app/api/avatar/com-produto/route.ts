@@ -1,11 +1,9 @@
-import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/dal";
-import { AVISO_PAUSADO, CHAVES, estaLigado } from "@/lib/configuracao";
-import { editarImagem, openaiConfigurado } from "@/lib/openai-image";
+import { AVISO_PAUSADO, CHAVES, podeGerar } from "@/lib/configuracao";
+import { gerarImagemGrok, grokImagemConfigurado } from "@/lib/imagem-robot";
 import { promptAvatarComProduto } from "@/lib/avatar-foto";
 import { dataUrlParaEntrada, baixarImagemEntrada } from "@/lib/imagem-entrada";
-import { subirAvatar } from "@/lib/serverrk-upload";
 import { CUSTO_AVATAR, registrarAvatar } from "@/lib/avatares";
 import { getCarteira, debitar } from "@/lib/creditos";
 
@@ -22,11 +20,11 @@ export const maxDuration = 300;
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ erro: "Faça login." }, { status: 401 });
-  if (!(await estaLigado(CHAVES.geracaoImagem))) {
+  if (!(await podeGerar(CHAVES.geracaoImagem, user.role))) {
     return NextResponse.json({ erro: AVISO_PAUSADO, pausado: true }, { status: 503 });
   }
-  if (!openaiConfigurado()) {
-    return NextResponse.json({ erro: "Geração indisponível no momento." }, { status: 503 });
+  if (!grokImagemConfigurado()) {
+    return NextResponse.json({ erro: "Geração de imagem indisponível agora." }, { status: 503 });
   }
 
   let body: {
@@ -86,19 +84,18 @@ export async function POST(req: Request) {
 
   // 2. gera a imagem: pessoa (base) + produto (referencia), no cenário escolhido
   const prompt = promptAvatarComProduto(uso, body.produtoNome, body.cenario);
-  const img = await editarImagem(prompt, [pessoa, produto]);
-  if (!img) {
-    return NextResponse.json(
-      { erro: "Não consegui gerar a imagem agora. Tente de novo (não descontamos créditos)." },
-      { status: 502 },
-    );
-  }
-
-  // 3. sobe pro serverrk
-  const url = await subirAvatar(`${randomUUID()}.png`, Buffer.from(img.base64, "base64"), img.mime);
+  const r = await gerarImagemGrok({
+    prompt,
+    imagens: [
+      { base64: pessoa.base64, mime: pessoa.mime },
+      { base64: produto.base64, mime: produto.mime },
+    ],
+  });
+  // o Grok já devolve a imagem hospedada no serverrk
+  const url = r?.imagemUrl ?? null;
   if (!url) {
     return NextResponse.json(
-      { erro: "Falha ao salvar a imagem. Tente de novo (não descontamos créditos)." },
+      { erro: "Não consegui gerar a imagem agora. Tente de novo (não descontamos créditos)." },
       { status: 502 },
     );
   }

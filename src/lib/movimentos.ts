@@ -263,6 +263,21 @@ export function movimentosDaCena(cena: CenaDaImagem): Movimento[] {
   return MOVIMENTOS.filter((m) => m.categoria !== "pov");
 }
 
+/**
+ * O movimento escolhido serve pra essa cena? Quem chama é o SERVIDOR, antes de
+ * montar o prompt: a tela já filtra a lista, mas um estado torto (ou um POST
+ * feito na mão) mandaria "selfie sorrindo" numa foto sem ninguém. Devolve o
+ * movimento válido ou null, e null só significa "anima sem movimento pedido".
+ */
+export function movimentoCompativel(
+  chave: string | null | undefined,
+  cena: CenaDaImagem,
+): Movimento | null {
+  const m = movimentoPorChave(chave);
+  if (!m) return null;
+  return movimentosDaCena(cena).some((d) => d.chave === m.chave) ? m : null;
+}
+
 /** Categorias que sobram pra essa cena (na ordem da barra de filtros). */
 export function categoriasDaCena(cena: CenaDaImagem) {
   const disponiveis = new Set(movimentosDaCena(cena).map((m) => m.categoria));

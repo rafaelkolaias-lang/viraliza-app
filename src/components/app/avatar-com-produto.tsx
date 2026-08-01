@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { CUSTO_AVATAR, USOS_PRODUTO, CENARIOS } from "@/lib/avatar-modelo";
 import { normalizarImagem, ERRO_IMAGEM } from "@/lib/imagem-cliente";
 import { AVATARES_PRONTOS } from "@/lib/avatares-prontos";
-import type { AvatarCriado } from "@/components/app/avatar-quiz";
+import type { AvatarCriado } from "@/lib/avatar-modelo";
 
 /**
  * "Avatar com produto": junta uma PESSOA (avatar salvo OU foto enviada) com a foto
