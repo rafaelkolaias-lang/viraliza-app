@@ -60,7 +60,7 @@ export type CaktoPedido = {
   net_amount?: number; // centavos líquidos (amount - fees)
   payment?: { charge_amount?: number }; // centavos que o cliente pagou (amount)
   customer?: { email?: string; full_name?: string; mobile?: string };
-  product?: { id?: string; name?: string };
+  product?: { id?: string; name?: string; type?: string }; // type: "subscription" | "unique"
 };
 
 type OrderApi = {
@@ -78,7 +78,7 @@ type OrderApi = {
   chargedbackAt?: string | null;
   canceledAt?: string | null;
   customer?: { name?: string; email?: string; phone?: string };
-  product?: { id?: string; name?: string };
+  product?: { id?: string; name?: string; type?: string };
   error?: string;
   detail?: string;
 };
@@ -116,7 +116,7 @@ function normalizarPedido(o: OrderApi): CaktoPedido {
       full_name: o.customer?.name,
       mobile: o.customer?.phone,
     },
-    product: { id: o.product?.id, name: o.product?.name },
+    product: { id: o.product?.id, name: o.product?.name, type: o.product?.type },
   };
 }
 

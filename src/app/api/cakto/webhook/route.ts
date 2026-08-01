@@ -10,7 +10,7 @@ import {
   pedidoEstornado,
   webhookSecretValido,
 } from "@/lib/cakto";
-import { existeTransacaoOrder, lancar } from "@/lib/creditos";
+import { CREDITO_MENSAL_CENTAVOS, existeTransacaoOrder, lancar } from "@/lib/creditos";
 import { enviarCompraMeta, enviarReembolsoMeta } from "@/lib/meta-capi";
 import { aplicarReembolsoAceito, restaurarSuspensao } from "@/lib/reembolsos";
 import { enviarBoasVindas, enviarCreditosConfirmados } from "@/lib/email";
@@ -124,8 +124,42 @@ export async function POST(req: Request) {
   }
 
   const creditos = creditosDoPacote(pedido);
-  // não é pacote de crédito (plano de entrada R$19,90, etc.) -> só liberou o acesso
+  // não é pacote de crédito -> pode ser a RENOVAÇÃO da assinatura (ou só liberou acesso)
   if (creditos <= 0) {
+    // ---- RENOVAÇÃO PAGA DO PLANO -> crédito mensal ----
+    // O plano de entrada é "subscription" na Cakto: cada cobrança recorrente chega
+    // como purchase_approved com um pedido NOVO. Se o usuário JÁ tem conta, é
+    // renovação (a 1ª cobrança acontece antes do cadastro; o crédito do 1º mês sai
+    // no primeiro acesso ao painel). Quem cancelou não gera cobrança e não ganha.
+    // Idempotente por pedido; à prova de forja (o pedido foi confirmado na API acima).
+    if (
+      pedidoEstaPago(pedido) &&
+      (pedido.product?.type || "").toLowerCase() === "subscription" &&
+      email
+    ) {
+      const user = await prisma.user.findUnique({
+        where: { email },
+        select: { id: true },
+      });
+      if (user) {
+        if (await existeTransacaoOrder(orderId, "bonus_assinatura")) {
+          return NextResponse.json({ ok: true, jaProcessado: true });
+        }
+        await lancar(user.id, CREDITO_MENSAL_CENTAVOS, "bonus_assinatura", {
+          descricao: "Crédito mensal da assinatura (renovação paga)",
+          kiwifyOrderId: orderId,
+        });
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { assinante: true, creditoMensalEm: new Date() },
+        });
+        return NextResponse.json({
+          ok: true,
+          renovacao: true,
+          creditado: CREDITO_MENSAL_CENTAVOS,
+        });
+      }
+    }
     return NextResponse.json({ ok: true, ignorado: "não é pacote (acesso liberado)" });
   }
 

@@ -239,7 +239,14 @@ export async function listarExtrato(userId: string, limite = 50) {
   });
 }
 
-/** Garante o crédito mensal da assinatura (bônus). Idempotente por mês. */
+/**
+ * Crédito do PRIMEIRO mês da assinatura, liberado UMA vez por usuário no primeiro
+ * acesso ao painel (é "pago" pela compra de entrada, obrigatória pro cadastro).
+ * As RENOVAÇÕES não passam mais por aqui: quem credita é o webhook da Cakto quando
+ * a cobrança recorrente é aprovada de verdade. A regra antiga ("mudou o mês do
+ * calendário = ganha de novo") dava crédito de graça todo mês pra sempre, e o
+ * servidor em UTC ainda virava o mês às 21h de Brasília, liberando em dobro.
+ */
 export async function garantirCreditoMensal(userId: string) {
   const u = await prisma.user.findUnique({
     where: { id: userId },
@@ -247,24 +254,19 @@ export async function garantirCreditoMensal(userId: string) {
   });
   if (!u?.assinante) return;
   if (u.assinaturaAte && u.assinaturaAte.getTime() < Date.now()) return; // vencida
-
-  const agora = new Date();
-  const ultimo = u.creditoMensalEm;
-  const mesmoMes =
-    !!ultimo &&
-    ultimo.getFullYear() === agora.getFullYear() &&
-    ultimo.getMonth() === agora.getMonth();
-  if (mesmoMes) return; // já recebeu este mês
+  if (u.creditoMensalEm) return; // já recebeu o do primeiro mês
 
   await prisma.$transaction(async (tx) => {
     const cur = await tx.user.findUnique({
       where: { id: userId },
-      select: { saldoCentavos: true },
+      select: { saldoCentavos: true, creditoMensalEm: true },
     });
+    // re-checa DENTRO da transação: duas abas no mesmo instante não creditam 2x
+    if (cur?.creditoMensalEm) return;
     const saldoApos = (cur?.saldoCentavos ?? 0) + CREDITO_MENSAL_CENTAVOS;
     await tx.user.update({
       where: { id: userId },
-      data: { saldoCentavos: saldoApos, creditoMensalEm: agora },
+      data: { saldoCentavos: saldoApos, creditoMensalEm: new Date() },
     });
     await tx.creditoTransacao.create({
       data: {
@@ -272,7 +274,7 @@ export async function garantirCreditoMensal(userId: string) {
         tipo: "bonus_assinatura",
         valor: CREDITO_MENSAL_CENTAVOS,
         saldoApos,
-        descricao: "Crédito mensal da assinatura",
+        descricao: "Crédito do primeiro mês da assinatura",
       },
     });
   });
