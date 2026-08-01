@@ -129,14 +129,6 @@ export const MOVIMENTOS: Movimento[] = [
     estilos: ["espelho"],
   },
   {
-    chave: "espelho-relax",
-    label: "Relaxada",
-    descricao: "Parada de leve, mudando o peso do corpo.",
-    categoria: "espelho",
-    en: "Mirror selfie: standing relaxed in front of the mirror, gentle weight shift, calm easygoing expression.",
-    estilos: ["espelho"],
-  },
-  {
     chave: "espelho-parado",
     label: "Só posando",
     descricao: "Quase parada, deixando a roupa aparecer.",
