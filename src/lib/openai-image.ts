@@ -27,6 +27,9 @@ export async function gerarImagem(prompt: string): Promise<ImagemGerada | null> 
     n: 1,
     size: process.env.OPENAI_IMAGE_SIZE || "1024x1536",
     quality: process.env.OPENAI_IMAGE_QUALITY || "medium",
+    // "low" afrouxa só os FALSOS positivos do filtro (ex: short feminino de corpo
+    // inteiro era bloqueado como "sexual"). Conteúdo realmente impróprio segue barrado.
+    moderation: process.env.OPENAI_IMAGE_MODERATION || "low",
   };
 
   try {
@@ -77,6 +80,9 @@ export async function editarImagem(
   // preserva a identidade da pessoa da foto (rosto, cabelo, corpo): sem isso o
   // modelo "recriava" a pessoa e ela saía diferente. Só existe no gpt-image-1/1.5.
   form.append("input_fidelity", process.env.OPENAI_IMAGE_FIDELITY || "high");
+  // mesmo motivo do gerarImagem: sem isso, roupa feminina (short, saia) de corpo
+  // inteiro tomava moderation_blocked "sexual" na SAÍDA (falso positivo).
+  form.append("moderation", process.env.OPENAI_IMAGE_MODERATION || "low");
   for (const img of imagens) {
     const ext = /jpe?g/i.test(img.mime) ? "jpg" : /webp/i.test(img.mime) ? "webp" : "png";
     const blob = new Blob([Buffer.from(img.base64, "base64")], { type: img.mime });

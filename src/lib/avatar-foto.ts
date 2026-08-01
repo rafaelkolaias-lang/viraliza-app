@@ -65,7 +65,7 @@ export function promptAvatarComProduto(
       ? `FULL BODY framing, from head to feet: the whole body visible inside the frame, with a small margin above the head and below the feet, standing in a natural relaxed pose facing the camera. The worn product must appear COMPLETE and clearly visible in the photo, never cropped by the frame: if it is pants, shorts or a skirt, the legs must be fully visible down to the feet; if it is a dress or outfit, the entire garment must be in frame. ${fundo}`
       : `Half body framing, the person centered and facing the camera with a natural friendly expression. ${fundo}`,
     uso === "vestindo"
-      ? "The rest of the outfit is simple and neutral so the worn product is the visual highlight. Hands must be anatomically correct with five fingers."
+      ? "The rest of the outfit is simple and neutral so the worn product is the visual highlight, styled MODESTLY like a family-friendly clothing catalog photo (simple neutral top, nothing suggestive, natural relaxed pose). Hands must be anatomically correct with five fingers."
       : "Everyday casual clothing. Hands must be anatomically correct with five fingers, never covering or distorting the product.",
     `Realism: ${REALISMO}.`,
     `Strictly avoid: ${PROIBIDO}. Do not invent a different product, do not add extra copies of it.`,
