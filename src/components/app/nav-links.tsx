@@ -75,18 +75,18 @@ const navTopo: NavItem[] = [
   { href: "/painel/tiktok", label: "Produtos TikTok", icon: Music2, novidade: true },
   { href: "/painel/acervo", label: "Acervo de cortes", icon: Film },
   { href: "/painel/meus-avatares", label: "Personalize com IA", icon: Palette, novidade: true },
-  { href: "/painel/lab", label: "Viraliza Labs", icon: FlaskConical, novidade: true },
+  { href: "/painel/lab", label: "Viraliza Labs", icon: FlaskConical },
   { href: "/painel/viral-boost", label: "Viral Boost", icon: Flame, novidade: true },
-  { href: "/painel/minerador", label: "Minerador", icon: Pickaxe, novidade: true },
-  { href: "/painel/academy", label: "Viraliza Academy", icon: GraduationCap, novidade: true },
+  { href: "/painel/minerador", label: "Minerador", icon: Pickaxe },
+  { href: "/painel/academy", label: "Viraliza Academy", icon: GraduationCap },
 ];
 
 // Itens depois do grupo Ferramentas
 const navFim: NavItem[] = [
   { href: "/painel/membro", label: "Membro", icon: Gem },
   { href: "/painel/creditos", label: "Créditos", icon: Coins },
-  { href: "/painel/indique", label: "Indique e Ganhe", icon: Gift, novidade: true },
-  { href: "/painel/sugestoes", label: "Sugestões", icon: MessageSquarePlus, novidade: true },
+  { href: "/painel/indique", label: "Indique e Ganhe", icon: Gift },
+  { href: "/painel/sugestoes", label: "Sugestões", icon: MessageSquarePlus },
 ];
 
 // Sub-itens do grupo "Ferramentas" (expansível)

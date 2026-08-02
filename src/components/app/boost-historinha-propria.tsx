@@ -149,7 +149,7 @@ export function BoostHistorinhaPropria({
       >
         {passou && <TriangleAlert className="size-3.5" />}
         {palavras} de {LIMITE_PALAVRAS} palavras no total
-        {passou ? ", corte um pouco pra caber nos 15 segundos" : ""}
+        {passou ? ", corte um pouco pra caber nos 10 segundos" : ""}
       </p>
     </div>
   );

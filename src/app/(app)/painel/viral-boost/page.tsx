@@ -19,8 +19,8 @@ export default async function ViralBoostPage() {
           Viral <span className="text-primary">Boost</span>
         </h1>
         <p className="max-w-xl text-sm text-muted-foreground sm:text-base">
-          Escolha as frutas, o drama e o cenário. A gente monta a cena e entrega o vídeo pronto
-          de 15 segundos, com fala em português.
+          Escolha os personagens, o drama e o cenário. A gente entrega o vídeo pronto de 10
+          segundos, com fala em português.
         </p>
       </div>
 
