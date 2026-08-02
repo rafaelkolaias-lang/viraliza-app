@@ -212,7 +212,9 @@ export function ViralBoost() {
   }
 
   async function gerarVideo() {
-    if (!h || !cena || status === "gerando") return;
+    // a CENA é opcional desde que o vídeo passou a sair direto das fotos dos
+    // personagens: exigir ela aqui deixava o botão principal sem fazer nada
+    if (!h || status === "gerando") return;
     setStatus("gerando");
     setErroVideo(null);
     setEtapaVideo("Enviando pro estúdio...");
@@ -221,7 +223,8 @@ export function ViralBoost() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          imagem: cena,
+          // sem cena montada, o motor recebe a foto de cada personagem
+          ...(cena ? { imagem: cena } : {}),
           formato,
           historinha: historia,
           frutas,
