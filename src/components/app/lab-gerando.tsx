@@ -48,6 +48,8 @@ export function LabGerando({
   semMaos = false,
   onVoltar,
   onRefazer,
+  jobEmAndamento,
+  onJobCriado,
 }: {
   config: ConfigVideoLab;
   imagem: string;
@@ -60,6 +62,13 @@ export function LabGerando({
   onVoltar: () => void;
   /** recomeça o Lab do zero, com outro produto */
   onRefazer: () => void;
+  /**
+   * Vídeo que JÁ foi pedido nessa sessão. Essa tela dispara a geração sozinha
+   * ao montar, e ela desmonta quando a pessoa troca de aba no dock: sem isso,
+   * voltar pro Lab gerava (e cobrava) o mesmo vídeo de novo sem ninguém clicar.
+   */
+  jobEmAndamento?: string | null;
+  onJobCriado?: (jobId: string) => void;
 }) {
   const [status, setStatus] = useState<"enviando" | "gerando" | "pronto" | "erro">("enviando");
   const [etapa, setEtapa] = useState("Enviando pro estúdio...");
@@ -137,6 +146,7 @@ export function LabGerando({
         );
       }
       jobRef.current = d.jobId as string;
+      onJobCriado?.(d.jobId as string);
       setStatus("gerando");
       setEtapa("A IA está gravando seu vídeo");
       // o servidor devolveu um vídeo que JÁ estava rodando (ela pediu de novo
@@ -151,14 +161,23 @@ export function LabGerando({
       setStatus("erro");
       toast.error(msg);
     }
-  }, [acompanhar, config, custo, imagem, produtoNome, pov, semMaos]);
+  }, [acompanhar, config, custo, imagem, onJobCriado, produtoNome, pov, semMaos]);
 
-  // dispara sozinho ao entrar na tela (a pessoa já clicou em "Gerar vídeo")
+  // Dispara sozinho ao entrar na tela (a pessoa já clicou em "Gerar vídeo"),
+  // MAS só se ainda não existir um vídeo em andamento: se ela trocou de aba e
+  // voltou, o certo é continuar acompanhando aquele, não pedir outro.
   useEffect(() => {
     if (jaDisparou.current) return;
     jaDisparou.current = true;
+    if (jobEmAndamento) {
+      jobRef.current = jobEmAndamento;
+      setStatus("gerando");
+      setEtapa("A IA está gravando seu vídeo");
+      acompanhar(jobEmAndamento);
+      return;
+    }
     gerar();
-  }, [gerar]);
+  }, [acompanhar, gerar, jobEmAndamento]);
 
   const rodando = status === "enviando" || status === "gerando";
 

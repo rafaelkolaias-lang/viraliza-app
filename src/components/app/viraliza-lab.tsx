@@ -297,6 +297,9 @@ export function ViralizaLab({
   const [sub, setSub] = useState<SubCena>("estilo");
   // tela interna do "Gerar vídeo": configuração, movimentos, revisão e a geração
   const [subVideo, setSubVideo] = useState<SubVideo>("config");
+  // qual vídeo já foi pedido (sobrevive à troca de aba no dock, que desmonta
+  // a tela de geração e antes fazia ela pedir tudo de novo)
+  const [jobVideo, setJobVideo] = useState<string | null>(null);
   const [estilo, setEstilo] = useState<string | null>(null);
   // variação do estilo Mãos (POV): "maos" segurando ou "parado" na bancada
   const [variacao, setVariacao] = useState("maos");
@@ -373,6 +376,9 @@ export function ViralizaLab({
   }
 
   function irSubVideo(prox: SubVideo) {
+    // sair da tela de geração encerra aquele pedido: se ela voltar e mandar
+    // gerar de novo, é porque quer OUTRO vídeo (e aí sim custa de novo)
+    if (prox !== "gerando") setJobVideo(null);
     setSubVideo(prox);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -422,6 +428,7 @@ export function ViralizaLab({
     setImagem(null);
     setImagemPropria(false);
     setSubVideo("config");
+    setJobVideo(null);
     setSub("estilo");
     irPara("cena");
   }
@@ -823,6 +830,8 @@ export function ViralizaLab({
               semMaos={ehPov && !variacaoSel.temMaos}
               onVoltar={() => irSubVideo("resumo")}
               onRefazer={recomecar}
+              jobEmAndamento={jobVideo}
+              onJobCriado={setJobVideo}
             />
           </Bloco>
         </Tela>
