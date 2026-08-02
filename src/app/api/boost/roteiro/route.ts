@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/dal";
-import { formatoPorChave, LIMITE_PALAVRAS } from "@/lib/viral-boost";
+import { formatoPorChave, duracaoBoost, limitePalavras } from "@/lib/viral-boost";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
  * Escreve a HISTORINHA da pessoa: ela dá a ideia numa frase e a IA devolve as
- * três batidas (abertura, clímax e chamada) já no orçamento de 10 segundos.
+ * três batidas (abertura, clímax e chamada) já no orçamento de tempo do vídeo
+ * (15s com um personagem, 10s com dois ou três).
  *
  * As regras do sistema são as que a gente aprendeu escrevendo as nossas: abrir
  * no meio da ação (sem "oi gente"), clímax que só funciona com AQUELE
@@ -18,6 +19,9 @@ export const dynamic = "force-dynamic";
 const MODELOS = [process.env.OPENAI_PROMPT_MODEL || "gpt-5-mini", "gpt-4o-mini"];
 
 function sistema(formato: string, personagens: string, qtd: number) {
+  // o orçamento de fala muda com a duração, que vem da quantidade de personagens
+  const duracao = duracaoBoost(qtd);
+  const limite = limitePalavras(duracao);
   const universo =
     formato === "senhora"
       ? "O formato é SENHORA BRASILEIRA: uma senhora de verdade, em casa, falando com a câmera como se um neto tivesse começado a filmar de surpresa. Registro caloroso, humilde, sem drama de novela."
@@ -34,7 +38,7 @@ Escreva TRÊS batidas: Abertura, Clímax e Chamada. Cada batida tem:
 - "fala": o que a pessoa fala, EXATAMENTE como vai ser dito.
 
 Regras que não podem ser quebradas:
-- A soma das TRÊS falas tem no máximo ${LIMITE_PALAVRAS} palavras. O vídeo tem 10 segundos.
+- A soma das TRÊS falas tem no máximo ${limite} palavras. O vídeo tem ${duracao} segundos.
 - A ABERTURA começa no meio da ação. Nada de "oi gente", nada de se apresentar, nada de explicar contexto.
 - O CLÍMAX só pode funcionar na boca DESSE personagem. ${
     formato === "senhora"

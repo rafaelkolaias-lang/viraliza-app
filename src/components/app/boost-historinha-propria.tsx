@@ -5,7 +5,7 @@ import { Sparkles, Loader2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
-  LIMITE_PALAVRAS,
+  limitePalavras,
   ROTULOS_BATIDA,
   contarPalavras,
   type HistorinhaPropria,
@@ -14,7 +14,7 @@ import {
 
 /**
  * Editor da historinha ESCRITA PELA PESSOA. Três batidas (abertura, clímax e
- * chamada) com contador de palavras, porque o vídeo tem 10 segundos e a soma das
+ * chamada) com contador de palavras, porque o vídeo tem 10 ou 15 segundos e a soma das
  * falas precisa caber em ~34 palavras.
  *
  * O botão do assistente é o atalho: ela conta a ideia numa frase e a IA devolve
@@ -24,11 +24,14 @@ import {
 export function BoostHistorinhaPropria({
   formato,
   personagens,
+  duracao,
   valor,
   onMudar,
 }: {
   formato: string;
   personagens: FrutaPersonagem[];
+  /** 15s com um personagem, 10s com dois ou três: muda o orçamento de fala */
+  duracao: 10 | 15;
   valor: HistorinhaPropria;
   onMudar: (h: HistorinhaPropria) => void;
 }) {
@@ -36,7 +39,8 @@ export function BoostHistorinhaPropria({
   const [escrevendo, setEscrevendo] = useState(false);
 
   const palavras = valor.batidas.reduce((s, b) => s + contarPalavras(b.fala), 0);
-  const passou = palavras > LIMITE_PALAVRAS;
+  const limite = limitePalavras(duracao);
+  const passou = palavras > limite;
 
   function mudarBatida(i: number, campo: "acao" | "fala", texto: string) {
     const batidas = valor.batidas.map((b, idx) => (idx === i ? { ...b, [campo]: texto } : b));
@@ -148,8 +152,8 @@ export function BoostHistorinhaPropria({
         )}
       >
         {passou && <TriangleAlert className="size-3.5" />}
-        {palavras} de {LIMITE_PALAVRAS} palavras no total
-        {passou ? ", corte um pouco pra caber nos 10 segundos" : ""}
+        {palavras} de {limite} palavras no total
+        {passou ? `, corte um pouco pra caber nos ${duracao} segundos` : ""}
       </p>
     </div>
   );

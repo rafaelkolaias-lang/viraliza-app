@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { AVISO_PAUSADO, CHAVES, podeGerar } from "@/lib/configuracao";
 import { montarPromptVideoFruta } from "@/lib/viral-boost-prompt";
 import { resolverBoost, type CorpoBoost } from "@/lib/boost-servidor";
+import { duracaoBoost } from "@/lib/viral-boost";
 import { custoVideoLab } from "@/lib/lab-custos";
 import { baixarImagemEntrada, ehImagemNossa } from "@/lib/imagem-entrada";
 import { gerarVideoGrok, type ArquivoImagem } from "@/lib/video-robot";
@@ -14,8 +15,9 @@ export const runtime = "nodejs";
 export const maxDuration = 1600;
 
 /**
- * Gera o VÍDEO da historinha de fruta: 10 segundos, um take só, animando a cena
- * aprovada na etapa anterior. Mesmo desenho do vídeo do Lab (Job em background +
+ * Gera o VÍDEO da historinha de fruta: um take só, animando a cena aprovada ou
+ * as fotos dos personagens. Dura 15s com uma imagem e 10s com várias (limite do
+ * motor, ver duracaoBoost). Mesmo desenho do vídeo do Lab (Job em background +
  * a tela perguntando o andamento), só muda o prompt.
  */
 
@@ -47,8 +49,8 @@ export async function POST(req: Request) {
    * A base do vídeo. Dois caminhos:
    *  - a pessoa gerou a CENA antes: anima ela (uma imagem só);
    *  - caminho normal: manda a FOTO DE CADA PERSONAGEM (até três).
-   * O vídeo de 10s aceita as três; era o de 15s que só aceitava uma, e foi por
-   * isso que a cena existia como etapa obrigatória.
+   * Quantas imagens vão daqui define a duração: uma imagem cabe em 15s, várias
+   * só em 10s (o motor recusa mais de uma referência no vídeo de 15s).
    */
   const comCena = ehImagemNossa(body.imagem);
   const urls = comCena ? [body.imagem!] : frutas.map((f) => f.imagem);
@@ -67,7 +69,10 @@ export async function POST(req: Request) {
   }));
   const [base, ...demais] = arquivos;
 
-  const custo = custoVideoLab("10s");
+  // A duração sai de QUANTAS imagens vão pro motor, não do que a tela pediu:
+  // com uma imagem só (um personagem, ou a cena montada) dá pra fazer 15s.
+  const duracao = duracaoBoost(arquivos.length);
+  const custo = custoVideoLab(duracao === 15 ? "15s" : "10s");
   const isAdmin = user.role === "admin" || user.role === "demo";
   if (!isAdmin) {
     const { saldoCentavos } = await getCarteira(user.id);
@@ -79,7 +84,7 @@ export async function POST(req: Request) {
     }
   }
 
-  const prompt = montarPromptVideoFruta({ h, frutas, cenario, formato, comCena });
+  const prompt = montarPromptVideoFruta({ h, frutas, cenario, formato, comCena, duracaoSeg: duracao });
 
   const nomeVideo = `${h.nome} (${frutas.map((f) => f.nome).join(" e ")})`.slice(0, 255);
   const job = await prisma.job.create({
@@ -91,7 +96,7 @@ export async function POST(req: Request) {
       variantes: 1,
       status: "renderizando",
       etapa: "Gravando a sua historinha (3 a 5 min)",
-      duracao: 10,
+      duracao,
       opcoes: JSON.stringify({
         boost: true,
         entrada: {
@@ -112,7 +117,7 @@ export async function POST(req: Request) {
         prompt,
         avatar: base,
         produtos: demais,
-        duracaoSeg: 10,
+        duracaoSeg: duracao,
         qualidade: "720p",
       });
 

@@ -456,12 +456,20 @@ export function historinhaDe(p: HistorinhaPropria, qtdPersonagens: number, forma
 }
 
 /**
- * Orçamento de palavras do vídeo (~2,3 palavras por segundo de fala).
+ * Duração do vídeo, decidida por QUANTAS imagens vão pro motor.
  *
- * São 10 segundos, e não 15, por limite do motor: vídeo de 15s no Grok aceita
- * UMA imagem de referência só, e aqui a gente manda a foto de cada personagem.
+ * O Grok só aceita UMA imagem de referência num vídeo de 15s; com mais de uma
+ * ele cai pra 10s sozinho. Então: um personagem (ou a cena já montada, que é
+ * uma imagem só) rende 15 segundos; dois ou três personagens, 10 segundos.
  */
-export const LIMITE_PALAVRAS = 23;
+export function duracaoBoost(qtdImagens: number): 10 | 15 {
+  return qtdImagens <= 1 ? 15 : 10;
+}
+
+/** Orçamento de fala (~2,3 palavras por segundo): 15s = 34 palavras, 10s = 23. */
+export function limitePalavras(duracao: 10 | 15): number {
+  return duracao === 15 ? 34 : 23;
+}
 
 export function contarPalavras(texto: string) {
   return texto.trim() ? texto.trim().split(/\s+/).length : 0;

@@ -123,7 +123,7 @@ export function montarPromptCenaFruta(o: OpcoesBoost): string {
     .trim();
 }
 
-/** Prompt do VÍDEO de 10s (animando a cena ou as fotos dos personagens). */
+/** Prompt do VÍDEO (animando a cena ou as fotos dos personagens). */
 /**
  * Diz ao motor o que é cada foto anexada quando NÃO existe cena montada: uma
  * foto por personagem, na ordem. Sem isso ele mistura os personagens ou copia o
@@ -142,8 +142,13 @@ function blocoFotosSoltas(o: OpcoesBoost): string {
   ].join(" ");
 }
 
-export function montarPromptVideoFruta(o: OpcoesBoost & { comCena?: boolean }): string {
+export function montarPromptVideoFruta(
+  o: OpcoesBoost & { comCena?: boolean; duracaoSeg?: 10 | 15 },
+): string {
   const h = o.h;
+  // 15s quando vai uma imagem so pro motor, 10s quando vao varias
+  const dur = o.duracaoSeg ?? 10;
+  const marcos = dur === 15 ? [0, 5, 10, 15] : [0, 3, 7, 10];
   const frutinha = o.formato !== "senhora";
   if (!h || !o.frutas.length) return "";
   const cen = cenarioFrutaPorChave(o.cenario);
@@ -158,15 +163,15 @@ export function montarPromptVideoFruta(o: OpcoesBoost & { comCena?: boolean }): 
     // idioma primeiro: é a regra que mais escapa
     "IDIOMA OBRIGATÓRIO, PRIORIDADE MÁXIMA: toda fala e narração devem ser EXCLUSIVAMENTE em português do Brasil, com sotaque brasileiro natural e ritmo de novela. Nenhuma palavra em inglês ou outro idioma, MESMO QUE alguma parte deste pedido esteja escrita em inglês. Se sair palavra em outro idioma, o vídeo está errado.",
     frutinha
-      ? "Anime esta foto em um vídeo VERTICAL 9:16 de 10 segundos, uma cena de novela brasileira com personagens-fruta. Formato horizontal ou quadrado é proibido."
-      : "Anime esta foto em um vídeo VERTICAL 9:16 de 10 segundos, gravado de celular na mão com leve tremida natural, como se um parente estivesse filmando de surpresa. Formato horizontal ou quadrado é proibido.",
+      ? `Anime esta foto em um vídeo VERTICAL 9:16 de ${dur} segundos, uma cena de novela brasileira com personagens-fruta. Formato horizontal ou quadrado é proibido.`
+      : `Anime esta foto em um vídeo VERTICAL 9:16 de ${dur} segundos, gravado de celular na mão com leve tremida natural, como se um parente estivesse filmando de surpresa. Formato horizontal ou quadrado é proibido.`,
     "A FOTO É A VERDADE: mantenha exatamente os mesmos personagens da imagem (forma, cor, rosto, proporção, roupa) e o mesmo cenário. Não troque ninguém, não redesenhe e não mude o estilo.",
     frutinha ? UNIVERSO : `${TEXTURA_PESSOA} ${CALIBRAGEM_IDADE}`,
     `HISTÓRIA: "${h.nome}". ${h.sinopse} Tom: ${h.tom}.`,
     `CENÁRIO: ${cen.descricao}.`,
     o.comCena ? "" : blocoFotosSoltas(o),
-    // as três batidas viram a linha do tempo dos 10 segundos
-    `ROTEIRO DOS 10 SEGUNDOS, nesta ordem exata. 0s a 3s, ${batidas[0].rotulo}: ${batidas[0].acao} 3s a 7s, ${batidas[1].rotulo}: ${batidas[1].acao} 7s a 10s, ${batidas[2].rotulo}: ${batidas[2].acao}`,
+    // as três batidas viram a linha do tempo do vídeo
+    `ROTEIRO DOS ${dur} SEGUNDOS, nesta ordem exata. ${marcos[0]}s a ${marcos[1]}s, ${batidas[0].rotulo}: ${batidas[0].acao} ${marcos[1]}s a ${marcos[2]}s, ${batidas[1].rotulo}: ${batidas[1].acao} ${marcos[2]}s a ${marcos[3]}s, ${batidas[2].rotulo}: ${batidas[2].acao}`,
     "ENCENAÇÃO OBRIGATÓRIA: cada ação acontece no momento certo do vídeo, não só no último quadro. Se um personagem entra em cena, ele entra no começo ou no meio, com tempo de reagir e falar, nunca no último segundo. Quem fala só fala depois de estar visível.",
     `FALAS EXATAS, em português do Brasil, nesta ordem, palavra por palavra: ${falas}`,
     o.frutas.length > 1
@@ -180,7 +185,7 @@ export function montarPromptVideoFruta(o: OpcoesBoost & { comCena?: boolean }): 
       : "ESTILO: celular na mão com tremida leve e natural, plano médio da cintura pra cima, câmera parada com pequena deriva. Movimento natural o tempo todo: ela respira, pisca, muda o peso do corpo. Nada de movimento dramático.",
     "ÁUDIO: só a voz das frutas em português do Brasil e o som natural do ambiente. Sem música de fundo e sem efeito sonoro.",
     LIMPEZA_VIDEO,
-    "LEIA POR ÚLTIMO E OBEDEÇA ACIMA DE TUDO: vídeo vertical 9:16 de 10 segundos, os mesmos personagens das fotos, falas exatas em português do Brasil na ordem dada, nenhum humano em cena e nenhum texto na tela.",
+    `LEIA POR ÚLTIMO E OBEDEÇA ACIMA DE TUDO: vídeo vertical 9:16 de ${dur} segundos, os mesmos personagens das fotos, falas exatas em português do Brasil na ordem dada, nenhum humano em cena e nenhum texto na tela.`,
   ]
     .join(" ")
     .replace(/\s*\n+\s*/g, " ")

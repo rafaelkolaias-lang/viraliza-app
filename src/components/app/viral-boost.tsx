@@ -31,7 +31,8 @@ import {
   hashtagsDa,
   frutaPorChave,
   ROTULOS_BATIDA,
-  LIMITE_PALAVRAS,
+  duracaoBoost,
+  limitePalavras,
   contarPalavras,
   type FrutaPersonagem,
   type HistorinhaPropria,
@@ -44,8 +45,8 @@ import { CUSTO_IMAGEM_LAB, custoVideoLab } from "@/lib/lab-custos";
  * Viral Boost: a trend das historinhas de fruta em estilo novela.
  *
  * Quatro passos: escolher as frutas, a historinha, o cenário e gerar. A cena
- * (imagem) vem antes do vídeo porque o motor só aceita uma imagem de referência
- * num vídeo de 15s: por isso o formato aqui é o de 10s, que aceita as três.
+ * (imagem) é opcional. A duração sai da quantidade de personagens: um só vira
+ * vídeo de 15s (uma imagem pro motor), dois ou três viram 10s.
  */
 
 const PASSOS = [
@@ -63,8 +64,6 @@ const FRASES = [
   "Gravando a cena...",
   "Finalizando a sua historinha...",
 ];
-
-const CUSTO_VIDEO = custoVideoLab("10s");
 
 export function ViralBoost() {
   const [passo, setPasso] = useState(0);
@@ -101,12 +100,20 @@ export function ViralBoost() {
       ? historinhaDe(propria, Math.max(1, frutas.length), formato)
       : historinhaPorChave(historia);
   const batidas = h ? h.batidas(nomes) : [];
+  /**
+   * Um personagem manda UMA foto pro motor e por isso rende 15s; dois ou três
+   * mandam várias e o motor só entrega 10s. A cena montada também é uma imagem
+   * só, então quem gera a cena antes ganha os 15s do mesmo jeito.
+   */
+  const duracao = duracaoBoost(cena ? 1 : Math.max(1, escolhidas.length));
+  const CUSTO_VIDEO = custoVideoLab(duracao === 15 ? "15s" : "10s");
+  const limite = limitePalavras(duracao);
   const palavrasPropria = propria.batidas.reduce((n, b) => n + contarPalavras(b.fala), 0);
-  // as três falas precisam existir E caber nos 10 segundos: passar do orçamento
+  // as três falas precisam existir E caber no tempo do vídeo: passar do orçamento
   // significa fala atropelada ou cortada no meio, com o crédito já gasto
   const propriaOk =
     propria.batidas.every((b) => b.fala.trim().length > 2) &&
-    palavrasPropria <= LIMITE_PALAVRAS;
+    palavrasPropria <= limite;
 
   /**
    * Qualquer mudança de escolha invalida a CENA já gerada. Sem isso dava pra
@@ -438,6 +445,7 @@ export function ViralBoost() {
                 <BoostHistorinhaPropria
                   formato={formato}
                   personagens={escolhidas}
+                  duracao={duracao}
                   valor={propria}
                   onMudar={setPropria}
                 />
@@ -619,7 +627,7 @@ export function ViralBoost() {
                       className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition-all hover:opacity-90 hover:shadow-[0_0_30px_-6px_var(--color-primary)] disabled:opacity-50"
                     >
                       <Clapperboard className="size-4" />
-                      Gerar vídeo de 10s ({CUSTO_VIDEO} créditos)
+                      Gerar vídeo de {duracao}s ({CUSTO_VIDEO} créditos)
                     </button>
                     {/* ver a cena antes é opcional: custa e não é necessário pro vídeo */}
                     <button
