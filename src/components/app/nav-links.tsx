@@ -10,7 +10,6 @@ import {
   ShoppingBag,
   Music2,
   Wrench,
-  Gem,
   Coins,
   Gauge,
   Users,
@@ -83,7 +82,6 @@ const navTopo: NavItem[] = [
 
 // Itens depois do grupo Ferramentas
 const navFim: NavItem[] = [
-  { href: "/painel/membro", label: "Membro", icon: Gem },
   { href: "/painel/creditos", label: "Créditos", icon: Coins },
   { href: "/painel/indique", label: "Indique e Ganhe", icon: Gift },
   { href: "/painel/sugestoes", label: "Sugestões", icon: MessageSquarePlus },
@@ -103,6 +101,7 @@ export const adminItems = [
   { href: "/admin/videos", label: "Vídeos", icon: Clapperboard },
   { href: "/admin/usuarios", label: "Usuários", icon: Users },
   { href: "/admin/bonus", label: "Bônus IG", icon: Camera },
+  { href: "/admin/indicacoes", label: "Indicações", icon: Gift },
   { href: "/admin/avatares", label: "Avatares", icon: UserRound },
   { href: "/admin/chat", label: "Chat", icon: MessageCircle },
   { href: "/admin/reportes", label: "Reportes de vídeo", icon: Flag },

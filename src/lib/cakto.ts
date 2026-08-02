@@ -70,7 +70,13 @@ type OrderApi = {
   amount?: string | number; // bruto pago pelo cliente (pode incluir taxa do comprador)
   baseAmount?: string | number; // preço do produto antes de taxas/desconto
   fees?: string | number; // taxa da Cakto
-  commissions?: Array<{ type?: string; commissionValue?: string | number }>;
+  commissions?: Array<{
+    type?: string; // "producer" (você) ou "affiliate" (quem indicou)
+    userId?: string | number;
+    commissionPercentage?: number;
+    commissionValue?: string | number;
+  }>;
+  commissionedUsers?: Array<{ id?: number; email?: string }>;
   paymentMethod?: string;
   createdAt?: string;
   paidAt?: string | null;
@@ -187,6 +193,13 @@ export type PedidoLista = {
   updated_at?: string; // quando mudou de status (reembolso/chargeback/cancelamento)
   product?: { id?: string; name?: string };
   customer?: { name?: string; full_name?: string; email?: string; mobile?: string };
+  /**
+   * Quem ganhou o quê nessa venda. Sempre tem o "producer" (você); quando a
+   * venda veio de um afiliado, entra também um "affiliate" com a fatia dele.
+   * É por aqui que o Indique e Ganhe sabe de quem foi a indicação.
+   */
+  comissoes?: { tipo: string; userId?: string; percentual?: number; valorCentavos: number }[];
+  comissionados?: { id?: number; email?: string }[];
 };
 
 function normalizarLista(o: OrderApi): PedidoLista {
@@ -208,6 +221,13 @@ function normalizarLista(o: OrderApi): PedidoLista {
       email: o.customer?.email,
       mobile: o.customer?.phone,
     },
+    comissoes: (o.commissions ?? []).map((c) => ({
+      tipo: String(c.type ?? "").toLowerCase(),
+      userId: c.userId != null ? String(c.userId) : undefined,
+      percentual: typeof c.commissionPercentage === "number" ? c.commissionPercentage : undefined,
+      valorCentavos: reaisParaCentavos(c.commissionValue),
+    })),
+    comissionados: o.commissionedUsers ?? [],
   };
 }
 
