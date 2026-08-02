@@ -75,7 +75,7 @@ const navTopo: NavItem[] = [
   { href: "/painel/tiktok", label: "Produtos TikTok", icon: Music2, novidade: true },
   { href: "/painel/acervo", label: "Acervo de cortes", icon: Film },
   { href: "/painel/meus-avatares", label: "Personalize com IA", icon: Palette, novidade: true },
-  { href: "/painel/lab", label: "Viraliza Labs", icon: FlaskConical },
+  { href: "/painel/lab", label: "Viraliza Labs", icon: FlaskConical, novidade: true },
   { href: "/painel/viral-boost", label: "Viral Boost", icon: Flame, novidade: true },
   { href: "/painel/minerador", label: "Minerador", icon: Pickaxe },
   { href: "/painel/academy", label: "Viraliza Academy", icon: GraduationCap },
