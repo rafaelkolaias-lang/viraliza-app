@@ -86,6 +86,33 @@ export async function POST(req: Request) {
 
   const prompt = montarPromptVideoFruta({ h, frutas, cenario, formato, comCena, duracaoSeg: duracao });
 
+  // Mesma trava do Lab: recarregar a página não pode virar uma segunda cobrança
+  // do mesmo pedido. Historinha + personagens iguais e ainda rodando = é o mesmo.
+  const assinatura = `"historinha":"${h.chave}"`;
+  const emAndamento = await prisma.job.findFirst({
+    where: {
+      userId: user.id,
+      status: { in: ["na_fila", "renderizando"] },
+      criadoEm: { gte: new Date(Date.now() - 20 * 60_000) },
+      opcoes: { contains: assinatura },
+    },
+    orderBy: { criadoEm: "desc" },
+    select: { id: true, opcoes: true },
+  });
+  if (emAndamento) {
+    let mesmosPersonagens = false;
+    try {
+      const o = JSON.parse(emAndamento.opcoes ?? "{}") as { entrada?: { frutas?: string[] } };
+      mesmosPersonagens =
+        (o.entrada?.frutas ?? []).join(",") === frutas.map((f) => f.chave).join(",");
+    } catch {
+      // opções ilegíveis: trata como pedido diferente
+    }
+    if (mesmosPersonagens) {
+      return NextResponse.json({ ok: true, jobId: emAndamento.id, custo: 0, jaRodando: true });
+    }
+  }
+
   const nomeVideo = `${h.nome} (${frutas.map((f) => f.nome).join(" e ")})`.slice(0, 255);
   const job = await prisma.job.create({
     data: {

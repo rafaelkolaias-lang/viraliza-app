@@ -139,6 +139,11 @@ export function LabGerando({
       jobRef.current = d.jobId as string;
       setStatus("gerando");
       setEtapa("A IA está gravando seu vídeo");
+      // o servidor devolveu um vídeo que JÁ estava rodando (ela pediu de novo
+      // depois de recarregar a página): avisa, senão parece que não funcionou
+      if (d.jaRodando) {
+        toast.info("Esse vídeo já está sendo gerado, é só esperar. Não descontamos de novo.");
+      }
       acompanhar(d.jobId as string);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Não consegui iniciar a geração.";

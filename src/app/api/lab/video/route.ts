@@ -112,6 +112,43 @@ export async function POST(req: Request) {
     return NextResponse.json({ erro: "Não consegui montar o roteiro." }, { status: 400 });
   }
 
+  /**
+   * Trava de pedido repetido.
+   *
+   * A tela trava o botão enquanto gera, mas isso se perde se a pessoa recarrega
+   * ou sai e volta pro Lab: ela clica de novo achando que não funcionou e paga
+   * outra vez pelo mesmo vídeo (aconteceu: 3 cobranças do mesmo pedido em 3
+   * minutos). Se já existe um vídeo em andamento com a MESMA imagem e a MESMA
+   * fala, devolve aquele em vez de abrir outro.
+   */
+  const emAndamento = await prisma.job.findFirst({
+    where: {
+      userId: user.id,
+      status: { in: ["na_fila", "renderizando"] },
+      criadoEm: { gte: new Date(Date.now() - 20 * 60_000) },
+      opcoes: { contains: body.imagem! },
+    },
+    orderBy: { criadoEm: "desc" },
+    select: { id: true, opcoes: true },
+  });
+  if (emAndamento) {
+    let mesmaFala = false;
+    try {
+      const o = JSON.parse(emAndamento.opcoes ?? "{}") as { entrada?: { fala?: string } };
+      mesmaFala = (o.entrada?.fala ?? "") === escolhas.fala;
+    } catch {
+      // opções ilegíveis: trata como pedido diferente e deixa gerar
+    }
+    if (mesmaFala) {
+      return NextResponse.json({
+        ok: true,
+        jobId: emAndamento.id,
+        custo: 0,
+        jaRodando: true,
+      });
+    }
+  }
+
   const nomeVideo = (escolhas.produtoNome?.trim() || "Vídeo do Lab").slice(0, 255);
   const job = await prisma.job.create({
     data: {
