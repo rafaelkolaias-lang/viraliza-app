@@ -300,6 +300,8 @@ export function ViralizaLab({
   // qual vídeo já foi pedido (sobrevive à troca de aba no dock, que desmonta
   // a tela de geração e antes fazia ela pedir tudo de novo)
   const [jobVideo, setJobVideo] = useState<string | null>(null);
+  // idem pra imagem: marca que ela já foi pedida nessa sessão
+  const [imagemPedida, setImagemPedida] = useState(false);
   const [estilo, setEstilo] = useState<string | null>(null);
   // variação do estilo Mãos (POV): "maos" segurando ou "parado" na bancada
   const [variacao, setVariacao] = useState("maos");
@@ -366,6 +368,9 @@ export function ViralizaLab({
         : 100;
 
   function irPara(prox: Etapa) {
+    // voltar pra montagem da cena encerra o pedido da imagem: se ela mexer em
+    // algo e avançar de novo, aí é uma imagem nova mesmo (e custa de novo)
+    if (prox === "cena") setImagemPedida(false);
     setEtapa(prox);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -429,6 +434,7 @@ export function ViralizaLab({
     setImagemPropria(false);
     setSubVideo("config");
     setJobVideo(null);
+    setImagemPedida(false);
     setSub("estilo");
     irPara("cena");
   }
@@ -727,6 +733,8 @@ export function ViralizaLab({
               minhasImagens={meusAvatares}
               comecarPulando={imagemPropria}
               variacao={ehPov ? variacao : undefined}
+              jaPediu={imagemPedida}
+              onComecou={() => setImagemPedida(true)}
             />
           </Bloco>
 

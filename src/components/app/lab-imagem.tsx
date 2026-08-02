@@ -48,6 +48,8 @@ export function LabImagem({
   minhasImagens = [],
   comecarPulando = false,
   variacao,
+  jaPediu = false,
+  onComecou,
 }: {
   estilo: EstiloCamera;
   produto: ProdutoLab;
@@ -63,8 +65,20 @@ export function LabImagem({
   comecarPulando?: boolean;
   /** variação do estilo Mãos (POV): "maos" segurando ou "parado" na bancada */
   variacao?: string;
+  /**
+   * A imagem já foi pedida nessa sessão do Lab.
+   *
+   * Esta tela gera sozinha ao montar, e ela desmonta quando a pessoa troca de
+   * aba no dock. Sem isso, voltar pro Lab no meio da geração pedia (e cobrava)
+   * outra imagem. O pedido antigo não se perde: ele continua no servidor e a
+   * imagem chega pelo onGerou, além de entrar em "Minhas imagens".
+   */
+  jaPediu?: boolean;
+  onComecou?: () => void;
 }) {
-  const [gerando, setGerando] = useState(false);
+  // voltando pro Lab no meio da geração, a tela já abre mostrando que está
+  // rodando (senão parece que não fez nada e a pessoa manda gerar de novo)
+  const [gerando, setGerando] = useState(jaPediu && !imagem);
   const [pulando, setPulando] = useState(comecarPulando);
   const [subindo, setSubindo] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -171,12 +185,18 @@ export function LabImagem({
 
   // dispara sozinho ao entrar na etapa (a pessoa já clicou em "Gerar imagem")
   useEffect(() => {
-    if (!jaDisparou.current && !imagem && !pulando) {
+    if (!jaDisparou.current && !imagem && !pulando && !jaPediu) {
       jaDisparou.current = true;
+      onComecou?.();
       gerar();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // a imagem chegou (inclusive de um pedido feito antes de trocar de aba)
+  useEffect(() => {
+    if (imagem) setGerando(false);
+  }, [imagem]);
 
   // frases girando enquanto gera (sensação de progresso)
   useEffect(() => {
