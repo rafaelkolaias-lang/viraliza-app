@@ -487,7 +487,7 @@ export function IndiqueGanhe({
             </label>
             <p className="mt-0.5 text-xs text-muted-foreground">
               É o valor que está no SEU checkout. A página inteira passa a mostrar
-              esse preço. Se deixar em branco, ela mostra R$ 98,90.
+              esse preço. Importante preencher: em branco, ela mostra R$ 37,90.
             </p>
             <div className="mt-2 flex items-center gap-2 rounded-xl border border-border bg-background px-3 focus-within:border-primary/50">
               <span className="shrink-0 text-sm text-muted-foreground">R$</span>
