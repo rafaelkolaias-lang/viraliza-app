@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Flame,
   Gift,
@@ -16,6 +16,8 @@ import {
   Compass,
   BadgeDollarSign,
   Clock,
+  Link2 as LinkIcon,
+  MessageCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -73,9 +75,34 @@ const ABAS: ItemDock[] = [
     chave: "minha",
     label: "Minha afiliação",
     Icone: BadgeDollarSign,
-    descricao: "As vendas que você trouxe e quanto já ganhou",
+    descricao: "Sua página, as vendas que você trouxe e quanto já ganhou",
   },
 ];
+
+// Onde a página de vendas mora. O afiliado divulga esta URL com o link dele.
+const BASE_LP = "https://lp.viraliza.app.br";
+
+/** Codifica o link de checkout do afiliado no formato que a página lê (?ck=). */
+function montarLinkPagina(checkout: string, whatsapp: string): string {
+  const ck = btoa(unescape(encodeURIComponent(checkout.trim())))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+  const params = new URLSearchParams({ ck });
+  const zap = String(whatsapp || "").replace(/\D/g, "");
+  if (zap) params.set("zap", zap);
+  return `${BASE_LP}/?${params.toString()}`;
+}
+
+/** O link colado é MESMO um checkout de afiliado da Cakto? */
+function checkoutValido(v: string): boolean {
+  try {
+    const u = new URL(v.trim());
+    return u.hostname === "pay.cakto.com.br" && u.pathname.length > 1;
+  } catch {
+    return false;
+  }
+}
 
 function reais(centavos: number) {
   return (centavos / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -112,6 +139,45 @@ export function IndiqueGanhe({
 }) {
   const [aba, setAba] = useState("programa");
   const [copiado, setCopiado] = useState(false);
+
+  // "Minha página": o afiliado cola o checkout dele + WhatsApp e recebe o link
+  // da página pronto. Fica guardado no navegador DELE (só ele vê), pra não ter
+  // que digitar de novo toda vez.
+  const [checkout, setCheckout] = useState("");
+  const [zap, setZap] = useState("");
+  const [copiadoPagina, setCopiadoPagina] = useState(false);
+
+  useEffect(() => {
+    try {
+      setCheckout(localStorage.getItem("afiliado-checkout") || "");
+      setZap(localStorage.getItem("afiliado-zap") || "");
+    } catch {
+      // navegador sem storage: só não lembra, tudo bem
+    }
+  }, []);
+
+  const checkoutOk = checkoutValido(checkout);
+  const linkPagina = checkoutOk ? montarLinkPagina(checkout, zap) : "";
+
+  function guardar(campo: "checkout" | "zap", valor: string) {
+    try {
+      localStorage.setItem(`afiliado-${campo}`, valor);
+    } catch {
+      // sem storage: segue sem lembrar
+    }
+  }
+
+  async function copiarPagina() {
+    if (!linkPagina) return;
+    try {
+      await navigator.clipboard.writeText(linkPagina);
+      setCopiadoPagina(true);
+      toast.success("Link da sua página copiado!");
+      setTimeout(() => setCopiadoPagina(false), 2500);
+    } catch {
+      toast.error("Não consegui copiar. Copie da caixa acima.");
+    }
+  }
   const lider = ranking[0] ?? null;
   // reembolsada não conta nem pro prêmio nem pro total
   const pagas = minha.vendas.filter((v) => v.status === "paid");
@@ -358,6 +424,109 @@ export function IndiqueGanhe({
 
       {aba === "minha" && (
         <section className="space-y-4">
+          {/* A SUA página de vendas: cola o link de afiliado e leva o link pronto */}
+          <div className="rounded-2xl border border-primary/30 bg-primary/5 p-5 sm:p-6">
+            <div className="flex items-center gap-3">
+              <span className="grid size-11 place-items-center rounded-xl bg-primary/10">
+                <LinkIcon className="size-5 text-primary" />
+              </span>
+              <div>
+                <h2 className="text-base font-semibold tracking-tight">Sua página de vendas</h2>
+                <p className="text-sm text-muted-foreground">
+                  A mesma página do Viraliza, só que com o SEU link.
+                </p>
+              </div>
+            </div>
+
+            <label className="mt-5 block text-sm font-medium" htmlFor="af-checkout">
+              1. Seu link de afiliado da Cakto
+            </label>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              O link que a Cakto te deu depois de aprovarmos a sua afiliação
+              (começa com pay.cakto.com.br).
+            </p>
+            <input
+              id="af-checkout"
+              type="url"
+              inputMode="url"
+              placeholder="https://pay.cakto.com.br/..."
+              value={checkout}
+              onChange={(e) => {
+                setCheckout(e.target.value);
+                guardar("checkout", e.target.value);
+              }}
+              className={cn(
+                "mt-2 w-full rounded-xl border bg-background px-3 py-3 text-sm outline-none transition",
+                checkout && !checkoutOk
+                  ? "border-red-500/60 focus:border-red-500"
+                  : "border-border focus:border-primary/50",
+              )}
+            />
+            {checkout && !checkoutOk && (
+              <p className="mt-2 text-xs text-red-500">
+                Esse não parece o link de afiliado da Cakto. Ele começa com
+                pay.cakto.com.br. Copie de novo lá no seu painel da Cakto.
+              </p>
+            )}
+
+            <label className="mt-5 block text-sm font-medium" htmlFor="af-zap">
+              2. Seu WhatsApp{" "}
+              <span className="font-normal text-muted-foreground">(opcional)</span>
+            </label>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Se preencher, o botão de WhatsApp da sua página fala com você. Se
+              deixar em branco, fala com o suporte do Viraliza.
+            </p>
+            <div className="mt-2 flex items-center gap-2 rounded-xl border border-border bg-background px-3 focus-within:border-primary/50">
+              <MessageCircle className="size-4 shrink-0 text-muted-foreground" />
+              <input
+                id="af-zap"
+                type="tel"
+                inputMode="numeric"
+                placeholder="(11) 99999-9999"
+                value={zap}
+                onChange={(e) => {
+                  setZap(e.target.value);
+                  guardar("zap", e.target.value);
+                }}
+                className="w-full bg-transparent py-3 text-sm outline-none"
+              />
+            </div>
+
+            {checkoutOk ? (
+              <div className="mt-5 rounded-xl border border-primary/40 bg-background p-4">
+                <p className="text-sm font-medium text-primary">Pronto! Esta é a sua página</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Copie e divulgue este link. É ele que vende pra você.
+                </p>
+                <div className="mt-3 flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5">
+                  <span className="min-w-0 flex-1 truncate text-sm">{linkPagina}</span>
+                  <button
+                    type="button"
+                    onClick={copiarPagina}
+                    className="flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition hover:opacity-90"
+                  >
+                    {copiadoPagina ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                    {copiadoPagina ? "Copiado" : "Copiar"}
+                  </button>
+                </div>
+                <a
+                  href={linkPagina}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-primary underline-offset-4 hover:underline"
+                >
+                  Abrir e conferir <ExternalLink className="size-3.5" />
+                </a>
+              </div>
+            ) : (
+              <p className="mt-4 text-xs text-muted-foreground">
+                Assim que você colar o seu link acima, a sua página aparece aqui
+                pronta pra copiar.
+              </p>
+            )}
+          </div>
+
           {/* resumo do que essa pessoa já fez */}
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-border/60 bg-card/40 p-4 text-center">
@@ -467,6 +636,7 @@ export function IndiqueGanhe({
           </div>
         </section>
       )}
+
 
       <LabDock itens={ABAS} atual={aba} onTrocar={setAba} />
     </div>
