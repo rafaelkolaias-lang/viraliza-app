@@ -61,6 +61,13 @@ export type CaktoPedido = {
   payment?: { charge_amount?: number }; // centavos que o cliente pagou (amount)
   customer?: { email?: string; full_name?: string; mobile?: string };
   product?: { id?: string; name?: string; type?: string }; // type: "subscription" | "unique"
+  /**
+   * Rastreio que a LP pendura no link do checkout e a Cakto devolve intacto.
+   * `sck` vem no formato "fbc:<...>;fbp:<...>" e é o que permite a CAPI dizer
+   * à Meta qual clique de anúncio virou esta venda (ver meta-capi.ts).
+   */
+  sck?: string;
+  checkoutUrl?: string;
 };
 
 type OrderApi = {
@@ -85,6 +92,8 @@ type OrderApi = {
   canceledAt?: string | null;
   customer?: { name?: string; email?: string; phone?: string };
   product?: { id?: string; name?: string; type?: string };
+  sck?: string | null;
+  checkoutUrl?: string | null;
   error?: string;
   detail?: string;
 };
@@ -123,6 +132,8 @@ function normalizarPedido(o: OrderApi): CaktoPedido {
       mobile: o.customer?.phone,
     },
     product: { id: o.product?.id, name: o.product?.name, type: o.product?.type },
+    sck: o.sck ?? undefined,
+    checkoutUrl: o.checkoutUrl ?? undefined,
   };
 }
 

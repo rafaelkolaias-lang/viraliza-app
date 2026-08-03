@@ -11,7 +11,7 @@ import {
   webhookSecretValido,
 } from "@/lib/cakto";
 import { CREDITO_MENSAL_CENTAVOS, existeTransacaoOrder, lancar } from "@/lib/creditos";
-import { enviarCompraMeta, enviarReembolsoMeta } from "@/lib/meta-capi";
+import { enviarCompraMeta, enviarReembolsoMeta, lerRastreioSck } from "@/lib/meta-capi";
 import { aplicarReembolsoAceito, restaurarSuspensao } from "@/lib/reembolsos";
 import { enviarBoasVindas, enviarCreditosConfirmados } from "@/lib/email";
 
@@ -112,6 +112,9 @@ export async function POST(req: Request) {
   // Atribuição Meta Ads: compra confirmada -> evento Purchase via CAPI. Nunca
   // quebra o fluxo: erro só loga. Reenvios do webhook não duplicam (event_id = orderId).
   if (pedidoEstaPago(pedido)) {
+    // veio da landing page? então o clique no anúncio viajou dentro do `sck` e
+    // volta aqui, o que deixa a Meta ligar ESTA venda ao anúncio que a gerou
+    const rastreio = lerRastreioSck(pedido.sck);
     await enviarCompraMeta({
       orderId,
       email,
@@ -120,6 +123,9 @@ export async function POST(req: Request) {
       // valor LÍQUIDO (o que você recebe, ex. R$22,41), não o bruto que o cliente pagou
       valorCentavos: pedido.net_amount ?? pedido.payment?.charge_amount ?? 0,
       produto: pedido.product?.name,
+      fbc: rastreio.fbc,
+      fbp: rastreio.fbp,
+      urlOrigem: pedido.checkoutUrl,
     });
   }
 

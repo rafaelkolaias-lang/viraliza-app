@@ -41,7 +41,37 @@ type DadosVenda = {
   nome?: string | null;
   valorCentavos: number;
   produto?: string | null;
+  /**
+   * Rastreio do clique no anúncio, quando a venda veio pela landing page. A LP
+   * pendura isso no link do checkout, a Cakto guarda no campo `sck` e devolve
+   * no pedido (ver cakto.ts). Sem eles a Meta só tem e-mail e telefone pra
+   * cruzar, e a qualidade da correspondência fica baixa.
+   */
+  fbc?: string | null; // identificador do clique (vem do fbclid da URL)
+  fbp?: string | null; // identificador do navegador
+  urlOrigem?: string | null;
 };
+
+/**
+ * Lê o `sck` que a LP mandou: "fbc:fb.1.123.abc;fbp:fb.1.123.456".
+ * Formato solto de propósito: se vier vazio, malformado ou de outra origem,
+ * devolve os campos vazios e a CAPI segue sem eles, como era antes.
+ */
+export function lerRastreioSck(sck?: string | null): { fbc?: string; fbp?: string } {
+  const out: { fbc?: string; fbp?: string } = {};
+  String(sck || "")
+    .split(";")
+    .forEach((parte) => {
+      const i = parte.indexOf(":");
+      if (i < 1) return;
+      const chave = parte.slice(0, i).trim().toLowerCase();
+      const valor = parte.slice(i + 1).trim();
+      if (!valor) return;
+      if (chave === "fbc") out.fbc = valor;
+      if (chave === "fbp") out.fbp = valor;
+    });
+  return out;
+}
 
 /** Compra confirmada na Kiwify -> evento Purchase no pixel. Idempotente na
  *  Meta via event_id = orderId (reenvios do webhook não duplicam). */
@@ -62,13 +92,18 @@ async function enviarEventoVenda(
 ): Promise<void> {
   if (!metaCapiConfigurada()) return;
 
-  const user_data: Record<string, string[]> = {};
+  const user_data: Record<string, string[] | string> = {};
   const em = hashEmail(p.email);
   const ph = hashTelefone(p.telefone);
   if (em) user_data.em = [em];
   if (ph) user_data.ph = [ph];
   // sem nenhum identificador não há match possível - nem manda
   if (!em && !ph) return;
+
+  // fbc e fbp vão CRUS (a Meta não aceita hash neles). São eles que ligam a
+  // venda ao clique no anúncio, então valem mais que qualquer outro parâmetro.
+  if (p.fbc) user_data.fbc = String(p.fbc);
+  if (p.fbp) user_data.fbp = String(p.fbp);
 
   const nome = String(p.nome || "").trim();
   if (nome) {
@@ -82,7 +117,8 @@ async function enviarEventoVenda(
     event_name: eventName,
     event_time: Math.floor(Date.now() / 1000),
     event_id: eventId,
-    action_source: "website", // a compra acontece no checkout web da Kiwify
+    action_source: "website", // a compra acontece no checkout web da Cakto
+    ...(p.urlOrigem ? { event_source_url: p.urlOrigem } : {}),
     user_data,
     custom_data: {
       currency: "BRL",
