@@ -10,7 +10,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
     <main className="bg-grid-glow grain relative flex min-h-dvh flex-col items-center justify-center overflow-hidden px-4 py-10">
       <div className="animate-rise relative z-10 flex w-full max-w-[420px] flex-col items-center">
         <Link href="/" className="mb-8">
-          <BrandMark size={40} />
+          <BrandMark size={56} />
         </Link>
         {children}
         <p className="mt-8 text-center text-xs text-muted-foreground">

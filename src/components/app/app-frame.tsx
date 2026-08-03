@@ -176,7 +176,7 @@ export function AppFrame({
             recolhida ? "flex-col justify-center px-2 py-4" : "justify-between",
           )}
         >
-          <BrandMark size={recolhida ? 30 : 34} />
+          <BrandMark size={recolhida ? 40 : 46} />
           <NotificacoesSino />
         </div>
         {navInterno(recolhida)}
@@ -209,7 +209,7 @@ export function AppFrame({
         >
           <Menu className="size-6" />
         </button>
-        <BrandMark size={30} />
+        <BrandMark size={38} />
         <div className="ml-auto">
           <NotificacoesSino />
         </div>
@@ -235,7 +235,7 @@ export function AppFrame({
         aria-modal="true"
       >
         <div className="flex items-center justify-between p-5">
-          <BrandMark size={32} />
+          <BrandMark size={40} />
           <button
             type="button"
             onClick={() => setOpenMenu(false)}

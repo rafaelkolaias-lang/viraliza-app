@@ -17,6 +17,14 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: `${brand.name} - ${brand.tagline}`,
   description: brand.description,
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/marca/favicon-32.png", type: "image/png", sizes: "32x32" },
+      { url: "/marca/favicon-512.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: "/marca/favicon-180.png",
+  },
 };
 
 export default function RootLayout({

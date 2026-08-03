@@ -144,6 +144,22 @@
 }
 
 /* Entrada suave (sobe + aparece) - respeitando prefers-reduced-motion */
+/* O V neon da marca "respira": o brilho verde pulsa e o V dá uma leve inflada,
+   sem ficar cansativo. O verde bate com --color-primary da marca. */
+@keyframes neon-respira {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 3px rgba(132, 235, 40, 0.55))
+      drop-shadow(0 0 8px rgba(132, 235, 40, 0.35));
+    transform: scale(1);
+  }
+  50% {
+    filter: drop-shadow(0 0 6px rgba(160, 255, 60, 0.9))
+      drop-shadow(0 0 18px rgba(132, 235, 40, 0.6));
+    transform: scale(1.06);
+  }
+}
+
 @keyframes rise-in {
   from {
     opacity: 0;
