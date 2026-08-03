@@ -26,7 +26,7 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ erro?: string; reset?: string }>;
 }) {
-  if (await getCurrentUser()) redirect("/painel");
+  if (await getCurrentUser()) redirect("/painel/lab");
   const sp = await searchParams;
   const avisoErro = sp.erro ? AVISOS_ERRO[sp.erro] : undefined;
   const avisoOk =

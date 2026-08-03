@@ -7,7 +7,7 @@ import { getCurrentUser } from "@/lib/dal";
 export const metadata: Metadata = { title: "Esqueci minha senha" };
 
 export default async function EsqueciSenhaPage() {
-  if (await getCurrentUser()) redirect("/painel");
+  if (await getCurrentUser()) redirect("/painel/lab");
   return (
     <AuthShell>
       <EsqueciSenhaForm />

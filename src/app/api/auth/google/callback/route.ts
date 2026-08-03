@@ -49,5 +49,6 @@ export async function GET(req: Request) {
   }
 
   await createSession(user.id, user.role);
-  return NextResponse.redirect(new URL("/painel", BASE));
+  // mesmo destino do login por senha: o Lab, não a lista de vídeos vazia
+  return NextResponse.redirect(new URL("/painel/lab", BASE));
 }

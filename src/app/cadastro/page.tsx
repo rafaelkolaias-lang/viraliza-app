@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 };
 
 export default async function CadastroPage() {
-  if (await getCurrentUser()) redirect("/painel");
+  if (await getCurrentUser()) redirect("/painel/lab");
   return (
     <AuthShell>
       <SignupForm googleAtivo={googleConfigurado()} />

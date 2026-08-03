@@ -41,6 +41,7 @@ model User {
   personagens    PersonagemUsuario[]
   imagens        ImagemGerada[]
   sugestoes      Sugestao[]
+  apoios         Apoio[]
   reportes       ReporteVideo[]
   chatMensagens  ChatMensagem[]
 
@@ -78,6 +79,31 @@ model ReporteVideo {
   status     String    @default("novo") // "novo" | "reembolsado" | "recusado"
   decididoEm DateTime?
   criadoEm   DateTime  @default(now())
+
+  @@index([userId])
+  @@index([status])
+}
+
+// Doação de apoio ao projeto (Pix pela InfinitePay). É DOAÇÃO PURA: não dá
+// crédito, não libera nada, não muda o plano de ninguém. Serve pra registrar
+// quem apoiou e quanto, e pra gente agradecer.
+//
+// O fluxo cria a linha como "aguardando" com o link, e ela só vira "pago"
+// depois que o payment_check da InfinitePay confirma. O webhook sozinho NUNCA
+// decide: ele não é assinado, então qualquer um poderia forjar (mesma regra do
+// webhook da Cakto).
+model Apoio {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  valorCentavos Int
+  status        String    @default("aguardando") // "aguardando" | "pago" | "cancelado"
+  orderNsu      String    @unique // o que mandamos pra InfinitePay e volta no webhook
+  transactionNsu String?  // id da transação, só existe depois de pago
+  slug          String? // invoice_slug do webhook, usado no payment_check
+  linkUrl       String?   @db.Text
+  pagoEm        DateTime?
+  criadoEm      DateTime  @default(now())
 
   @@index([userId])
   @@index([status])

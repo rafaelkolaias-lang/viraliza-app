@@ -8,6 +8,11 @@ import { cadastroSchema, loginSchema } from "@/lib/auth-schemas";
 import { criarContaLiberada, podeCriarConta } from "@/lib/registro";
 import { dentroDoLimite, ipDaRequisicao } from "@/lib/ratelimit";
 
+// Onde a pessoa cai ao entrar. É o Lab, não "Meus vídeos": quem acabou de
+// chegar não tem vídeo nenhum, e cair numa tela vazia é a pior primeira
+// impressão possível. No Lab ela já começa a criar.
+const DEPOIS_DO_LOGIN = "/painel/lab";
+
 export type AuthState = { erro?: string } | undefined;
 
 export async function cadastrar(
@@ -43,7 +48,7 @@ export async function cadastrar(
   const user = await criarContaLiberada({ nome, email, senhaHash });
 
   await createSession(user.id, user.role);
-  redirect("/painel");
+  redirect(DEPOIS_DO_LOGIN);
 }
 
 export async function entrar(
@@ -84,7 +89,7 @@ export async function entrar(
   }
 
   await createSession(user.id, user.role);
-  redirect("/painel");
+  redirect(DEPOIS_DO_LOGIN);
 }
 
 export async function sair() {
