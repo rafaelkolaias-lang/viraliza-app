@@ -34,12 +34,13 @@ const COMISSAO = 50;
 /** prêmio do primeiro que bater a meta (mexer aqui muda a tela inteira) */
 const PREMIO = 100;
 const META_VENDAS = 20;
-const PRECO = 37.9;
-/** o que sobra depois da taxa da Cakto: Pix ~R$17,70 e cartão ~R$16,76 */
-const GANHO_PIX = 17.7;
+/** preço base do Viraliza (o afiliado pode vender pelo dele, na aba "Minha afiliação") */
+const PRECO = 98.9;
+/** metade da venda, que é a comissão do afiliado (antes da taxa da Cakto) */
+const GANHO_VENDA = PRECO / 2;
 
 const LINK_AFILIACAO =
-  "https://app.cakto.com.br/affiliate/invite/f962435f-1c68-49a4-9b08-c4276afa9e38";
+  "https://app.cakto.com.br/affiliate/invite/684a572c-0f5f-4b08-8df8-f175a3493ef1";
 
 const PASSOS = [
   {
@@ -82,8 +83,14 @@ const ABAS: ItemDock[] = [
 // Onde a página de vendas mora. O afiliado divulga esta URL com o link dele.
 const BASE_LP = "https://lp.viraliza.app.br";
 
-/** Codifica o link de checkout do afiliado no formato que a página lê (?ck=). */
-function montarLinkPagina(checkout: string, whatsapp: string): string {
+/** "98,90" / "R$ 98.90" -> número em reais (0 se não der). */
+function precoEmReais(raw: string): number {
+  const n = parseFloat(String(raw || "").replace(/[^\d,.]/g, "").replace(",", "."));
+  return Number.isFinite(n) && n > 0 && n < 100000 ? n : 0;
+}
+
+/** Codifica os dados do afiliado no formato que a página lê (?ck=, ?zap=, ?preco=). */
+function montarLinkPagina(checkout: string, whatsapp: string, preco: string): string {
   const ck = btoa(unescape(encodeURIComponent(checkout.trim())))
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
@@ -91,6 +98,8 @@ function montarLinkPagina(checkout: string, whatsapp: string): string {
   const params = new URLSearchParams({ ck });
   const zap = String(whatsapp || "").replace(/\D/g, "");
   if (zap) params.set("zap", zap);
+  const p = precoEmReais(preco);
+  if (p) params.set("preco", p.toFixed(2));
   return `${BASE_LP}/?${params.toString()}`;
 }
 
@@ -145,21 +154,23 @@ export function IndiqueGanhe({
   // que digitar de novo toda vez.
   const [checkout, setCheckout] = useState("");
   const [zap, setZap] = useState("");
+  const [preco, setPreco] = useState("");
   const [copiadoPagina, setCopiadoPagina] = useState(false);
 
   useEffect(() => {
     try {
       setCheckout(localStorage.getItem("afiliado-checkout") || "");
       setZap(localStorage.getItem("afiliado-zap") || "");
+      setPreco(localStorage.getItem("afiliado-preco") || "");
     } catch {
       // navegador sem storage: só não lembra, tudo bem
     }
   }, []);
 
   const checkoutOk = checkoutValido(checkout);
-  const linkPagina = checkoutOk ? montarLinkPagina(checkout, zap) : "";
+  const linkPagina = checkoutOk ? montarLinkPagina(checkout, zap, preco) : "";
 
-  function guardar(campo: "checkout" | "zap", valor: string) {
+  function guardar(campo: "checkout" | "zap" | "preco", valor: string) {
     try {
       localStorage.setItem(`afiliado-${campo}`, valor);
     } catch {
@@ -225,9 +236,9 @@ export function IndiqueGanhe({
           <p className="max-w-xl text-sm text-muted-foreground sm:text-base">
             Metade de cada venda é sua. São cerca de{" "}
             <span className="font-semibold text-foreground">
-              {GANHO_PIX.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+              {GANHO_VENDA.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
             </span>{" "}
-            no seu bolso a cada pessoa que entrar pelo seu link, e o pagamento cai automático.
+            por pessoa que entrar pelo seu link, e o pagamento cai automático.
           </p>
 
           <div className="flex w-full flex-col items-center gap-2 sm:w-auto sm:flex-row">
@@ -264,9 +275,9 @@ export function IndiqueGanhe({
       {/* ---------------------------------------------------- conta simples */}
       <div className="grid gap-3 sm:grid-cols-3">
         {[
-          { n: "1 venda", v: "R$ 17,70", t: "no seu bolso" },
-          { n: "10 vendas", v: "R$ 177,00", t: "só divulgando" },
-          { n: "30 vendas", v: "R$ 531,00", t: "uma por dia no mês" },
+          { n: "1 venda", v: "R$ 49,45", t: "na sua conta" },
+          { n: "10 vendas", v: "R$ 494,50", t: "só divulgando" },
+          { n: "30 vendas", v: "R$ 1.483,50", t: "uma por dia no mês" },
         ].map((c) => (
           <div
             key={c.n}
@@ -409,8 +420,10 @@ export function IndiqueGanhe({
           </li>
           <li>
             O acesso custa{" "}
-            {PRECO.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}, e a sua metade
-            sai depois da taxa da plataforma: fica em torno de R$ 17,70 no Pix e R$ 16,76 no cartão.
+            {PRECO.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}, então a sua
+            metade dá{" "}
+            {GANHO_VENDA.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} por venda
+            (menos a pequena taxa da Cakto, descontada na hora do repasse).
           </li>
           <li>Quem paga você é a Cakto, direto na sua conta, sem passar por nós.</li>
           <li>
@@ -469,8 +482,31 @@ export function IndiqueGanhe({
               </p>
             )}
 
+            <label className="mt-5 block text-sm font-medium" htmlFor="af-preco">
+              2. O preço do seu produto
+            </label>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              É o valor que está no SEU checkout. A página inteira passa a mostrar
+              esse preço. Se deixar em branco, ela mostra R$ 98,90.
+            </p>
+            <div className="mt-2 flex items-center gap-2 rounded-xl border border-border bg-background px-3 focus-within:border-primary/50">
+              <span className="shrink-0 text-sm text-muted-foreground">R$</span>
+              <input
+                id="af-preco"
+                type="text"
+                inputMode="decimal"
+                placeholder="98,90"
+                value={preco}
+                onChange={(e) => {
+                  setPreco(e.target.value);
+                  guardar("preco", e.target.value);
+                }}
+                className="w-full bg-transparent py-3 text-sm outline-none"
+              />
+            </div>
+
             <label className="mt-5 block text-sm font-medium" htmlFor="af-zap">
-              2. Seu WhatsApp{" "}
+              3. Seu WhatsApp{" "}
               <span className="font-normal text-muted-foreground">(opcional)</span>
             </label>
             <p className="mt-0.5 text-xs text-muted-foreground">
