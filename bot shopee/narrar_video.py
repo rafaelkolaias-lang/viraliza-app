@@ -240,6 +240,25 @@ def _concat_mp3(partes, saida):
         pass
 
 
+def _coagir_texto(x):
+    """Achata o roteiro pra string. O Gemini às vezes aninha (ex.: {"voz": "..."}),
+    o que estourava 422 no text= da ElevenLabs e .split() em dict. Aqui vira string
+    sempre: puxa a chave provável, senão o 1o valor de texto que achar."""
+    if isinstance(x, str):
+        return x
+    if isinstance(x, dict):
+        for k in ("roteiro", "voz", "texto", "text", "fala", "narracao", "narração"):
+            v = x.get(k)
+            if isinstance(v, str) and v.strip():
+                return v
+        for v in x.values():
+            if isinstance(v, str) and v.strip():
+                return v
+    if isinstance(x, (list, tuple)):
+        return " ".join(_coagir_texto(i) for i in x)
+    return str(x or "")
+
+
 def gerar_voz_com_tempos(texto, mp3_path):
     """Gera a voz e devolve (duracao, palavras[(palavra, ini, fim)]).
 
@@ -250,6 +269,7 @@ def gerar_voz_com_tempos(texto, mp3_path):
 
     Se o texto for grande demais pra qualquer chave sozinha, FATIA entre as chaves
     (cada pedaço também com fallback) e concatena o áudio."""
+    texto = _coagir_texto(texto)
     if not _ELEVEN_KEYS:
         raise RuntimeError("Nenhuma chave ElevenLabs no .env (ELEVENLABS_API_KEYS).")
 

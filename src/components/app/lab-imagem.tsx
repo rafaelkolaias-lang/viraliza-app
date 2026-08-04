@@ -49,6 +49,7 @@ export function LabImagem({
   comecarPulando = false,
   variacao,
   jaPediu = false,
+  pedidoEm,
   onComecou,
 }: {
   estilo: EstiloCamera;
@@ -74,6 +75,8 @@ export function LabImagem({
    * imagem chega pelo onGerou, além de entrar em "Minhas imagens".
    */
   jaPediu?: boolean;
+  /** quando o pedido foi feito (Date.now()): usado pra reencontrar a imagem na galeria */
+  pedidoEm?: number | null;
   onComecou?: () => void;
 }) {
   // voltando pro Lab no meio da geração, a tela já abre mostrando que está
@@ -198,6 +201,33 @@ export function LabImagem({
     if (imagem) setGerando(false);
   }, [imagem]);
 
+  // REENCONTRAR um pedido antigo: a geração é um POST longo que morre se esta
+  // tela desmontar (trocar de aba, voltar um passo). O servidor termina e salva
+  // em "Minhas imagens" do mesmo jeito — então, enquanto estivermos esperando um
+  // pedido dessa sessão, vigiamos a galeria e puxamos a imagem quando ela chegar.
+  // Sem isso, a pessoa via "Gerando..." pra sempre e clicava (e pagava) de novo.
+  useEffect(() => {
+    if (!jaPediu || imagem || !pedidoEm) return;
+    const t = setInterval(async () => {
+      try {
+        const r = await fetch("/api/imagens", { cache: "no-store" });
+        const d = await r.json();
+        const lista = (d?.imagens ?? []) as { imagem: string; origem: string; criadoEm: string }[];
+        // 90s de folga pro relógio do servidor não desencontrar do navegador
+        const nova = lista.find(
+          (i) => i.origem === "lab" && new Date(i.criadoEm).getTime() >= pedidoEm - 90_000,
+        );
+        if (nova) {
+          onGerou(nova.imagem);
+          toast.success("Sua imagem ficou pronta!");
+        }
+      } catch {
+        // rede piscou: tenta no próximo ciclo
+      }
+    }, 10_000);
+    return () => clearInterval(t);
+  }, [jaPediu, imagem, pedidoEm, onGerou]);
+
   // frases girando enquanto gera (sensação de progresso)
   useEffect(() => {
     if (!gerando) return;
@@ -236,6 +266,13 @@ export function LabImagem({
                   <p className="text-sm text-muted-foreground">{FRASES[frase]}</p>
                   <p className="text-[11px] text-muted-foreground/70">
                     Costuma levar de 1 a 3 minutos.
+                  </p>
+                </div>
+              ) : pulando ? (
+                <div className="flex flex-col items-center gap-3 px-6 text-center">
+                  <Upload className="size-7 text-primary" />
+                  <p className="text-sm text-muted-foreground">
+                    Escolha abaixo a imagem que você já tem. Não gasta crédito.
                   </p>
                 </div>
               ) : (
@@ -281,21 +318,25 @@ export function LabImagem({
             {salvo ? "Salvo nos influenciadores" : "Salvar como influencer"}
           </button>
         )}
-        <button
-          type="button"
-          onClick={gerar}
-          disabled={gerando}
-          className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-50"
-        >
-          {gerando ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : imagem ? (
-            <RefreshCw className="size-4" />
-          ) : (
-            <Sparkles className="size-4" />
-          )}
-          {gerando ? "Gerando..." : imagem ? "Gerar novamente" : "Tentar de novo"}
-        </button>
+        {/* enquanto o painel "usar imagem que já tenho" está aberto, o botão de
+            gerar some: nesse modo a pessoa NÃO quer gerar (nem pagar) de novo */}
+        {!(pulando && !imagem) && (
+          <button
+            type="button"
+            onClick={gerar}
+            disabled={gerando}
+            className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-50"
+          >
+            {gerando ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : imagem ? (
+              <RefreshCw className="size-4" />
+            ) : (
+              <Sparkles className="size-4" />
+            )}
+            {gerando ? "Gerando..." : imagem ? "Gerar novamente" : "Tentar de novo"}
+          </button>
+        )}
       </div>
 
       {imagem ? (
@@ -303,7 +344,7 @@ export function LabImagem({
           Não ficou como queria? É só gerar novamente até acertar (cada geração
           custa {CUSTO_IMAGEM_LAB} créditos).
         </p>
-      ) : (
+      ) : pulando ? null : (
         <p className="text-center text-xs text-muted-foreground">
           Custa {CUSTO_IMAGEM_LAB} créditos, cobrados só quando a imagem fica pronta.
         </p>

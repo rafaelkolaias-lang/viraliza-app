@@ -67,6 +67,8 @@ export type OpcoesImagemLab = {
   cenarioTexto?: string; // quando a pessoa escolheu "Outros"
   cenarioMotor?: string; // chave equivalente em CENARIOS (quando existe)
   cenarioLivre?: string; // descrição do cenário quando não tem equivalente
+  /** true = a ÚLTIMA imagem anexada é a foto do LUGAR (cenário próprio do usuário) */
+  cenarioFoto?: boolean;
   comAvatar: boolean; // false = POV/sem pessoa (só as mãos ou só o produto)
   produtoNome?: string;
   /** enquadramento da variação escolhida (POV: mãos segurando ou produto parado) */
@@ -77,6 +79,9 @@ export type OpcoesImagemLab = {
 
 /** Bloco do cenário: usa a descrição rica de CENARIOS quando existir. */
 function blocoCenario(o: OpcoesImagemLab): string {
+  if (o.cenarioFoto) {
+    return "SETTING FROM PHOTO, CRITICAL: the LAST attached photo is the EXACT place where the scene happens. Place the subject INSIDE that same environment: same walls, same furniture in the same positions, same colors, same decoration, same lighting mood. Do NOT redesign the room, do NOT invent a different place, do NOT add or remove furniture: it must be recognizable as the very same location from the photo. The only change allowed is natural depth of field: the place gets softly out of focus behind the subject (natural bokeh) while the person and the product stay perfectly sharp. Use that photo ONLY for the place: ignore any person, product or text that appears in it.";
+  }
   const doMotor = o.cenarioMotor ? CENARIOS.find((c) => c.chave === o.cenarioMotor) : null;
   if (doMotor) {
     return `SETTING: ${doMotor.local}, softly out of focus behind the subject (natural bokeh) while the person and the product stay perfectly sharp. Lighting: ${doMotor.luz}.`;
@@ -137,7 +142,12 @@ export function montarPromptImagemLab(o: OpcoesImagemLab): string {
   }
 
   // ---------- PRODUTO ----------
-  linhas.push(o.comAvatar ? "Second photo = the PRODUCT." : "The photo given = the PRODUCT.");
+  linhas.push(o.comAvatar ? "Second photo = the PRODUCT." : "The first photo given = the PRODUCT.");
+  if (o.cenarioFoto) {
+    linhas.push(
+      "The LAST attached photo = the PLACE (background reference only). Never copy any person, product, text or watermark from that photo: only the environment.",
+    );
+  }
   // Modo flexível: como a pessoa SEMPRE escreve a cena aqui, a foto do produto
   // manda na APARÊNCIA e a instrução dela manda na COMPOSIÇÃO. É o que resolve o
   // conflito clássico "a foto tem 3 unidades mas eu quero mostrar 1".

@@ -301,7 +301,7 @@ export function ViralizaLab({
   // a tela de geração e antes fazia ela pedir tudo de novo)
   const [jobVideo, setJobVideo] = useState<string | null>(null);
   // idem pra imagem: marca que ela já foi pedida nessa sessão
-  const [imagemPedida, setImagemPedida] = useState(false);
+  const [imagemPedidaEm, setImagemPedidaEm] = useState<number | null>(null);
   const [estilo, setEstilo] = useState<string | null>(null);
   // variação do estilo Mãos (POV): "maos" segurando ou "parado" na bancada
   const [variacao, setVariacao] = useState("maos");
@@ -368,9 +368,10 @@ export function ViralizaLab({
         : 100;
 
   function irPara(prox: Etapa) {
-    // voltar pra montagem da cena encerra o pedido da imagem: se ela mexer em
-    // algo e avançar de novo, aí é uma imagem nova mesmo (e custa de novo)
-    if (prox === "cena") setImagemPedida(false);
+    // voltar pra montagem da cena encerra o pedido da imagem SÓ se ela já
+    // chegou: aí mexer e avançar gera (e custa) uma nova de propósito. No meio
+    // da geração NÃO encerra — senão voltar/avançar disparava uma 2ª cobrança.
+    if (prox === "cena" && imagem) setImagemPedidaEm(null);
     setEtapa(prox);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -434,7 +435,7 @@ export function ViralizaLab({
     setImagemPropria(false);
     setSubVideo("config");
     setJobVideo(null);
-    setImagemPedida(false);
+    setImagemPedidaEm(null);
     setSub("estilo");
     irPara("cena");
   }
@@ -507,6 +508,35 @@ export function ViralizaLab({
 
       {modo === "lab" && etapa === "cena" && sub === "estilo" && (
         <Tela chave="estilo">
+          {/* ATALHO logo na entrada: quem JÁ tem a foto da influencer com o
+              produto não precisa do funil da imagem — vai direto pro vídeo,
+              sem gastar crédito nenhum na imagem. */}
+          <button
+            type="button"
+            onClick={() => {
+              if (!estilo) setEstilo("selfie");
+              if (!produto) setProduto({ id: "proprio", titulo: "Meu produto", meu: true });
+              if (!avatar) setAvatar(SEM_AVATAR);
+              if (!cenario) setCenario("casa");
+              setImagemPropria(true);
+              irPara("imagem");
+            }}
+            className="flex w-full items-center gap-3 rounded-2xl border border-primary/40 bg-primary/5 p-4 text-left transition-all hover:border-primary hover:bg-primary/10 sm:p-5"
+          >
+            <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary/15 text-primary">
+              <ImageIcon className="size-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold sm:text-base">
+                Já tenho a imagem da minha influencer com o produto
+              </span>
+              <span className="block text-xs text-muted-foreground sm:text-sm">
+                Pula a criação da imagem e vai direto pro vídeo. Não gasta crédito na imagem.
+              </span>
+            </span>
+            <ArrowRight className="size-5 shrink-0 text-primary" />
+          </button>
+
           <Bloco n={1} titulo="Estilo da câmera" obrigatorio>
             <p className="text-sm text-muted-foreground">
               Escolha o estilo de câmera ideal para o tipo do seu produto: cada opção é
@@ -576,7 +606,7 @@ export function ViralizaLab({
 
       {modo === "lab" && etapa ==="cena" && estiloSel && sub === "produto" && (
         <Tela chave="produto">
-          <Bloco n={1} titulo="Selecione um produto" obrigatorio>
+          <Bloco n={2} titulo="Selecione um produto" obrigatorio>
             <LabProdutos
               estilo={estiloSel}
               produto={produto}
@@ -586,7 +616,7 @@ export function ViralizaLab({
           </Bloco>
 
           <Bloco
-            n={2}
+            n={3}
             titulo="Como o produto e o avatar devem aparecer na imagem?"
             obrigatorio
           >
@@ -613,7 +643,7 @@ export function ViralizaLab({
 
       {modo === "lab" && etapa ==="cena" && estiloSel && sub === "avatar" && (
         <Tela chave="avatar">
-          <Bloco n={1} titulo="Escolha o influenciador" obrigatorio>
+          <Bloco n={4} titulo="Escolha o influenciador" obrigatorio>
             <LabAvatares
               estilo={estiloSel}
               meus={meusAvatares}
@@ -636,7 +666,7 @@ export function ViralizaLab({
 
       {modo === "lab" && etapa ==="cena" && sub === "cenario" && (
         <Tela chave="cenario">
-          <Bloco n={1} titulo="Cenário" obrigatorio>
+          <Bloco n={5} titulo="Cenário" obrigatorio>
             <LabCenario
               escolhido={cenario}
               textoLivre={cenarioTexto}
@@ -703,10 +733,17 @@ export function ViralizaLab({
                 setImagemPropria(true);
                 irPara("imagem");
               }}
-              className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border px-5 py-2.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+              className="mt-2.5 flex w-full items-center gap-3 rounded-xl border border-primary/40 bg-background/60 px-4 py-3 text-left transition-all hover:border-primary hover:bg-primary/5"
             >
-              <SkipForward className="size-3.5" />
-              Já tenho a imagem pronta, quero usar a minha
+              <SkipForward className="size-4.5 shrink-0 text-primary" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold">
+                  Já tenho a imagem da minha influencer com o produto
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  Usa a sua foto e vai direto pro vídeo, sem gastar crédito na imagem.
+                </span>
+              </span>
             </button>
           </section>
 
@@ -720,7 +757,7 @@ export function ViralizaLab({
       )}
       {modo === "lab" && etapa ==="imagem" && estiloSel && produto && avatar && cenario && (
         <Tela chave="imagem">
-          <Bloco n={1} titulo="Sua imagem">
+          <Bloco n={6} titulo="Sua imagem">
             <LabImagem
               estilo={estiloSel}
               produto={produto}
@@ -733,8 +770,9 @@ export function ViralizaLab({
               minhasImagens={meusAvatares}
               comecarPulando={imagemPropria}
               variacao={ehPov ? variacao : undefined}
-              jaPediu={imagemPedida}
-              onComecou={() => setImagemPedida(true)}
+              jaPediu={!!imagemPedidaEm}
+              pedidoEm={imagemPedidaEm}
+              onComecou={() => setImagemPedidaEm(Date.now())}
             />
           </Bloco>
 
@@ -749,7 +787,7 @@ export function ViralizaLab({
 
       {modo === "lab" && etapa ==="video" && imagem && subVideo === "config" && (
         <Tela chave="video-config">
-          <Bloco n={1} titulo="Como vai ser o vídeo" obrigatorio>
+          <Bloco n={7} titulo="Como vai ser o vídeo" obrigatorio>
             <LabVideo config={video} onMudar={setVideo} produtoNome={produto?.titulo} />
           </Bloco>
 
@@ -767,7 +805,7 @@ export function ViralizaLab({
 
       {modo === "lab" && etapa ==="video" && imagem && subVideo === "movimento" && (
         <Tela chave="video-movimento">
-          <Bloco n={1} titulo="Movimento do vídeo">
+          <Bloco n={8} titulo="Movimento do vídeo">
             <LabMovimentos
               estilo={estilo}
               cena={cenaImagem}
@@ -829,7 +867,7 @@ export function ViralizaLab({
 
       {modo === "lab" && etapa ==="video" && imagem && subVideo === "gerando" && (
         <Tela chave="video-gerando">
-          <Bloco n={1} titulo="Seu vídeo">
+          <Bloco n={9} titulo="Seu vídeo">
             <LabGerando
               config={video}
               imagem={imagem}

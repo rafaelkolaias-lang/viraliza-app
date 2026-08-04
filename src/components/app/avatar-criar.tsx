@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   UserRound,
   Palette,
@@ -251,6 +251,24 @@ function Campo({ rotulo, children }: { rotulo: string; children: React.ReactNode
   );
 }
 
+/**
+ * Marca no navegador que TEM um influenciador sendo criado agora. A criação é
+ * um pedido longo (1-3 min): se a pessoa sair da tela no meio, a resposta se
+ * perde, mas o influenciador ENTRA na lista dela do mesmo jeito. Sem essa
+ * marca, ela voltava, criava de novo e pagava duas vezes.
+ */
+const CHAVE_CRIANDO = "avatar-criando-em";
+const VALIDADE_CRIANDO_MS = 8 * 60_000;
+
+export function avatarCriandoAgora(): boolean {
+  try {
+    const t = Number(localStorage.getItem(CHAVE_CRIANDO) || 0);
+    return t > 0 && Date.now() - t < VALIDADE_CRIANDO_MS;
+  } catch {
+    return false;
+  }
+}
+
 export function AvatarCriar({
   onSair,
   onCriado,
@@ -263,7 +281,16 @@ export function AvatarCriar({
   const [e, setE] = useState<EscolhasAvatar>(INICIAL);
   const [i, setI] = useState(0);
   const [enviando, setEnviando] = useState(false);
+  // o que a pessoa está DIGITANDO na idade: só vira número (e trava 18-75) ao
+  // sair do campo — travar a cada tecla impedia até apagar pra digitar outra
+  const [idadeTxt, setIdadeTxt] = useState(String(INICIAL.idade));
   const [criado, setCriado] = useState<AvatarCriado | null>(null);
+  // já existe uma criação rodando (a pessoa saiu no meio e voltou)?
+  const [avisoCriando, setAvisoCriando] = useState(false);
+
+  useEffect(() => {
+    setAvisoCriando(avatarCriandoAgora());
+  }, []);
 
   const female = e.genero === "female";
   const temManequim = CORPOS_COM_IMAGEM.includes(e.genero);
@@ -295,6 +322,11 @@ export function AvatarCriar({
   async function gerar() {
     setEnviando(true);
     try {
+      localStorage.setItem(CHAVE_CRIANDO, String(Date.now()));
+    } catch {
+      // sem storage: segue sem a marca
+    }
+    try {
       const r = await fetch("/api/avatar/criar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -322,6 +354,11 @@ export function AvatarCriar({
       toast.error("Sem conexão. Tente de novo.");
     } finally {
       setEnviando(false);
+      try {
+        localStorage.removeItem(CHAVE_CRIANDO);
+      } catch {
+        // sem storage: a marca expira sozinha em 8 min
+      }
     }
   }
 
@@ -362,6 +399,22 @@ export function AvatarCriar({
 
   return (
     <div className="space-y-5">
+      {/* a pessoa saiu no meio de uma criação e voltou: avisa ANTES dela pagar de novo */}
+      {avisoCriando && (
+        <div className="flex items-start gap-3 rounded-2xl border border-amber-400/40 bg-amber-400/10 p-4">
+          <Loader2 className="mt-0.5 size-4.5 shrink-0 animate-spin text-amber-300" />
+          <div className="text-sm">
+            <p className="font-semibold text-amber-300">
+              Você já tem um influenciador sendo criado
+            </p>
+            <p className="mt-0.5 text-muted-foreground">
+              Ele aparece sozinho na sua lista em 1 a 3 minutos. Criar outro agora
+              cobra de novo — vale esperar ele chegar primeiro.
+            </p>
+          </div>
+        </div>
+      )}
+
       <Trilha atual={i} onIr={setI} />
 
       <div className="duration-300 animate-in fade-in slide-in-from-bottom-2" key={passo.chave}>
@@ -376,13 +429,22 @@ export function AvatarCriar({
               />
             </Campo>
             <div className="grid gap-5 sm:grid-cols-2">
-              <Campo rotulo="Idade *">
+              <Campo rotulo="Idade * (18 a 75)">
                 <input
-                  type="number"
-                  min={18}
-                  max={70}
-                  value={e.idade}
-                  onChange={(ev) => set("idade", Math.max(18, Math.min(70, Number(ev.target.value) || 18)))}
+                  type="text"
+                  inputMode="numeric"
+                  value={idadeTxt}
+                  onChange={(ev) => {
+                    const so = ev.target.value.replace(/\D/g, "").slice(0, 2);
+                    setIdadeTxt(so);
+                    const n = Number(so);
+                    if (n >= 18 && n <= 75) set("idade", n);
+                  }}
+                  onBlur={() => {
+                    const n = Math.max(18, Math.min(75, Number(idadeTxt) || INICIAL.idade));
+                    setIdadeTxt(String(n));
+                    set("idade", n);
+                  }}
                   className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-primary/60"
                 />
               </Campo>
@@ -759,6 +821,14 @@ export function AvatarCriar({
             )}
           </button>
         </div>
+
+        {/* espera longa (1-3 min): deixa claro que não precisa ficar vigiando */}
+        {enviando && (
+          <p className="mt-3 text-center text-xs text-muted-foreground">
+            Leva de 1 a 3 minutos. Pode continuar navegando: ele aparece em
+            &quot;Meus influenciadores&quot; assim que ficar pronto.
+          </p>
+        )}
       </div>
     </div>
   );

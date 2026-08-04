@@ -39,8 +39,11 @@ export function LabResumo({
   onEditar: (destino: "estilo" | "produto" | "avatar" | "cenario") => void;
 }) {
   const cen = CENARIOS_LAB.find((c) => c.chave === cenario);
-  const nomeCenario =
-    cenario === "outros" ? cenarioTexto || "Cenário personalizado" : (cen?.label ?? "");
+  const nomeCenario = cenario.startsWith("meu:")
+    ? "Meu cenário (foto sua)"
+    : cenario === "outros"
+      ? cenarioTexto || "Cenário personalizado"
+      : (cen?.label ?? "");
 
   const linhas: { destino: "estilo" | "produto" | "avatar" | "cenario"; dado: Linha }[] = [
     {

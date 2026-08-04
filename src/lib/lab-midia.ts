@@ -24,6 +24,9 @@ export const midiaMovimento = (chave: string) => ({
   poster: `${BASE}/movimentos/${chave}.jpg`,
 });
 
+/** Foto do passo "Cenário" (a cena vazia, sem gente, que vira o fundo). */
+export const midiaCenario = (chave: string) => `${BASE}/cenarios/${chave}.jpg`;
+
 /** Amostra de pele do passo "Tom de pele" (foto real de pele, não cor chapada). */
 export const midiaPele = (chave: string) => `${BASE}/peles/${chave}.jpg`;
 

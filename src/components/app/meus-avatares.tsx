@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Plus,
   Upload,
@@ -14,11 +14,12 @@ import {
 import { toast } from "sonner";
 import { cn, linkBaixar } from "@/lib/utils";
 import type { AvatarCriado } from "@/lib/avatar-modelo";
-import { AvatarCriar } from "@/components/app/avatar-criar";
+import { AvatarCriar, avatarCriandoAgora } from "@/components/app/avatar-criar";
 import { AVATARES_PRONTOS } from "@/lib/avatares-prontos";
 import { AvatarDaFoto } from "@/components/app/avatar-da-foto";
 import { AvatarComProduto } from "@/components/app/avatar-com-produto";
 import { AvatarSubir } from "@/components/app/avatar-subir";
+import { MeusCenarios } from "@/components/app/meus-cenarios";
 
 /**
  * FRONT do "Meus avatares": a galeria de influenciadores da pessoa, em cards
@@ -150,6 +151,38 @@ export function MeusAvatares({
   const [aba, setAba] = useState<Aba>("influencers");
   const [avatares, setAvatares] = useState<AvatarCriado[]>(avataresIniciais);
   const [excluindo, setExcluindo] = useState<string | null>(null);
+  // tem uma criação longa rodando (a pessoa saiu da tela no meio): a lista se
+  // atualiza sozinha até o influenciador novo chegar
+  const [criandoAgora, setCriandoAgora] = useState(false);
+
+  useEffect(() => {
+    if (!avatarCriandoAgora()) return;
+    setCriandoAgora(true);
+    const qtdInicial = avataresIniciais.length;
+    const t = setInterval(async () => {
+      if (!avatarCriandoAgora()) {
+        // a marca sumiu (terminou ou expirou): busca uma última vez e para
+        clearInterval(t);
+        setCriandoAgora(false);
+      }
+      try {
+        const r = await fetch("/api/avatar", { cache: "no-store" });
+        const d = await r.json();
+        if (Array.isArray(d?.avatares)) {
+          setAvatares(d.avatares);
+          if (d.avatares.length > qtdInicial) {
+            clearInterval(t);
+            setCriandoAgora(false);
+            toast.success("Seu influenciador ficou pronto!");
+          }
+        }
+      } catch {
+        // rede piscou: tenta no próximo ciclo
+      }
+    }, 15_000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const aoCriar = (a: AvatarCriado) => {
     setAvatares((prev) => [a, ...prev]);
@@ -212,6 +245,19 @@ export function MeusAvatares({
 
       {aba === "influencers" ? (
         <>
+          {/* criação longa em andamento: a lista se atualiza sozinha */}
+          {criandoAgora && (
+            <div className="flex items-center gap-3 rounded-2xl border border-primary/40 bg-primary/5 p-4">
+              <Loader2 className="size-4.5 shrink-0 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">
+                <span className="font-semibold text-foreground">
+                  Influenciador sendo criado agora.
+                </span>{" "}
+                Ele aparece aqui sozinho em 1 a 3 minutos, não precisa criar de novo.
+              </p>
+            </div>
+          )}
+
           {/* ===== AÇÕES ===== */}
           <div className="flex flex-wrap gap-2">
             <button
@@ -295,16 +341,7 @@ export function MeusAvatares({
           </div>
         </>
       ) : (
-        <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border py-14 text-center">
-          <span className="grid size-12 place-items-center rounded-full bg-primary/15 text-primary">
-            <ImageIcon className="size-6" />
-          </span>
-          <p className="font-medium">Cenários personalizados</p>
-          <p className="max-w-sm text-sm text-muted-foreground">
-            Aqui você vai poder criar e guardar os seus próprios cenários pra usar nos
-            vídeos. Estamos montando essa parte agora.
-          </p>
-        </div>
+        <MeusCenarios />
       )}
     </div>
   );

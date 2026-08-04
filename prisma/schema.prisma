@@ -37,6 +37,7 @@ model User {
   notificacoes   Notificacao[]
   bonusInstagram BonusInstagram?
   avatares       Avatar[]
+  cenarios       CenarioUsuario[]
   produtos       ProdutoUsuario[]
   personagens    PersonagemUsuario[]
   imagens        ImagemGerada[]
@@ -149,6 +150,20 @@ model Avatar {
   status    String   @default("pronto") // "pronto" | "erro"
   imagemUrl String   @db.Text // URL publica no serverrk
   escolhas  String?  @db.Text // JSON das escolhas do quiz (referencia)
+  criadoEm  DateTime @default(now())
+
+  @@index([userId])
+}
+
+// Cenário PRÓPRIO do usuário (foto que ele sobe): aparece só pra ele no passo
+// "Cenário" do Lab e na aba Cenários do Personalize com IA. A foto vai como
+// referência de LUGAR pro motor (a IA recria o ambiente como fundo).
+model CenarioUsuario {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nome      String   @db.VarChar(120)
+  imagemUrl String   @db.Text // URL pública no serverrk
   criadoEm  DateTime @default(now())
 
   @@index([userId])

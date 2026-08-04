@@ -63,7 +63,7 @@ export async function POST(req: Request) {
     genero: body.genero === "male" ? "male" : "female",
     // trava no servidor (a tela vai de 18 a 70, mas a rota aceitava qualquer
     // número vindo de fora, inclusive idade de menor)
-    idade: Math.min(70, Math.max(18, Number(body.idade) || 26)),
+    idade: Math.min(75, Math.max(18, Number(body.idade) || 26)),
     tomPele: String(body.tomPele ?? "morena"),
     formatoRosto: String(body.formatoRosto ?? "oval"),
     olhos: String(body.olhos ?? "castanho_escuro"),
