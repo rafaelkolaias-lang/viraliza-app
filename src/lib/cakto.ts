@@ -158,12 +158,24 @@ export async function buscarPedido(orderId: string): Promise<CaktoPedido | null>
 // produtos NÃO casam (o número deles não é seguido de "créditos") e não creditam.
 const PACOTE_RE = /([\d.]+)\s*cr[eé]ditos?/i;
 
-/** Créditos que o pedido concede (0 se não for um pacote de crédito). */
-export function creditosDoPacote(pedido: CaktoPedido): number {
-  const m = (pedido.product?.name || "").match(PACOTE_RE);
+/** Créditos que o NOME do produto concede (0 se não for pacote de crédito).
+ *  Separado do pedido porque o cadastro só tem o nome guardado na allowlist. */
+export function creditosDoNomeProduto(nome?: string | null): number {
+  const m = (nome || "").match(PACOTE_RE);
   if (!m) return 0;
   const n = parseInt(m[1].replace(/\D/g, ""), 10);
   return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/** Créditos que o pedido concede (0 se não for um pacote de crédito). */
+export function creditosDoPacote(pedido: CaktoPedido): number {
+  return creditosDoNomeProduto(pedido.product?.name);
+}
+
+/** É pacote de crédito? O contrário (false) é o plano de entrada/assinatura, que
+ *  é o único que libera a biblioteca e o brinde de boas-vindas no cadastro. */
+export function ehPacoteDeCredito(nome?: string | null): boolean {
+  return creditosDoNomeProduto(nome) > 0;
 }
 
 // Status da Cakto (ver docs.cakto.com.br). PAGO só quando "paid" (definitivo);
@@ -286,6 +298,29 @@ export async function emailComprou(
   );
   if (!v) return { comprou: false };
   return { comprou: true, orderId: v.id, produto: v.product?.name ?? undefined };
+}
+
+/** Este e-mail comprou o PLANO DE ENTRADA (qualquer produto pago que não seja
+ *  pacote de crédito)? É o que decide, no cadastro, se a conta nasce assinante e
+ *  ganha o crédito de boas-vindas. Comprar só pacote não dá biblioteca.
+ *  Em caso de dúvida devolve false; quem chama trata isso (ver registro.ts). */
+export async function emailComprouEntrada(email: string, diasAtras = 14): Promise<boolean> {
+  const e = email.trim().toLowerCase();
+  if (!e || !caktoConfigurada()) return false;
+  const ini = new Date(Date.now() - diasAtras * 86_400_000).toISOString();
+  const fim = new Date(Date.now() + 60_000).toISOString();
+  let pedidos: PedidoLista[];
+  try {
+    pedidos = await listarPedidos(ini, fim);
+  } catch {
+    return false;
+  }
+  return pedidos.some(
+    (p) =>
+      (p.customer?.email || "").toLowerCase() === e &&
+      STATUS_PAGO.has(p.status) &&
+      !ehPacoteDeCredito(p.product?.name),
+  );
 }
 
 /** Valor do pedido (bruto pago pelo cliente) em centavos. */

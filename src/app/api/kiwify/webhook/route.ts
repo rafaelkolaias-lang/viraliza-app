@@ -8,7 +8,7 @@ import {
   vendaEstaPaga,
   vendaEstornada,
 } from "@/lib/kiwify";
-import { existeTransacaoOrder, lancar } from "@/lib/creditos";
+import { existeTransacaoOrder } from "@/lib/creditos";
 import { enviarCompraMeta, enviarReembolsoMeta } from "@/lib/meta-capi";
 import { aplicarReembolsoAceito, restaurarSuspensao } from "@/lib/reembolsos";
 
@@ -116,7 +116,9 @@ export async function POST(req: Request) {
       : null;
 
     if (user) {
-      await lancar(user.id, creditos, "compra", { descricao: desc, kiwifyOrderId: orderId });
+      // quarentena do nível da conta (antifraude de reembolso)
+      const { creditarCompraComQuarentena } = await import("@/lib/liberacao-creditos");
+      await creditarCompraComQuarentena(user.id, creditos, { descricao: desc, orderId });
       return NextResponse.json({ ok: true, creditado: creditos, userId: user.id });
     }
     // comprou o pacote antes de ter conta: guarda pra aplicar no cadastro (mesmo e-mail)

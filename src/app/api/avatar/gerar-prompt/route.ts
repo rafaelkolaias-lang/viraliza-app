@@ -50,16 +50,20 @@ export async function POST(req: Request) {
     );
   }
 
-  const prompt = await gerarPromptIA(imagens, {
-    temAvatar: !!avatarImg,
-    descricao: typeof body.descricao === "string" ? body.descricao.slice(0, 600) : undefined,
-    formato: body.formato === "json" ? "json" : "normal",
-    duracaoSeg: Number(body.duracao) === 10 ? 10 : Number(body.duracao) === 15 ? 15 : 6,
-    comFala: body.comFala !== false,
-    idiomaFala:
-      IDIOMAS_FALA.find((i) => i.chave === body.idioma)?.fala ?? IDIOMAS_FALA[0].fala,
-    estilo: typeof body.estilo === "string" ? body.estilo : undefined,
-  });
+  const prompt = await gerarPromptIA(
+    imagens,
+    {
+      temAvatar: !!avatarImg,
+      descricao: typeof body.descricao === "string" ? body.descricao.slice(0, 600) : undefined,
+      formato: body.formato === "json" ? "json" : "normal",
+      duracaoSeg: Number(body.duracao) === 10 ? 10 : Number(body.duracao) === 15 ? 15 : 6,
+      comFala: body.comFala !== false,
+      idiomaFala:
+        IDIOMAS_FALA.find((i) => i.chave === body.idioma)?.fala ?? IDIOMAS_FALA[0].fala,
+      estilo: typeof body.estilo === "string" ? body.estilo : undefined,
+    },
+    user.id,
+  );
 
   if (!prompt) {
     return NextResponse.json(

@@ -24,16 +24,39 @@ function iniciais(nome: string) {
     .toUpperCase();
 }
 
+// selo do nível ao lado do nome - mesmas cores do card da aba Créditos
+const SELO_NIVEL: Record<string, { rotulo: string; emoji: string; classe: string }> = {
+  bronze: {
+    rotulo: "Bronze",
+    emoji: "🥉",
+    classe: "border-orange-600/50 bg-orange-600/15 text-orange-400",
+  },
+  prata: {
+    rotulo: "Prata",
+    emoji: "🥈",
+    classe: "border-slate-300/50 bg-slate-300/15 text-slate-200",
+  },
+  ouro: {
+    rotulo: "Ouro",
+    emoji: "🥇",
+    classe: "border-yellow-400/60 bg-yellow-400/15 text-yellow-400",
+  },
+};
+
 export function UserMenu({
   nome,
   email,
   compacto = false,
+  nivel = null,
 }: {
   nome: string;
   email: string;
   /** barra lateral recolhida: mostra só a bolinha com as iniciais */
   compacto?: boolean;
+  /** nível da conta (null = não mostra: admin/demo) */
+  nivel?: "bronze" | "prata" | "ouro" | null;
 }) {
+  const selo = nivel ? SELO_NIVEL[nivel] : null;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -50,7 +73,20 @@ export function UserMenu({
         </Avatar>
         {!compacto && (
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-medium">{nome}</span>
+            <span className="flex items-center gap-1.5">
+              <span className="truncate text-sm font-medium">{nome}</span>
+              {selo && (
+                <span
+                  className={cn(
+                    "shrink-0 rounded-full border px-1.5 py-px text-[10px] font-bold leading-4",
+                    selo.classe,
+                  )}
+                  title={`Nível da conta: ${selo.rotulo}`}
+                >
+                  {selo.emoji} {selo.rotulo}
+                </span>
+              )}
+            </span>
             <span className="block truncate text-xs text-muted-foreground">
               {email}
             </span>

@@ -17,10 +17,15 @@ export const CREDITOS_POR_SEG = {
 } as const;
 
 // Preço FIXO ("custo de processamento") das ferramentas que NÃO usam API de IA.
+// Definidos pelo dono em 05/08/2026. Não são iguais entre si de propósito: o que
+// pesa em cada um é diferente (carimbar vídeo é rápido, montar vídeo inteiro sem
+// IA ocupa a fila, e o garimpo de leads gasta o acesso ao Google Maps).
+// ATENÇÃO: mexer aqui muda a cobrança E os textos que citam o preço nas telas.
+// Revisar `ajuda-ferramentas.tsx`, `lote-em-massa.tsx` e `suporte-base.ts` junto.
 export const CREDITOS_FIXO = {
-  lote: 50, // Aplicar marca em lote (só FFmpeg)
-  leads: 50, // MapsLeads (scraper)
-  editorManual: 50, // Editor sem IA (clipes + texto manual)
+  lote: 5, // Aplicar marca em lote (só FFmpeg), POR VÍDEO carimbado
+  leads: 50, // MapsLeads (scraper), por busca
+  editorManual: 30, // Editor no modo sem IA (clipes + texto manual)
 } as const;
 
 // Quando não há duração conhecida (ex.: formulário simples), assume este teto por vídeo.
@@ -60,6 +65,10 @@ export type Consumo = {
   geminiFlashTokens?: number;
   geminiImgTokens?: number;
   elevenChars?: number;
+  /** segundos de cena animada no Veo (a fábrica só gera quando "gerar_cena: sim").
+   *  Por enquanto entra SÓ no custo do admin (gastos-api); não é cobrado do
+   *  usuário em custoCreditos até calibrarmos os preços (ver reminder.md). */
+  veoSegundos?: number;
 };
 
 /** Converte o consumo real em CRÉDITOS (1 crédito = R$ 0,01), já com +20%. */

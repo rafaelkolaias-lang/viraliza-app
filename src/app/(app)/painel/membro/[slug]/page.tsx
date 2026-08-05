@@ -3,7 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft, ArrowRight, BookOpen } from "lucide-react";
 import { getEbook } from "@/lib/membro";
-import { requireAssinatura } from "@/lib/dal";
+import { guardaBiblioteca } from "@/lib/dal";
+import { BibliotecaBloqueada } from "@/components/app/biblioteca-bloqueada";
 
 // Página autenticada (o layout exige login) - sempre dinâmica.
 export const dynamic = "force-dynamic";
@@ -23,7 +24,8 @@ export default async function EbookPage({
 }: {
   params: Promise<{ slug: string }>;
 }) {
-  await requireAssinatura();
+  const { liberado } = await guardaBiblioteca();
+  if (!liberado) return <BibliotecaBloqueada />;
   const { slug } = await params;
   const ebook = getEbook(slug);
   if (!ebook) notFound();

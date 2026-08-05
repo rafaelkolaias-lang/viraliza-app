@@ -57,9 +57,19 @@ export async function GET(req: Request) {
     listar(job.id, "template"),
   ]);
 
+  // Reajuste de áudio: o vídeo já existe e a mídia de entrada foi apagada quando
+  // ele ficou pronto. Esse job não precisa de entrada nenhuma, então escapa da
+  // defesa abaixo (senão morreria com "a mídia não chegou no servidor").
+  let ehRemix = false;
+  try {
+    const o = JSON.parse(job.opcoes ?? "{}");
+    ehRemix = !!(o && typeof o === "object" && o.remix);
+  } catch {}
+
   // defesa: job de produto sem NENHUMA mídia e sem fonte não vai pro worker (a
   // fábrica montaria 0 clipes e explodiria com "concat n=0"). Falha limpa aqui.
   if (
+    !ehRemix &&
     (job.tipo ?? "produto") === "produto" &&
     !job.fonte &&
     videos.length === 0 &&

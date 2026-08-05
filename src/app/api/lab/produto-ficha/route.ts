@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/dal";
+import { registrarOpenAITokens } from "@/lib/gastos-api";
 import { baixarImagemEntrada, dataUrlParaEntrada } from "@/lib/imagem-entrada";
 
 export const runtime = "nodejs";
@@ -89,7 +90,12 @@ export async function POST(req: Request) {
         signal: AbortSignal.timeout(60_000),
       });
       if (!res.ok) continue;
-      const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+      const data = (await res.json()) as {
+        choices?: { message?: { content?: string } }[];
+        usage?: { total_tokens?: number };
+      };
+      // contabilidade do dono (aba Finanças): tokens usados nesta chamada
+      await registrarOpenAITokens(user.id, data.usage?.total_tokens ?? 0, "produto-ficha").catch(() => {});
       const cru = data.choices?.[0]?.message?.content?.trim();
       if (!cru) continue;
       const ficha = JSON.parse(cru) as Record<string, unknown>;

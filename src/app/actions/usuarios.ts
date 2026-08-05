@@ -7,7 +7,8 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin, getCurrentUser } from "@/lib/dal";
-import { creditar, debitarClamp } from "@/lib/creditos";
+import { creditar, debitarClamp, DIAS_ASSINATURA } from "@/lib/creditos";
+import { setNivelAdmin } from "@/lib/niveis";
 
 export type UsuarioState =
   | { erro?: string; ok?: boolean; contagem?: number }
@@ -172,7 +173,8 @@ export async function alterarBloqueio(
 }
 
 /** Libera/tira o acesso à BIBLIOTECA (acervos, virais, produtos, membro). SÓ ADMIN.
- *  Liberar = assinante permanente; tirar = assinante false (perde o acesso na hora). */
+ *  Liberar = assinante por um ciclo (DIAS_ASSINATURA), igual à assinatura paga: vence
+ *  e precisa ser renovado (aqui, o admin clica de novo). Tirar = assinante false na hora. */
 export async function alterarBiblioteca(
   id: string,
   liberar: boolean,
@@ -181,7 +183,11 @@ export async function alterarBiblioteca(
   if (!id) return { erro: "Usuário inválido." };
   await prisma.user.update({
     where: { id },
-    data: { assinante: liberar, assinaturaAte: null }, // liberar = permanente; tirar = zera
+    data: {
+      assinante: liberar,
+      // liberar = vence em DIAS_ASSINATURA (não é mais permanente); tirar = zera
+      assinaturaAte: liberar ? new Date(Date.now() + DIAS_ASSINATURA * 86_400_000) : null,
+    },
   });
   revalidarAdmin();
   return { ok: true };
@@ -199,6 +205,35 @@ export async function alterarFerramentas(
     where: { id },
     data: { ferramentasLiberadas: liberar },
   });
+  revalidarAdmin();
+  return { ok: true };
+}
+
+/** Define o nível da conta na mão (trava o automático) ou devolve pro automático.
+ *  "auto" = solta a trava e recalcula na hora. SÓ ADMIN. */
+export async function alterarNivelAdmin(
+  id: string,
+  nivel: "bronze" | "prata" | "ouro" | "auto",
+): Promise<UsuarioState> {
+  await requireAdmin();
+  if (!id) return { erro: "Usuário inválido." };
+  if (!["bronze", "prata", "ouro", "auto"].includes(nivel)) {
+    return { erro: "Nível inválido." };
+  }
+  await setNivelAdmin(id, { nivel });
+  revalidarAdmin();
+  return { ok: true };
+}
+
+/** Marca/desmarca a conta como SUSPEITA: cai pra bronze e fica travada lá até
+ *  o admin desmarcar. SÓ ADMIN. */
+export async function alterarSuspeita(
+  id: string,
+  suspeita: boolean,
+): Promise<UsuarioState> {
+  await requireAdmin();
+  if (!id) return { erro: "Usuário inválido." };
+  await setNivelAdmin(id, { suspeita });
   revalidarAdmin();
   return { ok: true };
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Braces,
   Camera,
@@ -23,6 +24,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { DURACOES, ESTILOS_VIDEO, IDIOMAS_FALA, custoVideoAvatar } from "@/lib/avatar-modelo";
 import { normalizarImagem, ERRO_IMAGEM } from "@/lib/imagem-cliente";
+import { guardarPromptParaLivre } from "@/lib/lab-handoff";
 
 /**
  * GERADOR DE PROMPT: a pessoa sobe o avatar (opcional) + as fotos do produto, diz
@@ -60,12 +62,7 @@ const METODO = [
   },
 ];
 
-export function GeradorPrompt({
-  onUsarNoLivre,
-}: {
-  // manda o prompt (e as imagens) direto pra aba Vídeo livre
-  onUsarNoLivre?: (texto: string, midias: string[]) => void;
-}) {
+export function GeradorPrompt() {
   const [avatarFoto, setAvatarFoto] = useState<string | null>(null);
   const [produtoFotos, setProdutoFotos] = useState<string[]>([]);
   const [descricao, setDescricao] = useState("");
@@ -80,6 +77,7 @@ export function GeradorPrompt({
 
   const inputAvatar = useRef<HTMLInputElement>(null);
   const inputProduto = useRef<HTMLInputElement>(null);
+  const router = useRouter();
 
   async function subirAvatar(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -152,10 +150,12 @@ export function GeradorPrompt({
     }
   }
 
+  /** Deixa o prompt e as fotos de recado e abre a tela do Vídeo livre. */
   function usarNoLivre() {
-    if (!onUsarNoLivre || !resultado) return;
+    if (!resultado) return;
     const midias = [...(avatarFoto ? [avatarFoto] : []), ...produtoFotos].slice(0, 3);
-    onUsarNoLivre(resultado, midias);
+    guardarPromptParaLivre({ texto: resultado, midias });
+    router.push("/painel/lab/livre");
   }
 
   return (
@@ -429,16 +429,14 @@ export function GeradorPrompt({
                 {copiado ? <Check className="size-3.5 text-primary" /> : <Copy className="size-3.5" />}
                 {copiado ? "Copiado!" : "Copiar"}
               </button>
-              {onUsarNoLivre && (
-                <button
-                  type="button"
-                  onClick={usarNoLivre}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground transition-colors hover:bg-primary/90"
-                >
-                  <Wand2 className="size-3.5" />
-                  Usar no Vídeo livre
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={usarNoLivre}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground transition-colors hover:bg-primary/90"
+              >
+                <Wand2 className="size-3.5" />
+                Usar no Vídeo livre
+              </button>
             </div>
           </div>
           <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-xl border border-border bg-background p-3.5 text-xs leading-relaxed">
@@ -446,7 +444,7 @@ export function GeradorPrompt({
           </pre>
           {formato === "normal" && (
             <p className="mt-2 text-[11px] text-muted-foreground">
-              Toque em Usar no Vídeo livre pra gerar aqui mesmo ({custoVideoAvatar(duracao, comFala)}{" "}
+              Toque em Usar no Vídeo livre pra gerar aqui mesmo ({custoVideoAvatar(duracao)}{" "}
               créditos), ou copie e use onde quiser.
             </p>
           )}

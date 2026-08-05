@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, Flame } from "lucide-react";
 import { getViralVideosPagina } from "@/lib/virais";
-import { requireAssinatura } from "@/lib/dal";
+import { guardaBiblioteca } from "@/lib/dal";
+import { BibliotecaBloqueada } from "@/components/app/biblioteca-bloqueada";
 import { ViraisGaleria } from "@/components/app/virais-galeria";
 
 export const metadata: Metadata = { title: "Cortes Shopee" };
@@ -16,7 +17,8 @@ export default async function ViraisTodosPage({
 }: {
   searchParams: Promise<{ nicho?: string; page?: string; r?: string }>;
 }) {
-  const user = await requireAssinatura();
+  const { user, liberado } = await guardaBiblioteca();
+  if (!liberado) return <BibliotecaBloqueada />;
   const sp = await searchParams;
   const nicho = (sp.nicho ?? "").trim();
   const pagina = Math.max(1, Number(sp.page) || 1);

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/dal";
+import { registrarOpenAITokens } from "@/lib/gastos-api";
 import { limitePalavras, TONS_LAB } from "@/lib/lab-video";
 
 export const runtime = "nodejs";
@@ -73,7 +74,12 @@ Escreva a fala agora.`;
         signal: AbortSignal.timeout(45_000),
       });
       if (!res.ok) continue;
-      const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+      const data = (await res.json()) as {
+        choices?: { message?: { content?: string } }[];
+        usage?: { total_tokens?: number };
+      };
+      // contabilidade do dono (aba Finanças): tokens usados nesta chamada
+      await registrarOpenAITokens(user.id, data.usage?.total_tokens ?? 0, "lab-falas").catch(() => {});
       const cru = data.choices?.[0]?.message?.content?.trim();
       if (!cru) continue;
       const json = JSON.parse(cru) as { fala?: unknown; falas?: unknown };

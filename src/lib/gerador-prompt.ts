@@ -1,5 +1,6 @@
 import "server-only";
 
+import { registrarOpenAITokens } from "@/lib/gastos-api";
 import { gerarTextoComImagens, geminiConfigurado } from "@/lib/gemini-vision";
 import { direcaoEstilo } from "@/lib/produto-shot";
 
@@ -131,7 +132,12 @@ Escreva o prompt agora.`;
  *  A conta tem tokens grátis diários nos minis (data sharing ativado), então o
  *  padrão é o gpt-5-mini (mais esperto, mesmo balde grátis do gpt-4o-mini).
  *  null se faltar chave ou tudo falhar. */
-async function viaOpenAI(sistema: string, usuario: string, imagens: ImagemVisao[]): Promise<string | null> {
+async function viaOpenAI(
+  sistema: string,
+  usuario: string,
+  imagens: ImagemVisao[],
+  userId: string | null,
+): Promise<string | null> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) return null;
   const conteudo: Record<string, unknown>[] = [{ type: "text", text: usuario }];
@@ -167,7 +173,12 @@ async function viaOpenAI(sistema: string, usuario: string, imagens: ImagemVisao[
         console.error("[gerador-prompt] openai falhou", modelo, res.status, txt.slice(0, 300));
         continue; // tenta o próximo modelo
       }
-      const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+      const data = (await res.json()) as {
+        choices?: { message?: { content?: string } }[];
+        usage?: { total_tokens?: number };
+      };
+      // contabilidade do dono (aba Finanças): tokens usados nesta chamada
+      await registrarOpenAITokens(userId, data.usage?.total_tokens ?? 0, "gerador-prompt").catch(() => {});
       const out = data.choices?.[0]?.message?.content?.trim();
       if (out) return out;
     } catch (e) {
@@ -188,23 +199,25 @@ function limpar(texto: string, formato: "normal" | "json"): string {
   return t;
 }
 
-/** Gera o prompt: GPT primeiro; se falhar, Gemini. null se os dois falharem. */
+/** Gera o prompt: GPT primeiro; se falhar, Gemini. null se os dois falharem.
+ *  userId (opcional) é só pra contabilidade de gasto na aba Finanças. */
 export async function gerarPromptIA(
   imagens: ImagemVisao[],
   opcoes: OpcoesGerador,
+  userId: string | null = null,
 ): Promise<string | null> {
   const sistema = `${instrucaoBase(opcoes)}
 
 ${instrucaoSaida(opcoes)}`;
   const usuario = mensagemUsuario(opcoes, imagens.length);
 
-  const doGpt = await viaOpenAI(sistema, usuario, imagens);
+  const doGpt = await viaOpenAI(sistema, usuario, imagens, userId);
   if (doGpt) return limpar(doGpt, opcoes.formato);
 
   if (geminiConfigurado()) {
     const doGemini = await gerarTextoComImagens(`${sistema}
 
-${usuario}`, imagens, 0.7);
+${usuario}`, imagens, 0.7, { userId, origem: "gerador-prompt" });
     if (doGemini.trim()) return limpar(doGemini, opcoes.formato);
   }
   return null;

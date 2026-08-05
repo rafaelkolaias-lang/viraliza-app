@@ -234,6 +234,14 @@ def montar_pasta(base, headers, job):
     with open(os.path.join(prod_dir, "descricao.txt"), "w", encoding="utf-8") as f:
         f.write(job.get("descricao", "") or "")
 
+    # opções extras do pedido (JSON). Este worker ignorava TODAS elas: som original,
+    # volumes, "sem música", "sem copy" e a montagem do editor. Um job do editor
+    # caindo aqui renderizava do jeito errado, calado.
+    try:
+        opc = json.loads(job.get("opcoes") or "{}")
+    except Exception:
+        opc = {}
+
     linhas = [
         f"produto: {job.get('produto', nome)}",
         f"formato: {job.get('formato', 'legenda')}",
@@ -241,7 +249,21 @@ def montar_pasta(base, headers, job):
         f"variantes: {job.get('variantes', 1)}",
         f"preco: {job.get('preco', '')}",
         f"legenda_pos: {job.get('legenda_pos', 'baixo')}",
+        f"audio_original: {'manter' if opc.get('audioVideo') == 'manter' else 'remover'}",
+        f"plataforma: {(opc.get('plataforma') or 'shopee').strip().lower() or 'shopee'}",
     ]
+    if opc.get("semCopy"):
+        linhas.append("sem_copy: 1")
+    if opc.get("semMusica"):
+        linhas.append("sem_musica: 1")
+    vols = opc.get("volumes") or {}
+    for chave, valor in (("vol_musica", vols.get("musica", opc.get("volumeMusica"))),
+                         ("vol_original", vols.get("original")),
+                         ("vol_voz", vols.get("voz")),
+                         ("vel_musica", opc.get("velocidadeMusica")),
+                         ("cortar_silencio", opc.get("cortarSilencio"))):
+        if valor is not None:
+            linhas.append(f"{chave}: {valor}")
     voz_id = (job.get("voz_id") or "").strip()
     if voz_id:
         linhas.append(f"voz_id: {voz_id}")
@@ -249,6 +271,13 @@ def montar_pasta(base, headers, job):
         linhas.append(f"musica: {cfg_musica}")
     with open(os.path.join(prod_dir, "config.txt"), "w", encoding="utf-8") as f:
         f.write("\n".join(linhas) + "\n")
+
+    # montagem feita na tela do editor (ordem, cortes, clipe principal, textos)
+    if opc.get("roteiro"):
+        with open(os.path.join(prod_dir, "roteiro.json"), "w", encoding="utf-8") as f:
+            json.dump({"clipes": opc.get("roteiro") or [],
+                       "textos": opc.get("textos") or [],
+                       "volumes": opc.get("volumes") or {}}, f, ensure_ascii=False)
 
     return nome
 
@@ -406,7 +435,17 @@ def rodar_cortes(base, headers, job, nome):
     n = contador["n"]
     if n == 0:
         return 0, "Não gerou nenhum corte (veja o log acima)."
-    concluir_finalizar(base, headers, job_id, 0)
+    # consumo de APIs do cortador (tokens do Gemini): vai junto no finalizar pra
+    # web debitar pelo custo real e somar na aba Finanças.
+    consumo = None
+    p_consumo = os.path.join(DIR_SAIDA, f"{nome}_consumo.json")
+    try:
+        with open(p_consumo, encoding="utf-8") as f:
+            consumo = json.load(f)
+        os.remove(p_consumo)
+    except Exception:
+        consumo = None
+    concluir_finalizar(base, headers, job_id, 0, consumo)
     return n, ""
 
 

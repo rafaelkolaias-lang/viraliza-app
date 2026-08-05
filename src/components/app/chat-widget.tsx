@@ -95,7 +95,7 @@ export function ChatWidget() {
     <>
       {/* caixinha */}
       {aberto && (
-        <div className="fixed bottom-20 right-4 z-50 flex h-[26rem] w-[calc(100vw-2rem)] max-w-sm flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+        <div className="fixed bottom-44 right-6 z-[60] flex h-[26rem] max-h-[calc(100vh-13rem)] w-[calc(100vw-3rem)] max-w-sm flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl sm:bottom-52 sm:right-20 sm:max-h-[calc(100vh-15rem)]">
           <div className="flex items-center gap-2.5 border-b border-border bg-primary/10 px-3.5 py-2.5">
             <span className="grid size-8 place-items-center rounded-full bg-primary/20 text-primary">
               <MessageCircle className="size-4" />
@@ -129,7 +129,9 @@ export function ChatWidget() {
       <button
         type="button"
         onClick={() => setAberto((v) => !v)}
-        className="fixed bottom-4 right-4 z-50 grid size-13 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 transition-transform hover:scale-105"
+        // fica ACIMA do robô de suporte, que ocupa o canto de baixo. z-40 pelo
+        // mesmo motivo dele: modal de tela cheia (z-50) precisa cobrir o botão.
+        className="fixed bottom-28 right-6 z-40 grid size-13 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 transition-transform hover:scale-105 sm:bottom-36 sm:right-20"
         aria-label={aberto ? "Fechar conversa" : "Abrir conversa"}
       >
         <MessageCircle className="size-6" />

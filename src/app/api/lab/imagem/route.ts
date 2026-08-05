@@ -6,6 +6,7 @@ import { estiloPorChave, variacaoPovPorChave } from "@/lib/estilos-camera";
 import { baixarImagemEntrada, dataUrlParaEntrada } from "@/lib/imagem-entrada";
 import { gerarImagemGrok } from "@/lib/imagem-robot";
 import { getCarteira, debitarClamp } from "@/lib/creditos";
+import { registrarGrokImagem } from "@/lib/gastos-api";
 import { CUSTO_IMAGEM_LAB } from "@/lib/lab-custos";
 import { salvarNaGaleria } from "@/lib/galeria-servidor";
 import { cenarioDoUsuario } from "@/lib/cenarios-usuario";
@@ -216,6 +217,9 @@ export async function POST(req: Request) {
       descricao: `Imagem do Lab (${estilo.label})`,
     }).catch(() => {});
   }
+
+  // contabilidade do dono (aba Finanças): imagem saiu do robô do Grok
+  await registrarGrokImagem(user.id, "lab-imagem").catch(() => {});
 
   // Toda imagem gerada entra em "Minhas imagens" com as escolhas que a criaram:
   // é isso que deixa o card virar "Novo vídeo" sem refazer a imagem. Virar

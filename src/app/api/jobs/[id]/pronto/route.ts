@@ -4,6 +4,7 @@ import path from "node:path";
 import { getCurrentUser } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { pastaEntrada } from "@/lib/jobs";
+import { travaDeGeracao } from "@/lib/niveis";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,6 +41,13 @@ export async function POST(
   }
   if (job.status !== "recebendo") {
     return NextResponse.json({ erro: "Job já finalizado." }, { status: 409 });
+  }
+
+  // Trava por nível TAMBÉM aqui: sem isso dava pra criar vários rascunhos e
+  // soltar todos na fila de uma vez, furando o limite de simultâneos.
+  const trava = await travaDeGeracao(user);
+  if (!trava.ok) {
+    return NextResponse.json({ erro: trava.erro }, { status: trava.status });
   }
 
   const temVideo = await temArquivo(id, "videos");

@@ -12,11 +12,13 @@ import {
   Lock,
 } from "lucide-react";
 import { requireUser } from "@/lib/dal";
-import { getCarteira, fmtCreditos } from "@/lib/creditos";
+import { getCarteira, fmtCreditos, quitarDivida } from "@/lib/creditos";
+import { getResumoNivel } from "@/lib/niveis";
 import { Button } from "@/components/ui/button";
 import { PlanosCreditos } from "@/components/app/planos-creditos";
 import { AdminCreditosTeste } from "@/components/app/admin-creditos-teste";
 import { ModalCompraSucesso } from "@/components/app/modal-compra-sucesso";
+import { NivelCard } from "@/components/app/nivel-card";
 
 export const metadata: Metadata = { title: "Créditos" };
 export const dynamic = "force-dynamic";
@@ -28,7 +30,13 @@ export default async function CreditosPage({
 }) {
   const user = await requireUser();
   const sp = await searchParams;
-  const carteira = await getCarteira(user.id);
+  // acerta dívida de reembolso ANTES de ler os dados: a página nunca mostra
+  // "saldo pendente" que o saldo atual já cobre (a quitação fica no extrato)
+  await quitarDivida(user.id);
+  const [carteira, resumoNivel] = await Promise.all([
+    getCarteira(user.id),
+    getResumoNivel(user.id),
+  ]);
 
   // links de checkout por plano (env, editável no EasyPanel sem mexer no código).
   // Cakto (atual); cai pro link antigo da Kiwify se o da Cakto ainda não foi setado.
@@ -92,9 +100,18 @@ export default async function CreditosPage({
                 <p className="text-lg font-bold leading-none text-foreground">
                   {fmtCreditos(carteira.saldoCentavos)}{" "}
                   <span className="text-sm font-medium text-muted-foreground">
-                    créditos
+                    créditos disponíveis
                   </span>
                 </p>
+                {resumoNivel.presoCentavos > 0 && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    🔒 {fmtCreditos(resumoNivel.presoCentavos)} em liberação
+                    {resumoNivel.proximaLiberacao &&
+                      ` - caem no saldo em ${new Date(
+                        resumoNivel.proximaLiberacao.em,
+                      ).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}`}
+                  </p>
+                )}
               </div>
             </div>
             {carteira.assinante && (
@@ -115,6 +132,9 @@ export default async function CreditosPage({
           </div>
         </div>
       </section>
+
+      {/* ===== NÍVEL DA CONTA (bronze/prata/ouro) ===== */}
+      {user.role !== "admin" && <NivelCard resumo={resumoNivel} />}
 
       {/* ===== PAINEL DE TESTE (admin) ===== */}
       {user.role === "admin" && (

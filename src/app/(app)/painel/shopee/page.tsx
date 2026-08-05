@@ -3,7 +3,8 @@ import { ShoppingBag } from "lucide-react";
 import { CategoriaCard } from "@/components/hub/categoria-card";
 import { getTotalVirais } from "@/lib/virais";
 import { getTotalProdutos } from "@/lib/produtos";
-import { requireAssinatura } from "@/lib/dal";
+import { guardaBiblioteca } from "@/lib/dal";
+import { BibliotecaBloqueada } from "@/components/app/biblioteca-bloqueada";
 
 export const metadata: Metadata = { title: "Shopee" };
 export const dynamic = "force-dynamic";
@@ -13,7 +14,8 @@ function fmt(n: number) {
 }
 
 export default async function ShopeePage() {
-  await requireAssinatura();
+  const { liberado } = await guardaBiblioteca();
+  if (!liberado) return <BibliotecaBloqueada />;
   const [totalCortes, totalProdutos] = await Promise.all([
     getTotalVirais(),
     getTotalProdutos(),

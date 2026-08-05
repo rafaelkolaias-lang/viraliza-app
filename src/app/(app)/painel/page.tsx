@@ -31,28 +31,22 @@ export default async function PainelPage() {
       <AutoAtualizar ativo={emProducao > 0} />
 
       {/* Cabeçalho */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Meus vídeos</h1>
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-medium">
-            <span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">
-              {videos.length} no total
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Meus vídeos</h1>
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-medium">
+          <span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">
+            {videos.length} no total
+          </span>
+          <span className="rounded-full bg-primary/12 px-2.5 py-1 text-primary">
+            {prontos} prontos
+          </span>
+          {emProducao > 0 && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-1 text-amber-400">
+              <span className="size-1.5 animate-pulse rounded-full bg-amber-400" />
+              {emProducao} em produção
             </span>
-            <span className="rounded-full bg-primary/12 px-2.5 py-1 text-primary">
-              {prontos} prontos
-            </span>
-            {emProducao > 0 && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-1 text-amber-400">
-                <span className="size-1.5 animate-pulse rounded-full bg-amber-400" />
-                {emProducao} em produção
-              </span>
-            )}
-          </div>
+          )}
         </div>
-        <Button size="lg" className="h-11" render={<Link href="/painel/novo" />}>
-          <Sparkles className="size-4" />
-          Novo vídeo
-        </Button>
       </div>
 
       {/* Lista */}

@@ -29,7 +29,10 @@ export function LabDock({
   onTrocar: (chave: string) => void;
 }) {
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4 sm:bottom-6">
+    // No celular a barra sobe: lá embaixo ela encostava na boia do suporte, que
+    // ocupa a faixa dos 3rem aos 6,5rem do rodapé. No desktop não há conflito
+    // (a barra é centralizada e a boia fica bem na direita), então volta ao pé.
+    <div className="pointer-events-none fixed inset-x-0 bottom-28 z-40 flex justify-center px-4 sm:bottom-6">
       <div className="pointer-events-auto flex items-center gap-1 rounded-2xl border border-border/70 bg-background/80 p-1.5 shadow-2xl backdrop-blur-xl">
         {itens.map((i) => {
           const ativo = atual === i.chave;

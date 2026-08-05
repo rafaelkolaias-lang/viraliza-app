@@ -4,7 +4,8 @@ import { Gem, MonitorDown, Play } from "lucide-react";
 import { MateriaisLista } from "@/components/app/materiais-lista";
 import { BaixarBotoes } from "@/components/app/baixar-botoes";
 import { getMateriais } from "@/lib/materiais";
-import { getCurrentUser, requireAssinatura } from "@/lib/dal";
+import { getCurrentUser, guardaBiblioteca } from "@/lib/dal";
+import { BibliotecaBloqueada } from "@/components/app/biblioteca-bloqueada";
 import { EBOOKS } from "@/lib/membro";
 
 export const metadata: Metadata = { title: "Área do membro" };
@@ -13,7 +14,8 @@ export const metadata: Metadata = { title: "Área do membro" };
 export const dynamic = "force-dynamic";
 
 export default async function MembroPage() {
-  await requireAssinatura();
+  const { liberado } = await guardaBiblioteca();
+  if (!liberado) return <BibliotecaBloqueada />;
   const materiais = getMateriais();
   const user = await getCurrentUser();
   const isAdmin = user?.role === "admin";

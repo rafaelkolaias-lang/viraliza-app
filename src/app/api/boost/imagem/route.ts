@@ -6,6 +6,7 @@ import { resolverBoost, type CorpoBoost } from "@/lib/boost-servidor";
 import { baixarImagemEntrada } from "@/lib/imagem-entrada";
 import { gerarImagemGrok } from "@/lib/imagem-robot";
 import { getCarteira, debitarClamp } from "@/lib/creditos";
+import { registrarGrokImagem } from "@/lib/gastos-api";
 import { CUSTO_IMAGEM_LAB } from "@/lib/lab-custos";
 import { salvarNaGaleria } from "@/lib/galeria-servidor";
 
@@ -73,6 +74,9 @@ export async function POST(req: Request) {
       descricao: `Cena da historinha (${h.nome})`,
     }).catch(() => {});
   }
+
+  // contabilidade do dono (aba Finanças): imagem saiu do robô do Grok
+  await registrarGrokImagem(user.id, "boost-imagem").catch(() => {});
 
   // a cena também fica guardada em "Minhas imagens" (sem contexto: o vídeo dela
   // sai daqui do Boost, com as falas da historinha)

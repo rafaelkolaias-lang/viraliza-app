@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
+  Bell,
   Loader2,
   Download,
   RefreshCw,
@@ -272,10 +273,31 @@ export function LabGerando({
                 style={{ width: `${pct}%` }}
               />
             </div>
-            <p className="text-center text-[11px] text-muted-foreground">
-              Costuma levar de 3 a 5 minutos. Pode fechar a aba: o vídeo aparece em Meus
-              vídeos quando terminar.
+          </div>
+        )}
+
+        {/* A geração roda no servidor: a pessoa não precisa ficar olhando a tela.
+            O aviso é grande de propósito, senão dá a impressão de que o painel
+            travou e ela fica esperando parada por 5 minutos. */}
+        {rodando && (
+          <div className="mt-4 rounded-2xl border border-primary/30 bg-primary/8 p-4 text-center">
+            <p className="flex items-center justify-center gap-2 text-sm font-semibold text-primary">
+              <Bell className="size-4" />
+              Seu vídeo está sendo gerado!
             </p>
+            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+              Esse processo leva de 3 a 5 minutos. Você pode sair desta página, fechar a
+              aba ou navegar pelo painel tranquilamente. Enviaremos uma notificação no
+              sininho do cabeçalho assim que estiver concluído e você poderá assisti-lo
+              em Meus vídeos.
+            </p>
+            <Link
+              href="/painel"
+              className="mt-3 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+            >
+              <FolderOpen className="size-4" />
+              Acompanhar em Meus vídeos
+            </Link>
           </div>
         )}
       </div>

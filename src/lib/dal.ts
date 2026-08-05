@@ -34,20 +34,36 @@ export async function requireAdmin() {
   return user;
 }
 
-/** Exige assinatura ativa pra liberar a BIBLIOTECA. Admin e demo passam direto.
- *  Sem assinatura, manda pra página de créditos com aviso. */
-export async function requireAssinatura() {
-  const user = await requireUser();
-  if (user.role === "admin" || user.role === "demo") return user;
+/** Assinatura ativa? Versão que NÃO redireciona - pra usar em rota de API, onde
+ *  o certo é responder 403 em vez de mandar pra outra página. Admin e demo contam
+ *  como ativa, igual ao requireAssinatura. */
+export async function assinaturaAtiva(user: { id: string; role: string }): Promise<boolean> {
+  if (user.role === "admin" || user.role === "demo") return true;
   const u = await prisma.user.findUnique({
     where: { id: user.id },
     select: { assinante: true, assinaturaAte: true },
   });
-  const ativa =
-    !!u?.assinante &&
-    (!u.assinaturaAte || u.assinaturaAte.getTime() > Date.now());
-  if (!ativa) redirect("/painel/creditos?bloqueio=biblioteca");
+  return !!u?.assinante && (!u.assinaturaAte || u.assinaturaAte.getTime() > Date.now());
+}
+
+/** Exige assinatura ativa pra liberar a BIBLIOTECA. Admin e demo passam direto.
+ *  Sem assinatura, manda pra aba de ASSINATURA (é ela que libera a biblioteca,
+ *  não o crédito). (Uso legado; as PÁGINAS da biblioteca usam `guardaBiblioteca`
+ *   pra mostrar o erro na tela em vez de desviar. Ainda serve pras server actions.) */
+export async function requireAssinatura() {
+  const user = await requireUser();
+  if (!(await assinaturaAtiva(user))) redirect("/painel/assinatura");
   return user;
+}
+
+/** Guarda das PÁGINAS da biblioteca SEM redirect: devolve o user e se está liberado.
+ *  A página mostra `<BibliotecaBloqueada/>` no lugar do conteúdo quando `liberado`
+ *  é false, então a pessoa vê o aviso onde clicou em vez de ser jogada pra outra
+ *  tela. Admin e demo entram sempre (`assinaturaAtiva`). */
+export async function guardaBiblioteca() {
+  const user = await requireUser();
+  const liberado = await assinaturaAtiva(user);
+  return { user, liberado };
 }
 
 /** Ferramentas de geração (editor, cortes, em lote, leads) liberadas pra este user?

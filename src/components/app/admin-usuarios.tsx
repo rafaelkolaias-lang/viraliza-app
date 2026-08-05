@@ -18,12 +18,20 @@ import {
   ajustarCreditoAdmin,
   alterarBiblioteca,
   alterarFerramentas,
+  alterarNivelAdmin,
+  alterarSuspeita,
 } from "@/app/actions/usuarios";
 import { cn } from "@/lib/utils";
 import type { LinhaUsuario } from "@/lib/admin";
 
 const fmt = (n: number) => Math.round(n).toLocaleString("pt-BR");
 const ATALHOS = [1000, 2000, 5000, 10000];
+
+const NIVEL_INFO: Record<string, { rotulo: string; emoji: string }> = {
+  bronze: { rotulo: "Bronze", emoji: "🥉" },
+  prata: { rotulo: "Prata", emoji: "🥈" },
+  ouro: { rotulo: "Ouro", emoji: "🥇" },
+};
 
 function vistoLabel(iso: string | null, online: boolean) {
   if (online) return "agora";
@@ -87,6 +95,38 @@ export function AdminUsuarios({ usuarios }: { usuarios: LinhaUsuario[] }) {
     });
   }
 
+  function mudarNivel(u: LinhaUsuario, nivel: "bronze" | "prata" | "ouro" | "auto") {
+    startSalvar(async () => {
+      const res = await alterarNivelAdmin(u.id, nivel);
+      if (res?.erro) {
+        toast.error(res.erro);
+        return;
+      }
+      toast.success(
+        nivel === "auto"
+          ? "Nível devolvido pro automático."
+          : `Nível fixado em ${NIVEL_INFO[nivel].rotulo}.`,
+      );
+      router.refresh();
+    });
+  }
+
+  function toggleSuspeita(u: LinhaUsuario) {
+    startSalvar(async () => {
+      const res = await alterarSuspeita(u.id, !u.suspeita);
+      if (res?.erro) {
+        toast.error(res.erro);
+        return;
+      }
+      toast.success(
+        u.suspeita
+          ? "Marcação de suspeita removida."
+          : "Conta marcada como suspeita (bronze travado).",
+      );
+      router.refresh();
+    });
+  }
+
   return (
     <div className="overflow-hidden rounded-xl border border-border">
       <Table>
@@ -138,20 +178,34 @@ export function AdminUsuarios({ usuarios }: { usuarios: LinhaUsuario[] }) {
                     >
                       {vistoLabel(u.vistoEm, u.online)}
                     </span>
-                    {(!u.assinante || !u.ferramentasLiberadas) && u.role === "user" && (
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {!u.assinante && (
-                          <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">
-                            sem biblioteca
-                          </span>
-                        )}
-                        {!u.ferramentasLiberadas && (
-                          <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-medium text-red-600">
-                            sem ferramentas
-                          </span>
-                        )}
-                      </div>
-                    )}
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {u.role === "user" && (
+                        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                          {NIVEL_INFO[u.nivel]?.emoji ?? "🥉"} {NIVEL_INFO[u.nivel]?.rotulo ?? "Bronze"}
+                          {u.nivelManual && " (fixado)"}
+                        </span>
+                      )}
+                      {u.suspeita && (
+                        <span className="rounded bg-orange-500/15 px-1.5 py-0.5 text-[10px] font-medium text-orange-600">
+                          suspeita
+                        </span>
+                      )}
+                      {u.dividaCentavos > 0 && (
+                        <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-medium text-red-600">
+                          deve {fmt(u.dividaCentavos)}
+                        </span>
+                      )}
+                      {u.role === "user" && !u.assinante && (
+                        <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">
+                          sem biblioteca
+                        </span>
+                      )}
+                      {u.role === "user" && !u.ferramentasLiberadas && (
+                        <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-medium text-red-600">
+                          sem ferramentas
+                        </span>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="hidden text-right text-sm text-muted-foreground sm:table-cell">
                     {fmt(u.jobs)}
@@ -286,6 +340,66 @@ export function AdminUsuarios({ usuarios }: { usuarios: LinhaUsuario[] }) {
                           Ferramentas: <b className={u.ferramentasLiberadas ? "text-emerald-600" : "text-red-600"}>{u.ferramentasLiberadas ? "liberadas" : "bloqueadas"}</b>
                         </span>
                       </div>
+
+                      {/* Nível da conta: fixar na mão, devolver pro automático, suspeita */}
+                      {u.role === "user" && (
+                        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
+                          <span className="text-xs font-medium text-muted-foreground">
+                            Nível:
+                          </span>
+                          {(["bronze", "prata", "ouro"] as const).map((n) => (
+                            <Button
+                              key={n}
+                              variant={u.nivel === n && u.nivelManual ? "secondary" : "outline"}
+                              size="sm"
+                              className="h-8"
+                              disabled={salvando || u.suspeita}
+                              onClick={() => mudarNivel(u, n)}
+                              title={`Fixa a conta no nível ${NIVEL_INFO[n].rotulo} (o automático para de mexer)`}
+                            >
+                              {NIVEL_INFO[n].emoji} {NIVEL_INFO[n].rotulo}
+                            </Button>
+                          ))}
+                          {u.nivelManual && !u.suspeita && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8"
+                              disabled={salvando}
+                              onClick={() => mudarNivel(u, "auto")}
+                              title="Solta a trava manual: o nível volta a subir/descer sozinho"
+                            >
+                              Voltar pro automático
+                            </Button>
+                          )}
+                          <span className="mx-1 h-6 w-px bg-border" />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className={cn(
+                              "h-8",
+                              u.suspeita
+                                ? "text-emerald-600 hover:text-emerald-600"
+                                : "text-orange-600 hover:text-orange-600",
+                            )}
+                            disabled={salvando}
+                            onClick={() => toggleSuspeita(u)}
+                            title="Suspeita = cai pra Bronze e trava lá até desmarcar"
+                          >
+                            {u.suspeita ? "Tirar suspeita" : "Marcar suspeita"}
+                          </Button>
+                          <span className="ml-auto text-[11px] text-muted-foreground">
+                            Atual: <b className="text-foreground">{NIVEL_INFO[u.nivel]?.rotulo ?? "Bronze"}</b>
+                            {u.nivelManual ? " (fixado na mão)" : " (automático)"}
+                            {u.dividaCentavos > 0 && (
+                              <>
+                                {" · "}
+                                Dívida: <b className="text-red-600">{fmt(u.dividaCentavos)}</b>
+                              </>
+                            )}
+                          </span>
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 )}

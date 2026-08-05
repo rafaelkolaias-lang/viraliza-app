@@ -36,6 +36,9 @@ export function AppFrame({
   pctNaoGasto = 0,
   avisos = [],
   bonusIgStatus = "nenhum",
+  nivel = null,
+  presoCentavos = 0,
+  dividaCentavos = 0,
 }: {
   user: AppUser;
   children: React.ReactNode;
@@ -47,6 +50,12 @@ export function AppFrame({
   avisos?: AvisoDTO[];
   /** situação do bônus do Instagram (controla o modal de +300 créditos). */
   bonusIgStatus?: StatusBonusIg;
+  /** nível da conta pro selo ao lado do nome (null = não mostra: admin/demo). */
+  nivel?: "bronze" | "prata" | "ouro" | null;
+  /** crédito comprado ainda em quarentena (mostra "+X liberando" sob o saldo). */
+  presoCentavos?: number;
+  /** saldo devedor de reembolso (> 0 mostra o aviso vermelho e a conta não gera). */
+  dividaCentavos?: number;
 }) {
   const [openMenu, setOpenMenu] = useState(false);
   // Barra lateral do desktop recolhida (só ícones). Fica guardado no navegador,
@@ -97,7 +106,13 @@ export function AppFrame({
         <Link
           href="/painel/creditos"
           onClick={() => setOpenMenu(false)}
-          title={compacto ? `${fmtCreditos(saldoCentavos)} créditos` : undefined}
+          title={
+            compacto
+              ? `${fmtCreditos(saldoCentavos)} créditos` +
+                (presoCentavos > 0 ? ` (+${fmtCreditos(presoCentavos)} liberando)` : "") +
+                (dividaCentavos > 0 ? ` - deve ${fmtCreditos(dividaCentavos)}` : "")
+              : undefined
+          }
           className={cn(
             "block rounded-xl border border-border bg-card/60 transition-colors hover:border-primary/50",
             compacto ? "p-2 text-center" : "p-3",
@@ -111,6 +126,16 @@ export function AppFrame({
               <span className="text-[11px] font-bold leading-none">
                 {fmtCreditos(saldoCentavos)}
               </span>
+              {presoCentavos > 0 && (
+                <span className="text-[9px] leading-none text-muted-foreground">
+                  +{fmtCreditos(presoCentavos)}
+                </span>
+              )}
+              {dividaCentavos > 0 && (
+                <span className="text-[9px] font-bold leading-none text-red-500">
+                  -{fmtCreditos(dividaCentavos)}
+                </span>
+              )}
             </span>
           ) : (
           <>
@@ -123,7 +148,10 @@ export function AppFrame({
                 Créditos de IA
               </p>
               <p className="text-sm font-bold leading-none text-foreground">
-                {fmtCreditos(saldoCentavos)}
+                {fmtCreditos(saldoCentavos)}{" "}
+                <span className="text-[10px] font-medium text-muted-foreground">
+                  disponíveis
+                </span>
               </p>
             </div>
             {assinante && (
@@ -133,6 +161,15 @@ export function AppFrame({
               </span>
             )}
           </div>
+          {/* crédito comprado em quarentena: linha própria, separada do disponível */}
+          {presoCentavos > 0 && (
+            <p
+              className="mt-1.5 text-[10px] font-medium text-muted-foreground"
+              title="Crédito da sua compra que destrava sozinho no 8º dia (garantia)"
+            >
+              🔒 {fmtCreditos(presoCentavos)} em liberação (garantia da compra)
+            </p>
+          )}
           {/* barra: quanto do crédito ainda não foi gasto */}
           <div className="mt-2.5">
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
@@ -145,10 +182,17 @@ export function AppFrame({
               {Math.max(0, Math.min(100, pctNaoGasto))}% disponível
             </p>
           </div>
+          {/* saldo devedor de reembolso: geração travada até regularizar */}
+          {dividaCentavos > 0 && (
+            <p className="mt-2 rounded-lg border border-red-500/30 bg-red-500/10 px-2 py-1.5 text-[10px] font-semibold text-red-400">
+              ⚠ Saldo devedor: {fmtCreditos(dividaCentavos)} créditos - compre
+              créditos pra regularizar e voltar a gerar
+            </p>
+          )}
           </>
           )}
         </Link>
-        <UserMenu nome={user.nome} email={user.email} compacto={compacto} />
+        <UserMenu nome={user.nome} email={user.email} compacto={compacto} nivel={nivel} />
       </div>
     </>
   );
@@ -181,19 +225,23 @@ export function AppFrame({
         </div>
         {navInterno(recolhida)}
 
-        {/* pastilha na borda: recolhe e abre a barra */}
+        {/* Pastilha na borda: recolhe e abre a barra.
+            Fica na altura da LOGO, não na do primeiro item do menu: em `top-24`
+            ela caía coladinha no "Início" e parecia um botão daquele item, solto
+            no meio da lista. Aqui em cima ela lê como controle da barra inteira.
+            Os 36px são pra dar onde clicar: com 28px e ícone de 14 era miudinho. */}
         <button
           type="button"
           onClick={alternarBarra}
           aria-label={recolhida ? "Expandir menu" : "Recolher menu"}
           aria-expanded={!recolhida}
           title={recolhida ? "Expandir menu" : "Recolher menu"}
-          className="absolute -right-3.5 top-24 grid size-7 place-items-center rounded-full border border-border bg-background text-muted-foreground shadow-lg transition-all hover:border-primary/60 hover:text-primary hover:shadow-[0_0_16px_-2px_var(--color-primary)]"
+          className="absolute -right-[18px] top-6 grid size-9 place-items-center rounded-full border border-border bg-background text-muted-foreground shadow-lg transition-all hover:border-primary/60 hover:text-primary hover:shadow-[0_0_16px_-2px_var(--color-primary)]"
         >
           {recolhida ? (
-            <PanelLeftOpen className="size-3.5" />
+            <PanelLeftOpen className="size-4.5" />
           ) : (
-            <PanelLeftClose className="size-3.5" />
+            <PanelLeftClose className="size-4.5" />
           )}
         </button>
       </aside>
@@ -223,7 +271,10 @@ export function AppFrame({
         <div
           onClick={() => setOpenMenu(false)}
           aria-hidden
-          className="fixed inset-0 z-40 cursor-pointer bg-black/60 backdrop-blur-sm md:hidden"
+          // z-[45]: entre os botões flutuantes do canto (z-40) e o painel da
+          // gaveta (z-50). No z-40 o empate deixava a boia do suporte aparecendo
+          // por cima do escurecido do menu.
+          className="fixed inset-0 z-[45] cursor-pointer bg-black/60 backdrop-blur-sm md:hidden"
         />
       )}
       {/* Painel deslizante - fechado fica fora da tela E inerte (pointer-events-none). */}

@@ -38,7 +38,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ erro: "Envie ao menos 1 foto." }, { status: 400 });
   }
 
-  const analise = await analisarProduto(imagens);
+  const analise = await analisarProduto(imagens, { userId: user.id, origem: "avatar-analise" });
   if (!analise) {
     return NextResponse.json({ erro: "Não consegui analisar agora. Tente de novo." }, { status: 502 });
   }

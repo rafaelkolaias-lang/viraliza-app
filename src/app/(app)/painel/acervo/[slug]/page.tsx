@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { AcervoGrid } from "@/components/app/acervo-grid";
 import { getCategoria } from "@/lib/acervo";
-import { requireAssinatura } from "@/lib/dal";
+import { guardaBiblioteca } from "@/lib/dal";
+import { BibliotecaBloqueada } from "@/components/app/biblioteca-bloqueada";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,8 @@ export default async function CategoriaAcervoPage({
   params: Promise<{ slug: string }>;
   searchParams: Promise<{ page?: string; q?: string }>;
 }) {
-  await requireAssinatura();
+  const { liberado } = await guardaBiblioteca();
+  if (!liberado) return <BibliotecaBloqueada />;
   const { slug } = await params;
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page) || 1);

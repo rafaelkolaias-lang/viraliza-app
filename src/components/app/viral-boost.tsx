@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import {
+  Bell,
+  History,
   Flame,
   Users,
   BookOpen,
@@ -65,6 +67,60 @@ const FRASES = [
   "Finalizando a sua historinha...",
 ];
 
+/**
+ * Rascunho guardado no navegador da pessoa.
+ *
+ * Montar a cena custa crédito. Fechar a aba sem querer no meio do caminho
+ * significava perder as escolhas E a imagem paga, com a sensação de dinheiro
+ * jogado fora. Aqui a gente guarda as escolhas e a URL da cena; ao voltar, ela
+ * escolhe se retoma ou começa de novo (retomar sozinho seria pior: ressuscitaria
+ * historinha que ela já tinha desistido).
+ */
+const CHAVE_RASCUNHO = "boost_rascunho";
+const VALIDADE_RASCUNHO_MS = 24 * 60 * 60 * 1000;
+
+type Rascunho = {
+  v: 1;
+  em: number;
+  passo: number;
+  formato: string;
+  frutas: string[];
+  historia: string | null;
+  cenario: string | null;
+  cena: string | null;
+  propria: HistorinhaPropria;
+};
+
+function lerRascunho(cru: string | null): Rascunho | null {
+  if (!cru) return null;
+  try {
+    const r = JSON.parse(cru) as Rascunho;
+    if (r?.v !== 1 || !r.em || Date.now() - r.em > VALIDADE_RASCUNHO_MS) return null;
+    return r;
+  } catch {
+    return null;
+  }
+}
+
+function apagarRascunho() {
+  try {
+    localStorage.removeItem(CHAVE_RASCUNHO);
+  } catch {
+    /* navegador sem localStorage: nada a fazer */
+  }
+  window.dispatchEvent(new Event("boost-rascunho"));
+}
+
+/** Avisa o React quando o rascunho muda (esta aba ou outra). */
+function assinarRascunho(callback: () => void) {
+  window.addEventListener("storage", callback);
+  window.addEventListener("boost-rascunho", callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener("boost-rascunho", callback);
+  };
+}
+
 export function ViralBoost() {
   const [passo, setPasso] = useState(0);
   const [formato, setFormato] = useState("frutas");
@@ -89,6 +145,7 @@ export function ViralBoost() {
   const [erroVideo, setErroVideo] = useState<string | null>(null);
   const [frase, setFrase] = useState(0);
   const jaGerouCena = useRef(false);
+  const [rascunhoDispensado, setRascunhoDispensado] = useState(false);
 
   const fmt = formatoPorChave(formato);
   const acharPersonagem = (c: string) =>
@@ -118,7 +175,7 @@ export function ViralBoost() {
   /**
    * Qualquer mudança de escolha invalida a CENA já gerada. Sem isso dava pra
    * voltar na trilha, trocar a historinha e mandar gerar o vídeo com a imagem
-   * velha e o roteiro novo: vídeo incoerente e 75 créditos cobrados do mesmo
+   * velha e o roteiro novo: vídeo incoerente e 95 créditos cobrados do mesmo
    * jeito. Regenerar a cena custa, então a gente só descarta, nunca gera sozinho.
    */
   function invalidarCena() {
@@ -177,6 +234,79 @@ export function ViralBoost() {
   // A cena NÃO é mais gerada sozinha: o vídeo de 10s aceita as fotos dos
   // personagens direto, então montar a cena antes virou opcional (e paga).
 
+  // ===== RASCUNHO (não perder o que já foi pago se fechar a aba) =====
+
+  const rascunhoCru = useSyncExternalStore(
+    assinarRascunho,
+    () => localStorage.getItem(CHAVE_RASCUNHO),
+    () => null,
+  );
+  const rascunho = lerRascunho(rascunhoCru);
+  // só oferece retomar enquanto a pessoa não começou nada nesta visita
+  const mostrarRetomar =
+    !!rascunho &&
+    !rascunhoDispensado &&
+    status === "parado" &&
+    frutas.length === 0 &&
+    !historia &&
+    !cenario &&
+    !cena;
+
+  function retomarRascunho() {
+    if (!rascunho) return;
+    setFormato(rascunho.formato);
+    setFrutas(rascunho.frutas);
+    setHistoria(rascunho.historia);
+    setCenario(rascunho.cenario);
+    setCena(rascunho.cena);
+    setPropria(rascunho.propria);
+    setPasso(rascunho.passo);
+    setRascunhoDispensado(true);
+    toast.success("Pronto, voltamos de onde você parou.");
+  }
+
+  function descartarRascunho() {
+    setRascunhoDispensado(true);
+    apagarRascunho();
+  }
+
+  // Guarda o rascunho a cada mudança. Só grava quando existe progresso de
+  // verdade, senão a tela recém-aberta (tudo vazio) apagaria o que estava salvo.
+  useEffect(() => {
+    if (status === "pronto") return;
+    const temProgresso = frutas.length > 0 || !!historia || !!cenario || !!cena;
+    if (!temProgresso) return;
+    const r: Rascunho = {
+      v: 1,
+      em: Date.now(),
+      passo,
+      formato,
+      frutas,
+      historia,
+      cenario,
+      cena,
+      propria,
+    };
+    try {
+      localStorage.setItem(CHAVE_RASCUNHO, JSON.stringify(r));
+    } catch {
+      /* cota cheia ou modo privado: seguir sem guardar */
+    }
+  }, [passo, formato, frutas, historia, cenario, cena, propria, status]);
+
+  // Enquanto a CENA está sendo montada não dá pra recuperar: o crédito já foi
+  // debitado e a imagem só existe no fim da chamada. Aí sim vale segurar a saída.
+  // (O VÍDEO não precisa disso: ele termina no servidor e avisa no sininho.)
+  useEffect(() => {
+    if (!gerandoCena) return;
+    const segurar = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", segurar);
+    return () => window.removeEventListener("beforeunload", segurar);
+  }, [gerandoCena]);
+
   // frases girando durante a espera do vídeo
   useEffect(() => {
     if (status !== "gerando") return;
@@ -195,6 +325,7 @@ export function ViralBoost() {
         if (d.status === "pronto" && d.videoUrl) {
           setVideo(d.videoUrl as string);
           setStatus("pronto");
+          apagarRascunho(); // entregou: o rascunho não serve mais pra nada
           toast.success("Sua historinha ficou pronta!");
           return;
         }
@@ -259,6 +390,8 @@ export function ViralBoost() {
     setVideo(null);
     setStatus("parado");
     jaGerouCena.current = false;
+    setRascunhoDispensado(true);
+    apagarRascunho();
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -277,6 +410,40 @@ export function ViralBoost() {
 
   return (
     <div className="space-y-5">
+      {/* ===== RETOMAR O QUE FICOU PELO CAMINHO ===== */}
+      {mostrarRetomar && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-primary/30 bg-primary/8 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <History className="mt-0.5 size-5 shrink-0 text-primary" />
+            <div>
+              <p className="text-sm font-semibold">Você tinha uma historinha em andamento</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {rascunho?.cena
+                  ? "Guardamos suas escolhas e a cena que você já montou. Retomar não cobra crédito de novo."
+                  : "Guardamos as escolhas que você já tinha feito."}
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={retomarRascunho}
+              className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+            >
+              <History className="size-4" />
+              Retomar
+            </button>
+            <button
+              type="button"
+              onClick={descartarRascunho}
+              className="rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+            >
+              Começar do zero
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ===== TRILHA ===== */}
       <div className="space-y-2.5">
         <div className="flex items-center gap-1 overflow-x-auto pb-1">
@@ -687,10 +854,29 @@ export function ViralBoost() {
               {status === "erro" && erroVideo && (
                 <p className="mt-3 text-center text-xs text-amber-400">{erroVideo}</p>
               )}
+              {/* A geração roda no servidor: a pessoa não precisa ficar olhando a
+                  tela. O aviso é grande de propósito, senão dá a impressão de que o
+                  painel travou e ela fica esperando parada por 5 minutos. */}
               {status === "gerando" && (
-                <p className="mt-3 text-center text-xs text-muted-foreground">
-                  Costuma levar de 3 a 5 minutos. Pode fechar a aba: o vídeo aparece em Meus vídeos.
-                </p>
+                <div className="mt-4 rounded-2xl border border-primary/30 bg-primary/8 p-4 text-center">
+                  <p className="flex items-center justify-center gap-2 text-sm font-semibold text-primary">
+                    <Bell className="size-4" />
+                    Seu vídeo está sendo gerado!
+                  </p>
+                  <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-muted-foreground">
+                    Esse processo leva de 3 a 5 minutos. Você pode sair desta página,
+                    fechar a aba ou navegar pelo painel tranquilamente. Enviaremos uma
+                    notificação no sininho do cabeçalho assim que estiver concluído e
+                    você poderá assisti-lo em Meus vídeos.
+                  </p>
+                  <Link
+                    href="/painel"
+                    className="mt-3 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+                  >
+                    <FolderOpen className="size-4" />
+                    Acompanhar em Meus vídeos
+                  </Link>
+                </div>
               )}
             </section>
 

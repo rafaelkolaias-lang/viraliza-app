@@ -46,6 +46,14 @@ export interface VideoJob {
   creditosGastos?: number;
   /** de onde o vídeo saiu: "lab" | "boost" | "cortes" | "editor" (etiqueta do card) */
   origem?: OrigemVideo;
+  /**
+   * O render guardou as faixas de áudio separadas, então dá pra refazer só a
+   * mistura depois (botão "Reajustar áudio"), em segundos e sem gastar crédito.
+   * Vídeos anteriores a isso não têm as faixas e ficam sem o botão.
+   */
+  audioAjustavel?: boolean;
+  /** volumes usados no render (0-100), pra abrir o reajuste já no ponto atual */
+  volumes?: { original: number; musica: number; voz: number };
 }
 
 export type OrigemVideo = "lab" | "boost" | "cortes" | "editor";

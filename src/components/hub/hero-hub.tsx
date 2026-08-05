@@ -57,12 +57,15 @@ export function HeroHub({
               <ShoppingBag className="size-4" />
               Produtos
             </Link>
+            {/* o botão de "Ferramentas" levava pra uma grade de cards que foi
+                apagada: as ferramentas agora ficam no menu lateral, no grupo
+                retrátil de mesmo nome */}
             <Link
-              href="/painel/ferramentas"
+              href="/painel/novo"
               className="inline-flex h-11 items-center gap-2 rounded-lg border border-border bg-card px-5 text-sm font-semibold transition-colors hover:border-primary/50"
             >
               <Wrench className="size-4" />
-              Ferramentas
+              Editor automático
             </Link>
           </div>
         </div>

@@ -28,6 +28,13 @@ model User {
   assinaturaAte   DateTime? // vencimento da assinatura
   creditoMensalEm DateTime? // última vez que recebeu o 1 min mensal
 
+  // Nível de conta (antifraude de reembolso): bronze -> prata -> ouro.
+  // Limita vídeos/dia, simultâneos e a liberação de crédito comprado.
+  nivel          String  @default("bronze") // "bronze" | "prata" | "ouro"
+  nivelManual    Boolean @default(false) // admin fixou o nível na mão (o automático não mexe)
+  suspeita       Boolean @default(false) // marcada como suspeita: cai pra bronze e trava lá
+  dividaCentavos Int     @default(0) // saldo devedor pós-reembolso: > 0 trava a geração
+
   // BYO key: chave ElevenLabs do usuário, CIFRADA (AES-256-GCM). null = usa a plataforma.
   elevenKey String? @db.Text
 
@@ -45,8 +52,43 @@ model User {
   apoios         Apoio[]
   reportes       ReporteVideo[]
   chatMensagens  ChatMensagem[]
+  atividades     AtividadeDia[]
+  liberacoes     CreditoLiberacao[]
 
   @@index([vistoEm])
+}
+
+// Um registro por usuário por dia de uso (fuso de SP). Base das regras de nível:
+// "logou em 5 dos últimos 8 dias" (Prata) e "10 dos últimos 30" (Ouro).
+model AtividadeDia {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dia    String @db.VarChar(10) // "YYYY-MM-DD" no fuso America/Sao_Paulo
+
+  @@unique([userId, dia])
+  @@index([userId, dia])
+}
+
+// Crédito comprado que ficou PRESO na quarentena da garantia (nível bronze/prata
+// libera só uma parte na hora). O restante cai no saldo no 8º dia da compra,
+// quando o direito de reembolso da Cakto/Kiwify já expirou. Se o pedido for
+// reembolsado antes, a liberação é cancelada (o crédito preso nunca entra).
+model CreditoLiberacao {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  valor     Int // centavos presos aguardando liberação
+  liberaEm  DateTime // quando cai no saldo (compra + 8 dias)
+  aplicado  Boolean  @default(false) // já caiu no saldo
+  cancelado Boolean  @default(false) // pedido reembolsado: nunca entra
+  orderId   String?  @db.VarChar(64) // pedido Cakto/Kiwify que originou
+  descricao String?  @db.VarChar(255)
+  criadoEm  DateTime @default(now())
+
+  @@index([userId, aplicado, cancelado])
+  @@index([aplicado, cancelado, liberaEm])
+  @@index([orderId])
 }
 
 // Chat interno 1:1 (admin <-> usuario). SO o admin abre a conversa; a caixinha
@@ -446,4 +488,24 @@ model PersonagemUsuario {
   criadoEm  DateTime @default(now())
 
   @@index([userId])
+}
+
+// Gasto REAL com as APIs pagas (aba Financas do admin). Uma linha por consumo:
+// quem gastou, em qual API, quanto do recurso e o custo estimado em R$.
+// userId sem FK de proposito: se a conta for apagada, o historico financeiro fica.
+model GastoApi {
+  id         String   @id @default(cuid())
+  userId     String?  @db.VarChar(64) // dono do gasto; null = gasto do sistema
+  jobId      String?  @db.VarChar(64) // Job ligado (quando veio de uma geracao)
+  api        String   @db.VarChar(16) // "openai" | "gemini" | "veo" | "eleven" | "grok"
+  recurso    String   @db.VarChar(24) // "tokens" | "tokens_img" | "chars" | "segundos" | "imagens"
+  quantidade Float    @default(0)
+  custoMili  Int      @default(0) // custo em MILESIMOS de centavo de R$ (100000 = R$ 1,00)
+  origem     String?  @db.VarChar(32) // ferramenta: "fabrica" | "cortes" | "lab-video" | "avatar" | ...
+  criadoEm   DateTime @default(now())
+
+  @@index([criadoEm])
+  @@index([api, criadoEm])
+  @@index([userId, criadoEm])
+  @@index([jobId])
 }

@@ -10,6 +10,8 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
+import uso  # contabiliza segundos de Veo por job (consumo.json -> aba Finanças)
+
 load_dotenv()
 
 KEYS = [k for k in (os.getenv("GEMINI_API_KEY"),
@@ -50,6 +52,7 @@ def gerar_clipe(imagem_path, prompt, saida, negative="", segundos=SEGUNDOS):
             gen = op.response.generated_videos[0]
             client.files.download(file=gen.video)
             gen.video.save(saida)
+            uso.add_veo(segundos)  # só conta quando o clipe realmente saiu
             return True, "ok"
         except Exception as e:
             erros.append(str(e)[:140])

@@ -5,7 +5,18 @@ import { getCurrentUser, ferramentasLiberadas } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { pastaEntrada } from "@/lib/jobs";
 import { temSaldo } from "@/lib/creditos";
+import { travaDeGeracao } from "@/lib/niveis";
 import { vozValida } from "@/lib/vozes";
+import {
+  MAX_ARQUIVO_MB,
+  clipesPrincipais,
+  normalizarRoteiro,
+  normalizarSilencio,
+  normalizarTextos,
+  normalizarVelocidade,
+  normalizarVolumes,
+  tamanhoEmMB,
+} from "@/lib/montagem";
 
 export const runtime = "nodejs";
 
@@ -14,8 +25,25 @@ function nomeSeguro(nome: string) {
   return path.basename(nome).replace(/[^\w.\- ]+/g, "_").slice(0, 120) || "arquivo";
 }
 
+// campo de formulário que vem como JSON: nunca deixa um JSON torto derrubar o envio
+function leJson(v: FormDataEntryValue | null): unknown {
+  if (typeof v !== "string" || !v.trim()) return null;
+  try {
+    return JSON.parse(v);
+  } catch {
+    return null;
+  }
+}
+
 // teto por arquivo (defesa contra encher o disco). Vídeo grande vai pelo chunked.
-const MAX_ARQUIVO = 300 * 1024 * 1024; // 300MB
+const MAX_ARQUIVO = MAX_ARQUIVO_MB * 1024 * 1024;
+
+/**
+ * Erro que a gente mesmo levantou e PODE ser mostrado pra pessoa. Antes qualquer
+ * falha aqui virava "Falha ao salvar a mídia enviada", então quem mandava um
+ * arquivo grande demais nunca descobria qual era nem por quê.
+ */
+class ErroDeEnvio extends Error {}
 
 async function salvarArquivos(
   jobId: string,
@@ -27,7 +55,9 @@ async function salvarArquivos(
   await fs.mkdir(dir, { recursive: true });
   for (const file of files) {
     if (file.size > MAX_ARQUIVO) {
-      throw new Error(`Arquivo grande demais: ${file.name}`);
+      throw new ErroDeEnvio(
+        `"${file.name}" tem ${tamanhoEmMB(file.size)} e o limite por arquivo é ${MAX_ARQUIVO_MB} MB. Corte esse arquivo ou use um menor.`,
+      );
     }
     const buf = Buffer.from(await file.arrayBuffer());
     await fs.writeFile(path.join(dir, nomeSeguro(file.name)), buf);
@@ -131,23 +161,11 @@ export async function POST(req: Request) {
     );
   }
 
-  // Limite de vídeos simultâneos em produção: evita enfileirar muitos com saldo
-  // baixo (o débito é no fim, então sem isso dava pra furar a trava de crédito).
-  if (user.role !== "admin") {
-    const pendentes = await prisma.job.count({
-      where: {
-        userId: user.id,
-        status: { in: ["na_fila", "renderizando", "processando"] },
-      },
-    });
-    if (pendentes >= 3) {
-      return NextResponse.json(
-        {
-          erro: "Você já tem 3 vídeos em produção. Espere terminarem pra gerar mais.",
-        },
-        { status: 429 },
-      );
-    }
+  // Trava por nível da conta (bronze/prata/ouro): dívida de reembolso, teto
+  // diário de vídeos e simultâneos. Substitui o antigo "máx. 3 em produção".
+  const trava = await travaDeGeracao(user);
+  if (!trava.ok) {
+    return NextResponse.json({ erro: trava.erro }, { status: trava.status });
   }
 
   const produto = String(form.get("produto") ?? "").trim();
@@ -186,6 +204,39 @@ export async function POST(req: Request) {
   // alucinava uma legenda aleatória). "Sem música" -> nem a automática entra.
   const ehProduto = String(form.get("ehProduto") ?? "1") !== "0";
   const comMusica = String(form.get("comMusica") ?? "1") !== "0";
+
+  // ---- MONTAGEM DO EDITOR (ordem, cortes, clipe principal, textos, volumes) ----
+  // Isso aqui era descartado: a tela mandava e ninguém lia (`auditoria.md` #22 e
+  // #23). Agora vai junto no job e a fábrica monta por ele.
+  const ehChunked = form.get("chunked") != null;
+  const nomesSalvos = ehChunked
+    ? null // no upload em pedaços os arquivos chegam depois; nome já vem sanitizado igual
+    : new Set(
+        [...form.getAll("videos"), ...form.getAll("imagens")]
+          .filter((f): f is File => f instanceof File)
+          .map((f) => nomeSeguro(f.name)),
+      );
+  const roteiro = normalizarRoteiro(leJson(form.get("roteiro")), nomesSalvos, nomeSeguro);
+  const textos = normalizarTextos(leJson(form.get("textos")));
+  // se a tela não mandar os volumes novos, o controle antigo de música ainda vale
+  const volumes = normalizarVolumes(
+    leJson(form.get("volumes")) ?? { musica: volumeMusica },
+  );
+  // velocidade da música (só os passos da lista; o render mantém o tom)
+  const velocidadeMusica = normalizarVelocidade(form.get("velocidadeMusica"));
+  // corte de silêncio na base (0 = desligado)
+  const cortarSilencio = normalizarSilencio(form.get("cortarSilencio"));
+  const temPrincipal = clipesPrincipais(roteiro).length > 0;
+  // com clipe principal quem narra é a pessoa: a voz da IA por cima brigaria com ela
+  if (temPrincipal && formato === "voz") {
+    return NextResponse.json(
+      {
+        erro: "Com um clipe principal quem narra é você. Escolha outro formato (Transcrever fala ou Nenhum).",
+      },
+      { status: 400 },
+    );
+  }
+
   const opcoes = JSON.stringify({
     audioVideo,
     volumeMusica,
@@ -195,6 +246,11 @@ export async function POST(req: Request) {
     ...(ehProduto ? {} : { semCopy: true }),
     ...(comMusica ? {} : { semMusica: true }),
     ...(temLivre ? { marcaX, marcaY } : {}),
+    volumes, // sempre: é o que faz o controle de volume valer no render
+    ...(velocidadeMusica !== 1 ? { velocidadeMusica } : {}),
+    ...(cortarSilencio > 0 && temPrincipal ? { cortarSilencio } : {}),
+    ...(roteiro.length ? { roteiro } : {}),
+    ...(textos.length ? { textos } : {}),
   });
   // tipo do job: "marca" = Aplicar marca em lote (só carimba o template, sem fábrica);
   // "produto" (padrão) = fábrica (copy + voz/legenda + montagem). O worker despacha por isso.
@@ -285,16 +341,20 @@ export async function POST(req: Request) {
     await salvarArquivos(job.id, "imagens", imagens);
     await salvarArquivos(job.id, "musica", musica);
     await salvarArquivos(job.id, "template", template);
-  } catch {
-    // se a gravação falhar, marca o job como erro pra não ficar preso na fila
+  } catch (e) {
+    // se a gravação falhar, marca o job como erro pra não ficar preso na fila.
+    // Erro nosso (arquivo grande demais) vai com o motivo REAL pra pessoa saber
+    // qual arquivo é; qualquer outra falha fica genérica pra não vazar detalhe
+    // interno do servidor.
+    const meu = e instanceof ErroDeEnvio;
+    const motivo = meu
+      ? e.message
+      : "Não consegui salvar os arquivos. Tente de novo.";
     await prisma.job.update({
       where: { id: job.id },
-      data: { status: "erro", erro: "Falha ao salvar a mídia enviada." },
+      data: { status: "erro", erro: motivo },
     });
-    return NextResponse.json(
-      { erro: "Não consegui salvar os arquivos. Tente de novo." },
-      { status: 500 },
-    );
+    return NextResponse.json({ erro: motivo }, { status: meu ? 400 : 500 });
   }
 
   // mídia no disco: agora sim entra na fila do worker

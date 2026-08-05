@@ -34,6 +34,10 @@ export type LinhaUsuario = {
   online: boolean;
   assinante: boolean; // acesso à biblioteca (acervos, virais, produtos, membro)
   ferramentasLiberadas: boolean; // acesso às ferramentas de gerar vídeo
+  nivel: string; // bronze | prata | ouro
+  nivelManual: boolean; // admin fixou o nível na mão
+  suspeita: boolean; // conta marcada como suspeita (bronze travado)
+  dividaCentavos: number; // saldo devedor de reembolso
 };
 
 export type PainelAdmin = {
@@ -129,6 +133,10 @@ export async function getPainelAdmin(): Promise<PainelAdmin> {
         vistoEm: true,
         assinante: true,
         ferramentasLiberadas: true,
+        nivel: true,
+        nivelManual: true,
+        suspeita: true,
+        dividaCentavos: true,
       },
     }),
     prisma.reporteVideo.count({ where: { status: "novo" } }),
@@ -173,6 +181,10 @@ export async function getPainelAdmin(): Promise<PainelAdmin> {
       online: !!u.vistoEm && u.vistoEm.getTime() > agora - ONLINE_MS,
       assinante: u.assinante,
       ferramentasLiberadas: u.ferramentasLiberadas,
+      nivel: u.nivel,
+      nivelManual: u.nivelManual,
+      suspeita: u.suspeita,
+      dividaCentavos: u.dividaCentavos,
     }))
     // online primeiro, depois quem foi visto mais recentemente
     .sort((a, b) => {

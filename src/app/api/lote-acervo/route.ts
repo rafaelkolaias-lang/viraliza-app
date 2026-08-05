@@ -4,6 +4,7 @@ import path from "node:path";
 import { getCurrentUser, ferramentasLiberadas } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { pastaEntrada } from "@/lib/jobs";
+import { travaDeGeracao } from "@/lib/niveis";
 import { MEDIA_BASE } from "@/lib/midia-shopee";
 import { CREDITOS_FIXO } from "@/lib/precos";
 
@@ -88,6 +89,13 @@ export async function POST(req: Request) {
       { erro: "Nenhum vídeo válido pra carimbar." },
       { status: 400 },
     );
+  }
+
+  // Trava por nível da conta: o lote inteiro conta no teto diário e nos simultâneos
+  // (cada vídeo do lote vira um job na fila).
+  const trava = await travaDeGeracao(user, fontes.length);
+  if (!trava.ok) {
+    return NextResponse.json({ erro: trava.erro }, { status: trava.status });
   }
 
   const marcaTamanho = Math.max(15, Math.min(100, Number(form.get("marcaTamanho") ?? 100) || 100));

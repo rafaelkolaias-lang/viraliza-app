@@ -9,6 +9,8 @@ import { custoVideoLab } from "@/lib/lab-custos";
 import { baixarImagemEntrada, ehImagemNossa } from "@/lib/imagem-entrada";
 import { gerarVideoGrok, type ArquivoImagem } from "@/lib/video-robot";
 import { getCarteira, debitarClamp } from "@/lib/creditos";
+import { registrarGrokVideo } from "@/lib/gastos-api";
+import { travaDeGeracao } from "@/lib/niveis";
 import { criarNotificacao } from "@/lib/notificacoes";
 import { contarVideoDaImagem } from "@/lib/galeria-servidor";
 
@@ -149,6 +151,15 @@ export async function POST(req: Request) {
     }
   }
 
+  // Trava por nível da conta (depois do dedup: pedido repetido reconecta no job
+  // que já roda em vez de esbarrar no limite de simultâneos).
+  if (!isAdmin) {
+    const trava = await travaDeGeracao(user);
+    if (!trava.ok) {
+      return NextResponse.json({ erro: trava.erro }, { status: trava.status });
+    }
+  }
+
   const nomeVideo = (escolhas.produtoNome?.trim() || "Vídeo do Lab").slice(0, 255);
   const job = await prisma.job.create({
     data: {
@@ -201,6 +212,10 @@ export async function POST(req: Request) {
           jobId: job.id,
         }).catch(() => {});
       }
+
+      // contabilidade do dono (aba Finanças): custo médio do Grok por vídeo.
+      // Registra pra TODO vídeo que saiu, mesmo de admin/demo (a assinatura gastou).
+      await registrarGrokVideo(userId, job.id, dur.segundos, "lab-video").catch(() => {});
 
       // "3 vídeos gerados" no card da galeria: conta um a mais pra imagem base
       await contarVideoDaImagem(userId, body.imagem);

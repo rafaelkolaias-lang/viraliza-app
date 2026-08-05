@@ -18,8 +18,11 @@ import {
   pedidoEstornado,
   type PedidoLista,
 } from "@/lib/cakto";
+import { getPainelGastos, type PainelGastos } from "@/lib/gastos-api";
+import { getGastoAnuncios, type GastoAnuncios } from "@/lib/meta-ads";
 
-/** Painel financeiro: vendas reais da Cakto (atual) + Kiwify (histórico), somadas. */
+/** Painel financeiro: vendas reais da Cakto (atual) + Kiwify (histórico), somadas,
+ *  + o GASTO com as APIs pagas (OpenAI real, Gemini/Veo/Eleven estimados, Grok médio). */
 
 /** Venda normalizada, agnóstica de gateway - já com pago/estornada e valores em centavos. */
 type VendaNorm = {
@@ -182,6 +185,12 @@ export type PainelFinancas = {
   };
   grafico: DiaVenda[];
   vendasPeriodo: VendaLinha[]; // lista de vendas DO PERÍODO filtrado (mais recentes primeiro)
+  /** gasto com APIs no MESMO período do filtro (por API e por usuário) */
+  gastos: PainelGastos;
+  /** gasto com anúncios na Meta no MESMO período (custo de tráfego) */
+  anuncios: GastoAnuncios;
+  /** o que sobra de verdade: líquido − reembolsos − APIs */
+  lucroRealCentavos: number;
 };
 
 export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFinancas> {
@@ -196,6 +205,16 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
     diasDesdeMarco,
     MAX_DIAS_GRAFICO,
   );
+
+  // busca com 1 dia de margem pra trás (o "dia" é no fuso de SP, o instante ISO não)
+  const inicioMs = Math.max(DESDE_MS, agora - nDias * DIA_MS);
+  const fimMs = agora + 60_000; // um tiquinho no futuro
+
+  // gasto com APIs do MESMO período: roda em paralelo com a busca de vendas
+  // (getPainelGastos nunca rejeita: no pior caso volta zerado)
+  const gastosPromise = getPainelGastos(inicioMs, fimMs);
+  // gasto com anúncios da Meta no mesmo período (também nunca rejeita)
+  const anunciosPromise = getGastoAnuncios(nDias);
 
   const desdeLabel = fmtDesde.format(new Date(DESDE_MS));
   const vazio: PainelFinancas = {
@@ -219,22 +238,44 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
     },
     grafico: [],
     vendasPeriodo: [],
+    gastos: {
+      registroDesde: null,
+      openaiConfigurada: false,
+      porApi: [],
+      totalCentavos: 0,
+      porUsuario: [],
+      sistemaCentavos: 0,
+    },
+    anuncios: { configurado: false, centavos: 0, moeda: null, erro: null, janela: null },
+    lucroRealCentavos: 0,
   };
   if (!caktoConfigurada() && !kiwifyConfigurada()) {
-    return { ...vazio, erro: "Nenhum gateway de pagamento configurado." };
+    const [gastos, anuncios] = await Promise.all([gastosPromise, anunciosPromise]);
+    return {
+      ...vazio,
+      gastos,
+      anuncios,
+      lucroRealCentavos: -gastos.totalCentavos,
+      erro: "Nenhum gateway de pagamento configurado.",
+    };
   }
 
-  // busca com 1 dia de margem pra trás (o "dia" é no fuso de SP, o instante ISO não)
-  const inicioMs = Math.max(DESDE_MS, agora - nDias * DIA_MS);
   const inicioISO = new Date(inicioMs).toISOString();
-  const fimISO = new Date(agora + 60_000).toISOString(); // um tiquinho no futuro
+  const fimISO = new Date(fimMs).toISOString();
 
   let vendas: VendaNorm[];
   try {
     vendas = await listarTodasVendas(inicioISO, fimISO);
   } catch (e) {
     console.error("[financas] falha ao listar vendas", e);
-    return { ...vazio, erro: "Não consegui buscar as vendas agora." };
+    const [gastos, anuncios] = await Promise.all([gastosPromise, anunciosPromise]);
+    return {
+      ...vazio,
+      gastos,
+      anuncios,
+      lucroRealCentavos: -gastos.totalCentavos,
+      erro: "Não consegui buscar as vendas agora.",
+    };
   }
 
   // buckets por dia (só os dias visíveis do filtro)
@@ -347,6 +388,9 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
     reembolsoCentavos: v.reembolsoCentavos,
   }));
 
+  const [gastos, anuncios] = await Promise.all([gastosPromise, anunciosPromise]);
+  const receitaFinalLiquida = periodoLiquido - periodoReembolsoLiquido;
+
   return {
     configurada: true,
     desde: desdeLabel,
@@ -361,11 +405,14 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
       reembolsoCentavos: periodoReembolsoCentavos,
       reembolsoLiquidoCentavos: periodoReembolsoLiquido,
       receitaFinalCentavos: periodoReceita - periodoReembolsoCentavos,
-      receitaFinalLiquidaCentavos: periodoLiquido - periodoReembolsoLiquido,
+      receitaFinalLiquidaCentavos: receitaFinalLiquida,
       clientes: clientesPagos.size,
       ticketCentavos: periodoPagas > 0 ? Math.round(periodoReceita / periodoPagas) : 0,
       ticketLiquidoCentavos: periodoPagas > 0 ? Math.round(periodoLiquido / periodoPagas) : 0,
     },
+    gastos,
+    anuncios,
+    lucroRealCentavos: receitaFinalLiquida - gastos.totalCentavos,
     grafico,
     // teto de 100 linhas pra tabela não explodir no "Tudo"
     vendasPeriodo: vendasPeriodo

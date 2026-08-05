@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser, ferramentasLiberadas } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { temSaldo } from "@/lib/creditos";
+import { travaDeGeracao } from "@/lib/niveis";
 
 export const runtime = "nodejs";
 
@@ -51,21 +52,12 @@ export async function POST(req: Request) {
     );
   }
 
-  // Limite de vídeos simultâneos em produção (mesma proteção do editor).
-  if (user.role !== "admin" && !ehDemo) {
-    const pendentes = await prisma.job.count({
-      where: {
-        userId: user.id,
-        status: { in: ["na_fila", "renderizando", "processando"] },
-      },
-    });
-    if (pendentes >= 3) {
-      return NextResponse.json(
-        {
-          erro: "Você já tem 3 vídeos em produção. Espere terminarem pra gerar mais.",
-        },
-        { status: 429 },
-      );
+  // Trava por nível da conta (bronze/prata/ouro): dívida de reembolso, teto
+  // diário e simultâneos. Demo já foi tratado acima (1 geração no total).
+  if (!ehDemo) {
+    const trava = await travaDeGeracao(user);
+    if (!trava.ok) {
+      return NextResponse.json({ erro: trava.erro }, { status: trava.status });
     }
   }
 

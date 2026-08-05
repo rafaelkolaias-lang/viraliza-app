@@ -363,7 +363,7 @@ export function contarPalavras(texto: string) {
 
 // Custo fixo pra GERAR 1 avatar na plataforma (creditos = centavos). Subir uma
 // imagem pronta e gratis (sem IA). Client-safe pra UI mostrar antes de gerar.
-export const CUSTO_AVATAR = 40;
+export const CUSTO_AVATAR = 20;
 
 // Como o produto aparece na foto "avatar com produto" (image-to-image). O `en`
 // vira a instrucao pro gpt-image-1. Client-safe: a UI mostra o label em PT.
@@ -395,20 +395,19 @@ export const USOS_PRODUTO: Opcao[] = [
   },
 ];
 
-// Custo pra gerar 1 vídeo com avatar (creditos = centavos): COM fala 6s=40,
-// 10s e 15s=50. SEM fala custa DESCONTO_SEM_FALA a menos (é mais simples de gerar).
-export const CUSTO_VIDEO_AVATAR = 40;
-export const CUSTO_VIDEO_AVATAR_10S = 50;
-export const CUSTO_VIDEO_AVATAR_15S = 50;
-export const DESCONTO_SEM_FALA = 10;
-export function custoVideoAvatar(duracaoSeg: number, comFala = true): number {
-  const base =
-    duracaoSeg >= 15
-      ? CUSTO_VIDEO_AVATAR_15S
-      : duracaoSeg >= 10
-        ? CUSTO_VIDEO_AVATAR_10S
-        : CUSTO_VIDEO_AVATAR;
-  return comFala ? base : Math.max(0, base - DESCONTO_SEM_FALA);
+// Custo pra gerar 1 vídeo com avatar (creditos = centavos): 6s=50, 10s=70, 15s=95.
+// Mesma tabela do Lab (lab-video.ts), porque é o mesmo motor e a mesma cota.
+// NÃO existe desconto por vídeo sem fala: a cota do motor é medida em SEGUNDOS
+// gerados, e um vídeo mudo ocupa exatamente os mesmos segundos de um falado.
+export const CUSTO_VIDEO_AVATAR = 50;
+export const CUSTO_VIDEO_AVATAR_10S = 70;
+export const CUSTO_VIDEO_AVATAR_15S = 95;
+export function custoVideoAvatar(duracaoSeg: number): number {
+  return duracaoSeg >= 15
+    ? CUSTO_VIDEO_AVATAR_15S
+    : duracaoSeg >= 10
+      ? CUSTO_VIDEO_AVATAR_10S
+      : CUSTO_VIDEO_AVATAR;
 }
 
 export type EscolhasAvatar = {
