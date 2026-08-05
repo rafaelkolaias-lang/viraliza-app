@@ -111,6 +111,14 @@ export function montarPromptVideoLab(o: OpcoesVideoLab): string {
       }${tonalidade ? ` Tonalidade: ${tonalidade}.` : ""} Tom: ${tom}. A voz mantém o mesmo gênero e a mesma tonalidade do começo ao fim do vídeo.`,
     );
 
+    // Sem esta regra o modelo soltava o áudio como narração e a boca só
+    // "acordava" 1-2 segundos depois (parecia dublagem fora de sincronia).
+    if (!o.pov) {
+      linhas.push(
+        "SINCRONIA LABIAL OBRIGATÓRIA: a pessoa começa a falar JÁ NO PRIMEIRO SEGUNDO do vídeo, com a boca articulando visivelmente CADA palavra em perfeita sincronia com o áudio, do primeiro ao último quadro da fala. A voz NUNCA é narração de fundo: se tem voz saindo, a boca dela está mexendo. Boca parada, fechada ou só sorrindo enquanto a voz toca é ERRO GRAVE.",
+      );
+    }
+
     if (fala) {
       // blindagem: sem isso o modelo "melhora" o texto da pessoa
       linhas.push(
@@ -131,6 +139,13 @@ export function montarPromptVideoLab(o: OpcoesVideoLab): string {
       `A fala cabe inteira nos ${dur.segundos} segundos e termina em frase completa: nenhuma palavra pode ficar cortada no fim.`,
     );
   }
+
+  // ---------- nitidez ----------
+  // a imagem base agora sai TODA nítida (sem bokeh): o vídeo não pode
+  // reintroduzir o desfoque na animação
+  linhas.push(
+    "NITIDEZ: o vídeo inteiro fica nítido em 4K, com o cenário de fundo em foco do início ao fim, exatamente como na foto. NÃO acrescente desfoque de fundo, bokeh ou embaçado em nenhum momento.",
+  );
 
   // ---------- movimento ----------
   const mov = movimentoPorChave(o.movimento);
@@ -161,8 +176,12 @@ export function montarPromptVideoLab(o: OpcoesVideoLab): string {
           ? "as mesmas mãos e o mesmo produto da foto, sem nunca mostrar rosto ou corpo"
           : "a mesma pessoa e o mesmo produto da foto"
     }, ${
-      comFala ? "fala em português do Brasil do começo ao fim" : "sem fala nenhuma"
-    }, e nada de texto ou efeito na tela.`,
+      comFala
+        ? o.pov
+          ? "fala em português do Brasil do começo ao fim"
+          : "fala em português do Brasil com a boca sincronizada desde o primeiro segundo"
+        : "sem fala nenhuma"
+    }, cenário nítido sem desfoque, e nada de texto ou efeito na tela.`,
   );
 
   // uma linha só: no campo do Grok cada quebra de linha vira Enter (envia antes)

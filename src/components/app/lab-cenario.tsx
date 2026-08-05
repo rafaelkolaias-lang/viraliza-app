@@ -199,8 +199,8 @@ export function LabCenario({
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Onde a cena acontece. O fundo aparece desfocado, com o produto e o avatar
-        sempre nítidos. Você também pode subir a foto de um ambiente seu.
+        Onde a cena acontece: o cenário sai nítido e igualzinho ao que você
+        escolher. Você também pode subir a foto de um ambiente seu.
       </p>
 
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">

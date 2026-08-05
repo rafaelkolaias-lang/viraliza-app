@@ -24,10 +24,10 @@ import { CENARIOS } from "@/lib/avatar-modelo";
  */
 
 const REALISMO =
-  "PHOTOREALISM: unedited RAW photo look, shot on a full frame camera with an 85mm f/1.8 lens, natural skin texture with visible pores and small natural imperfections, individual hair strands, realistic fabric folds and material response, soft natural shadow transitions, subtle film grain, realistic color grading, shallow natural depth of field.";
+  "PHOTOREALISM: unedited RAW photo look, shot on a modern phone main camera, crisp 4K detail, EVERYTHING IN SHARP FOCUS from the person to the back wall (deep depth of field, like a phone photo in good light), natural skin texture with visible pores and small natural imperfections, individual hair strands, realistic fabric folds and material response, soft natural shadow transitions, subtle film grain, realistic color grading.";
 
 const EVITAR =
-  "AVOID: face drift, a different or generic face, beauty or glamour retouching, skin smoothing, plastic or waxy skin, slimming the face or body, changing the hair, CGI or 3D render look, illustration, cartoon, AI artifacts, oversharpening, editorial color grading, extra copies of the product, invented products, changed colors or labels, text, captions, logo overlay, watermark, borders, collage, multiple panels.";
+  "AVOID: face drift, a different or generic face, beauty or glamour retouching, skin smoothing, plastic or waxy skin, slimming the face or body, changing the hair, CGI or 3D render look, illustration, cartoon, AI artifacts, oversharpening, editorial color grading, blurred or out of focus background, bokeh, depth of field haze, milky blur, extra copies of the product, invented products, changed colors or labels, text, captions, logo overlay, watermark, borders, collage, multiple panels.";
 
 const SAIDA_LIMPA =
   "CLEAN OUTPUT, NON NEGOTIABLE: no text of any kind on the image (captions, labels added by you, watermarks, credits), no stickers, no badges, no arrows, no app UI, no frames, no artificial effects (sparkles, glow, floating particles, lens flares). If you are in doubt about adding anything on top of the photo, DO NOT add it: the clean photo always wins.";
@@ -80,17 +80,17 @@ export type OpcoesImagemLab = {
 /** Bloco do cenário: usa a descrição rica de CENARIOS quando existir. */
 function blocoCenario(o: OpcoesImagemLab): string {
   if (o.cenarioFoto) {
-    return "SETTING FROM PHOTO, CRITICAL: the LAST attached photo is the EXACT place where the scene happens. Place the subject INSIDE that same environment: same walls, same furniture in the same positions, same colors, same decoration, same lighting mood. Do NOT redesign the room, do NOT invent a different place, do NOT add or remove furniture: it must be recognizable as the very same location from the photo. The only change allowed is natural depth of field: the place gets softly out of focus behind the subject (natural bokeh) while the person and the product stay perfectly sharp. Use that photo ONLY for the place: ignore any person, product or text that appears in it.";
+    return "SETTING FROM PHOTO, CRITICAL: the LAST attached photo is the EXACT place where the scene happens. Place the subject INSIDE that same environment: same walls, same furniture in the same positions, same colors, same decoration, same lighting mood. Do NOT redesign the room, do NOT invent a different place, do NOT add or remove furniture: it must be recognizable as the very same location from the photo. The place stays in SHARP FOCUS, exactly as crisp as in the photo: NO blur, NO bokeh, NO depth of field haze on the background, every wall, object and detail perfectly readable in 4K, and the person and the product equally sharp. Use that photo ONLY for the place: ignore any person, product or text that appears in it.";
   }
   const doMotor = o.cenarioMotor ? CENARIOS.find((c) => c.chave === o.cenarioMotor) : null;
   if (doMotor) {
-    return `SETTING: ${doMotor.local}, softly out of focus behind the subject (natural bokeh) while the person and the product stay perfectly sharp. Lighting: ${doMotor.luz}.`;
+    return `SETTING: ${doMotor.local}. The whole place stays in SHARP FOCUS (no blur, no bokeh), every detail readable, and the person and the product equally sharp. Lighting: ${doMotor.luz}.`;
   }
   const livre = (o.cenarioTexto || o.cenarioLivre || "").trim();
   if (livre) {
-    return `SETTING: ${livre}, softly out of focus behind the subject (natural bokeh) while the person and the product stay perfectly sharp. Natural believable lighting for that place.`;
+    return `SETTING: ${livre}. The whole place stays in SHARP FOCUS (no blur, no bokeh), every detail readable, and the person and the product equally sharp. Natural believable lighting for that place.`;
   }
-  return "SETTING: a real lived-in Brazilian home softly out of focus behind the subject, the person and the product perfectly sharp. Soft natural daylight, no flash, no studio light.";
+  return "SETTING: a real lived-in Brazilian home, the whole place in SHARP FOCUS (no blur, no bokeh) and the person and the product equally sharp. Soft natural daylight, no flash, no studio light.";
 }
 
 /**
@@ -190,7 +190,8 @@ export function montarPromptImagemLab(o: OpcoesImagemLab): string {
         ? "The framing MUST be full body, head to shoes, with the worn product completely visible and not cropped: if the legs or the feet are cut off, the image is wrong, redo it wider. No garment from the reference photo may show up."
         : "",
       "Do NOT add extra products, duplicates or variants. Do NOT put anything in the hands unless the instruction asked for it. Only what was described should appear, nothing more.",
-      "Output ONE single vertical photograph, 9:16.",
+      "The WHOLE image is sharp, including the background: if the background comes out blurred or with bokeh, the image is wrong, redo it with everything in focus.",
+      "Output ONE single vertical photograph, 9:16, crisp 4K quality.",
     ]
       .filter(Boolean)
       .join(" "),
