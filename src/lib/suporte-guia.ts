@@ -40,6 +40,12 @@ export type Guia = {
 /**
  * Os caminhos guiados. A ordem dos passos é a ordem real das telas.
  *
+ * Cada passo DIZ QUAIS SÃO AS OPÇÕES daquela tela e o que cada uma faz. Sem
+ * isso o passo virava um "escolhe o que combina" que não ajuda ninguém: a
+ * pessoa chega numa tela com cinco cartões e continua sem saber qual clicar,
+ * que foi exatamente a reclamação do teste. A lista sai em linhas com "-"
+ * porque o widget mantém lista inteira num balão só (ver `partirResposta`).
+ *
  * Preço nunca escrito na mão: vem das mesmas constantes que a plataforma cobra.
  */
 export const GUIAS: Guia[] = [
@@ -53,27 +59,55 @@ export const GUIAS: Guia[] = [
         rota: "/painel/lab",
         nome: "Viraliza Labs",
       },
-      { texto: "ele começa perguntando o estilo de câmera. Escolhe o que combina com o seu produto e me avisa." },
-      { texto: "agora sobe a foto do produto e escreve o que ele é, bem certinho. Conseguiu subir?" },
       {
         texto:
-          "escolhe o influenciador que vai segurar o produto. Os prontos da plataforma são de graça. Escolheu?",
-      },
-      { texto: "agora o cenário, que é o lugar onde a cena acontece. Escolheu?" },
-      {
-        texto: `confere o resumo e manda gerar a imagem. Custa ${CUSTO_IMAGEM_LAB} créditos e leva alguns instantes. A imagem apareceu?`,
-      },
-      {
-        texto:
-          "agora escolhe a duração do vídeo e o que o influenciador vai falar. Se preferir, a IA escreve a fala de graça. Fez?",
+          "a primeira tela pergunta o estilo de câmera, que é o jeito que o influenciador aparece com o produto:\n\n" +
+          "- De frente: segura o produto na altura do peito. Bom pra eletrônico, brinquedo e livro.\n" +
+          "- Selfie: bem perto do rosto. Bom pra cosmético, skincare e perfume.\n" +
+          "- Mãos: só as mãos aparecem demonstrando o produto. Bom pra acessório, gadget e comida.\n" +
+          "- Vestindo: corpo inteiro usando o produto. Pra roupa, calçado, óculos e relógio.\n" +
+          "- Frente ao espelho: selfie no espelho, corpo inteiro. Pra moda e look.\n\n" +
+          "Qual deles combina com o seu produto?",
       },
       {
         texto:
-          "manda gerar o vídeo. Ele leva alguns minutos e você pode fechar a aba que a produção continua. Mandou?",
+          "agora o produto. Dá pra subir a foto do seu ou pegar uma pronta na busca da Shopee e do TikTok Shop. " +
+          'Logo abaixo você escreve como ele deve aparecer na cena, que é a POSIÇÃO ("segurando na altura do peito, rótulo virado pra câmera"), nunca a cor nem o material: isso já vem da foto. ' +
+          'Se não souber o que escrever, o atalho "A IA escreve pra você" faz isso de graça na própria tela. Conseguiu?',
       },
       {
         texto:
-          "é isso! Quando ficar pronto ele aparece em Meus vídeos, com o botão de baixar. Pode abrir pelo botão abaixo.",
+          "agora o influenciador, que é quem segura o produto. Você usa um dos 9 prontos da plataforma, que são de graça, " +
+          'um seu, ou marca "Nenhum", que gera uma pessoa anônima. No estilo Mãos pode deixar em Nenhum mesmo, porque ali só aparecem as mãos. Escolheu?',
+      },
+      {
+        texto:
+          "agora o cenário, que é o lugar onde a cena acontece. São fotos de ambiente pra escolher (sala, cozinha, quarto, rua, academia, praia e outros) " +
+          'e no fim da lista tem "Subir meu cenário", pra usar a foto do seu próprio ambiente. Escolheu?',
+      },
+      {
+        texto: `agora aparece o resumo de tudo que você escolheu. Confere com calma e manda gerar a imagem: custa ${CUSTO_IMAGEM_LAB} créditos e leva alguns instantes. Gerar de novo cobra de novo, por isso vale conferir antes. A imagem apareceu?`,
+      },
+      {
+        texto:
+          "agora o vídeo. Primeiro a duração:\n\n" +
+          "- 6 segundos: sem fala, só o produto aparecendo. Bom pra capa e anúncio curto.\n" +
+          "- 10 segundos: dá uma frase de venda.\n" +
+          "- 15 segundos: fala completa, com gancho, benefício e chamada. É a mais usada.\n\n" +
+          "Depois escolhe a voz e o tom (animado, calmo, urgente ou divertido) e escreve o que ele vai falar. A IA escreve a fala de graça se você quiser. Fez?",
+      },
+      {
+        texto:
+          "agora o movimento de câmera, que é como a cena se mexe no vídeo. A lista muda conforme o estilo que você escolheu no começo, " +
+          "então aparecem só os movimentos que combinam com a sua imagem. Escolheu?",
+      },
+      {
+        texto:
+          "confere o resumo do vídeo e manda gerar. Leva de 3 a 5 minutos e você pode fechar a aba, que a produção continua no servidor. Mandou?",
+      },
+      {
+        texto:
+          "é isso! Quando ficar pronto o vídeo aparece em Meus vídeos, com o botão de baixar, e o sininho lá em cima te avisa. Pode abrir pelo botão abaixo.",
         rota: "/painel",
         nome: "Meus vídeos",
       },
@@ -89,16 +123,28 @@ export const GUIAS: Guia[] = [
         rota: "/painel/viral-boost",
         nome: "Viral Boost",
       },
-      { texto: "primeiro ele pergunta o formato da historinha. Escolheu?" },
       {
         texto:
-          "agora os personagens. Lembrando: 1 personagem faz vídeo de 15 segundos, 2 ou 3 fazem de 10. Escolheu?",
+          "primeiro o formato da historinha. São dois:\n\n" +
+          "- Historinha de fruta: frutas do tamanho de gente vivendo drama de novela. É a trend que está rodando.\n" +
+          "- Senhora brasileira: uma senhora no tanque ou na cozinha falando com a câmera, como se um neto tivesse começado a filmar.\n\n" +
+          "Qual você quer?",
       },
       {
         texto:
-          "agora a historinha. Dá pra usar uma das 10 prontas, escrever a sua ou pedir pra IA escrever de graça. Qual você quer?",
+          "agora os personagens. Na historinha de fruta são a Moranguinha, o Abacatão, o Bananinho e a Uvazinha; a senhora brasileira é a Dona Cida, sozinha. " +
+          "Lembrando: 1 personagem faz vídeo de 15 segundos, 2 ou 3 fazem de 10. Escolheu?",
       },
-      { texto: "agora o cenário da historinha. Escolheu?" },
+      {
+        texto:
+          "agora a historinha em si, e são 3 caminhos: usar uma das 10 prontas (confissão de madrugada, briga de casal, traição revelada, reencontro e por aí), " +
+          "escrever a sua ou pedir pra IA escrever, que é de graça. Qual você prefere?",
+      },
+      {
+        texto:
+          "agora o cenário da historinha: cozinha, feira, bar, restaurante, academia, praia, balada, quintal e outros. " +
+          "Nas historinhas da Dona Cida os cenários são de casa mesmo: tanque, fogão, varal, horta e sala. Escolheu?",
+      },
       {
         texto:
           "manda gerar e espera uns minutos. A historinha aparece em Meus vídeos quando ficar pronta, no botão abaixo.",
@@ -117,13 +163,27 @@ export const GUIAS: Guia[] = [
         rota: "/painel/novo",
         nome: "Editor automático",
       },
-      { texto: "sobe o vídeo que você já gravou. Conseguiu subir?" },
       {
         texto:
-          "agora escolhe o modo: legenda, voz narrada, transcrever a fala ou nenhum. Se estiver na dúvida, legenda é o mais usado. Escolheu?",
+          "sobe o vídeo que você já gravou. Pode mandar mais de um clipe, que a IA junta na ordem e monta no formato de celular. Conseguiu subir?",
       },
-      { texto: "agora diz onde você vai vender e o tom da copy: agressivo, equilibrado ou tranquilo. Fez?" },
-      { texto: "agora escolhe a voz e a música de fundo. Escolheu?" },
+      {
+        texto:
+          "agora o modo, que é o que a IA vai fazer com o seu vídeo:\n\n" +
+          "- Legenda: escreve a copy e queima a legenda na tela. É o mais usado.\n" +
+          "- Voz narrada: escreve a copy e narra com voz de IA.\n" +
+          "- Transcrever fala: legenda a sua própria fala no tempo certo e mantém o áudio original.\n" +
+          "- Nenhum: só a montagem, sem IA nenhuma.\n\n" +
+          "Qual deles?",
+      },
+      {
+        texto:
+          "agora diz onde você vai vender, Shopee ou outro, que muda a chamada e as hashtags, e o tom da copy: agressivo, equilibrado ou tranquilo. Fez?",
+      },
+      {
+        texto:
+          "agora escolhe a voz da narração e a música de fundo, além da posição da legenda: em cima, no meio ou embaixo. Escolheu?",
+      },
       {
         texto:
           "manda gerar e espera uns minutos. O vídeo montado aparece em Meus vídeos, no botão abaixo.",
@@ -143,10 +203,16 @@ export const GUIAS: Guia[] = [
       },
       {
         texto:
-          "cola o link do vídeo do YouTube. Só YouTube por enquanto, e o vídeo precisa ser público. Colou?",
+          "cola o link do vídeo do YouTube. Só YouTube por enquanto, e o vídeo precisa ser público: privado, não listado ou com restrição de idade não baixa. Colou?",
       },
-      { texto: "agora escolhe a duração do corte: 30 segundos, 1 minuto ou 1 minuto e meio. Escolheu?" },
-      { texto: "agora a legenda: liga ou desliga, e escolhe a cor e a posição. Fez?" },
+      {
+        texto:
+          "agora a duração de cada corte: 30 segundos, 1 minuto ou 1 minuto e meio. Escolheu?",
+      },
+      {
+        texto:
+          "agora a legenda, que você liga ou desliga. Ligada, dá pra escolher a cor (amarelo, branco ou verde) e a posição (em cima, no meio ou embaixo). Fez?",
+      },
       {
         texto:
           "manda gerar e espera uns minutos. Os cortes aparecem em Meus vídeos, no botão abaixo.",
@@ -161,15 +227,23 @@ export const GUIAS: Guia[] = [
     passos: [
       {
         texto:
-          "abra a tela Criar com IA pelo botão abaixo e me diz quando estiver nela, que a gente faz junto.",
+          "abra a tela Novo influenciador pelo botão abaixo e me diz quando estiver nela, que a gente faz junto.",
         rota: "/painel/meus-avatares/criar",
-        nome: "Criar com IA",
+        nome: "Novo influenciador",
       },
       {
         texto:
-          "escolhe um dos 3 cartões: do zero sem foto, a partir de uma foto real ou junto com um produto. Escolheu?",
+          "a tela tem 3 cartões:\n\n" +
+          "- Do zero, sem foto: um quiz de 7 perguntas e a IA desenha a pessoa.\n" +
+          "- A partir de uma foto real: você manda o rosto e ele vira o seu influenciador.\n" +
+          "- Junto com um produto: ele já nasce segurando o que você vende.\n\n" +
+          `Os três custam ${CUSTO_AVATAR} créditos. Qual deles?`,
       },
-      { texto: "agora responde as perguntas da tela sobre como a pessoa tem que ser. Terminou?" },
+      {
+        texto:
+          "agora as perguntas da tela: identidade (nome, idade e gênero), tom de pele, tipo físico, cor do cabelo, estilo do cabelo, " +
+          "detalhes como barba, óculos e sardas, e a camisa. Dica: camisa lisa e escura, porque estampa rouba a atenção do produto. Terminou?",
+      },
       {
         texto: `manda criar. Custa ${CUSTO_AVATAR} créditos e leva de 1 a 3 minutos. Importante: não clique de novo achando que travou, senão cobra duas vezes. Deu certo?`,
       },
@@ -255,9 +329,30 @@ const SEGUIR = new Set([
 const PEDE_CONDUCAO =
   /\b(vai|pode|va|continua|continue)(\s+(ir|indo))?\s+(me\s+)?(falando|dizendo|guiando|explicando|passando)|me\s+(fala|diz|guia|ensina|explica)\s+(o\s+que|como|os?\s+passos?)|(qual|quais)\s+(e|sao)\s+os?\s+proxim\w*\s+passos?|proximo\s+passo/;
 
+/**
+ * "pronto, o que faço?" e parentes.
+ *
+ * A lista fechada só pega a frase exata, então "pronto" entrava e "pronto, o
+ * que faço?" caía no modelo. Foi assim que, num teste real, ele pulou do passo
+ * 1 direto pro "clique em gerar": a pessoa avisou que estava na tela e ele
+ * respondeu no vácuo. Confirmação com pergunta grudada é a mesma coisa que
+ * "pode seguir", então é da guia.
+ *
+ * O casamento é ANCORADO (do começo ao fim da frase, sem sobra) de propósito:
+ * "o que faço se der erro" é dúvida de verdade e continua indo pro modelo.
+ */
+const OK = "sim|ok|blz|beleza|certo|pronto|prontinho|feito|fiz|ja fiz|abri|ja abri|entrei|cheguei|isso|aham|uhum|e|entao|agora|ta|ta bom";
+const PEDE_PROXIMO = new RegExp(
+  `^(?:(?:${OK})\\s+)*(?:` +
+    `(?:o\\s+que|que|oq|como)\\s+(?:eu\\s+)?(?:faco|fazer|faz|sigo|prossigo)(?:\\s+(?:agora|entao|depois|primeiro))?` +
+    `|(?:e\\s+)?(?:agora|depois|entao)` +
+    `)$`,
+);
+
 export function querSeguir(texto: string): boolean {
   const t = simplificar(texto);
-  return SEGUIR.has(t) || (t.length <= 60 && PEDE_CONDUCAO.test(t));
+  if (SEGUIR.has(t) || PEDE_PROXIMO.test(t)) return true;
+  return t.length <= 60 && PEDE_CONDUCAO.test(t);
 }
 
 export type FalaBot = { autor: "user" | "bot"; texto: string };
@@ -334,4 +429,39 @@ export function respostaGuiada(historico: FalaBot[]): RespostaGuia | null {
   }
 
   return null;
+}
+
+/**
+ * O lembrete de "você está no passo N" que vai junto do prompt quando quem
+ * responde é o MODELO.
+ *
+ * Sem isto ele responde no vácuo: num teste real, com a pessoa parada no passo
+ * 1 do Labs, ele mandou "agora clique em Gerar e espere alguns minutos", ou
+ * seja, pulou sete telas que ela ainda não tinha visto. A guia só assume a
+ * conversa em frases fechadas ("pode seguir"); em qualquer outra o modelo
+ * precisa saber onde a conversa está, senão chuta.
+ *
+ * `null` quando não há passo a passo rolando (aí o prompt normal basta).
+ */
+export function contextoDoPasso(historico: FalaBot[]): string | null {
+  const onde = ondeParou(historico);
+  if (!onde) return null;
+
+  const { guia, indice } = onde;
+  const total = guia.passos.length;
+  const atual = guia.passos[indice];
+  const proximo = guia.passos[indice + 1];
+
+  const linhas = [
+    `=== ONDE A CONVERSA ESTÁ (vale mais que qualquer exemplo acima) ===`,
+    `Você está conduzindo o passo a passo do caminho "${guia.nome}" e a última coisa que mandou foi o Passo ${indice + 1} de ${total}.`,
+    `Passo ${indice + 1}, o que a pessoa está fazendo AGORA: ${atual.texto}`,
+    proximo
+      ? `Passo ${indice + 2}, o próximo, só depois que ela disser que fez o de cima: ${proximo.texto}`
+      : `Esse era o último passo: se ela disser que deu certo, comemore em uma frase e ofereça ajuda com outra coisa.`,
+    `É PROIBIDO pular passo. Nada de "manda gerar", "clique em gerar" ou "espere ficar pronto" enquanto faltar passo pra fazer.`,
+    `Se ela perguntou alguma coisa, responda a dúvida dela e termine lembrando o que falta fazer NESTE passo, com as opções da tela.`,
+    `Se ela disse que já fez, mande o próximo passo acima, com as opções dele.`,
+  ];
+  return linhas.join("\n");
 }

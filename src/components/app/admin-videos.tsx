@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Play, Search, Film, Coins } from "lucide-react";
+import { Play, Search, Film, Coins, X, Loader2 } from "lucide-react";
 import { CorteThumb } from "@/components/hub/corte-thumb";
 import { VideoDetalhesModal } from "@/components/app/video-detalhes-modal";
 import { Paginacao } from "@/components/app/paginacao";
@@ -22,37 +22,41 @@ export function AdminVideos({
   total,
   pagina,
   porPagina,
+  busca: buscaUrl,
 }: {
   itens: VideoAdmin[];
   total: number;
   pagina: number;
   porPagina: number;
+  busca: string;
 }) {
   const router = useRouter();
-  const [busca, setBusca] = useState("");
+  const [busca, setBusca] = useState(buscaUrl);
   const [aberto, setAberto] = useState<string | null>(null);
+  const [buscando, startBusca] = useTransition();
 
   const totalPaginas = Math.max(1, Math.ceil(total / porPagina));
-  const termo = busca.trim().toLowerCase();
-  const visiveis = useMemo(
-    () =>
-      termo
-        ? itens.filter(
-            (v) =>
-              v.usuario.nome.toLowerCase().includes(termo) ||
-              v.usuario.email.toLowerCase().includes(termo) ||
-              v.job.produto.toLowerCase().includes(termo),
-          )
-        : itens,
-    [itens, termo],
-  );
+  const visiveis = itens; // o filtro roda no banco, então o que chega já é o resultado
+
+  // a busca vai pro servidor (base inteira), com uma pausa pra não consultar a
+  // cada tecla; volta sempre pra página 1 porque o resultado é outro
+  useEffect(() => {
+    if (busca === buscaUrl) return;
+    const t = setTimeout(() => {
+      startBusca(() => {
+        router.replace(busca.trim() ? `/admin/videos?q=${encodeURIComponent(busca.trim())}` : "/admin/videos");
+      });
+    }, 400);
+    return () => clearTimeout(t);
+  }, [busca, buscaUrl, router]);
 
   function irPara(p: number) {
-    router.push(`/admin/videos?page=${p}`);
+    const q = buscaUrl ? `&q=${encodeURIComponent(buscaUrl)}` : "";
+    router.push(`/admin/videos?page=${p}${q}`);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  if (total === 0) {
+  if (total === 0 && !buscaUrl) {
     return (
       <div className="grid place-items-center rounded-xl border border-dashed border-border py-20 text-center">
         <Film className="size-8 text-muted-foreground" />
@@ -66,15 +70,29 @@ export function AdminVideos({
 
   return (
     <div className="space-y-4">
-      {/* busca (filtra a página atual) */}
+      {/* busca no banco inteiro (usuário, e-mail ou produto) */}
       <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 sm:max-w-sm">
-        <Search className="size-4 shrink-0 text-muted-foreground" />
+        {buscando ? (
+          <Loader2 className="size-4 shrink-0 animate-spin text-primary" />
+        ) : (
+          <Search className="size-4 shrink-0 text-muted-foreground" />
+        )}
         <input
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
           placeholder="Filtrar por usuário, e-mail ou produto..."
           className="w-full bg-transparent py-2 text-sm outline-none placeholder:text-muted-foreground"
         />
+        {busca && (
+          <button
+            type="button"
+            onClick={() => setBusca("")}
+            aria-label="Limpar filtro"
+            className="shrink-0 text-muted-foreground hover:text-foreground"
+          >
+            <X className="size-4" />
+          </button>
+        )}
       </div>
 
       {/* grade */}
@@ -147,7 +165,7 @@ export function AdminVideos({
 
       {visiveis.length === 0 && (
         <p className="py-8 text-center text-sm text-muted-foreground">
-          Nenhum vídeo nesta página pra &quot;{busca}&quot;. Tente outra página.
+          Nenhum vídeo de toda a plataforma bate com &quot;{buscaUrl}&quot;.
         </p>
       )}
 

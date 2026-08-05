@@ -12,7 +12,7 @@ import { AvatarDaFoto } from "@/components/app/avatar-da-foto";
 import { AvatarComProduto } from "@/components/app/avatar-com-produto";
 
 /**
- * Tela "Criar com IA" (`/painel/meus-avatares/criar`).
+ * Tela "Novo influenciador" (`/painel/meus-avatares/criar`).
  *
  * Antes os três caminhos de IA viviam escondidos dentro da galeria: dois eram
  * link de texto miúdo embaixo dos botões, e quase ninguém achava. Aqui cada um
@@ -31,8 +31,8 @@ const CAMINHOS: {
   destaque?: boolean;
 }[] = [
   {
-    // NÃO chamar de "Criar com IA": esse é o nome do item de menu que traz a
-    // pessoa pra cá, e o nome repetido dava a sensação de que a tela não abriu.
+    // NÃO chamar de "Novo influenciador": esse é o nome do item de menu que traz
+    // a pessoa pra cá, e o nome repetido dava a sensação de que a tela não abriu.
     // Igual aos outros dois cartões, o título diz de onde ela está PARTINDO.
     chave: "zero",
     titulo: "Do zero, sem foto",
@@ -105,7 +105,7 @@ export function CriarInfluenciador({
           <Palette className="size-5" />
         </span>
         <div>
-          <h1 className="text-xl font-black tracking-tight sm:text-2xl">Criar com IA</h1>
+          <h1 className="text-xl font-black tracking-tight sm:text-2xl">Novo influenciador</h1>
           <p className="text-xs text-muted-foreground sm:text-sm">
             Escolha por onde você quer começar. Todos custam {CUSTO_AVATAR} créditos.
           </p>

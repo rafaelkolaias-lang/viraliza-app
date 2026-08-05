@@ -218,6 +218,9 @@ export async function POST(req: Request) {
       status: "renderizando",
       etapa: "A IA está gravando seu vídeo (3 a 5 min)",
       duracao: dur,
+      // marca de origem (igual lab/boost): é por ela que o admin separa vídeo de
+      // IA de vídeo do Editor. Precisa nascer aqui pra contar erro e em produção.
+      opcoes: JSON.stringify({ avatar: true }),
     },
   });
 
@@ -245,6 +248,7 @@ export async function POST(req: Request) {
         where: { id: job.id },
         data: {
           opcoes: JSON.stringify({
+            avatar: true, // não perder a marca de origem ao gravar as entradas
             entrada: {
               avatarUrl: avatarUrlEntrada,
               produtoFotos: fotosUrls,

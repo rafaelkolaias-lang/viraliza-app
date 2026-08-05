@@ -179,8 +179,8 @@ export function AjudaConta({
           </Problema>
           <Problema pergunta="O resultado saiu diferente do que eu queria">
             A IA cria uma coisa nova a cada geração, então nunca sai idêntico ao que está
-            na sua cabeça. O que mais ajuda é caprichar na descrição (use o gerador de
-            prompt, que é de graça) antes de gastar crédito na imagem.
+            na sua cabeça. O que mais ajuda é caprichar na descrição (o gerador de
+            prompt custa bem pouco) antes de gastar crédito na imagem.
           </Problema>
           <Problema pergunta="O vídeo saiu com defeito de verdade">
             Use o <strong className="text-foreground">Reportar problema</strong> dentro

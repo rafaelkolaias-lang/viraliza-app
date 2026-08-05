@@ -123,6 +123,24 @@ export async function getJobsDoUsuario(userId: string): Promise<VideoJob[]> {
   return lista;
 }
 
+/** Só a CONTAGEM dos vídeos do usuário (prontos e em produção), pra tela de Início.
+ *  Existe separado do `getJobsDoUsuario` de propósito: a Início só quer os dois
+ *  números, e ali seria carregar todos os jobs (mais a consulta de créditos gastos)
+ *  pra jogar tudo fora depois. Aqui são dois `count`, sem trazer linha nenhuma. */
+export async function contarVideosDoUsuario(userId: string) {
+  const [prontos, emProducao] = await Promise.all([
+    prisma.job.count({ where: { userId, status: "pronto" } }),
+    prisma.job.count({
+      // mesmos 3 status que o painel trata como "em produção"
+      where: {
+        userId,
+        status: { in: ["na_fila", "renderizando", "processando"] },
+      },
+    }),
+  ]);
+  return { prontos, emProducao };
+}
+
 /** Config de um vídeo pra REUTILIZAR no editor (mesmos ajustes). Só do dono.
  *  Não serve pra cortes (esses têm fluxo próprio). null = não achou/não aplica. */
 export async function getConfigReuso(userId: string, id: string) {

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
 
@@ -10,6 +11,10 @@ import type { LucideIcon } from "lucide-react";
  * Não confundir com a trilha do topo: lá é onde você está DENTRO do funil, aqui é
  * qual ferramenta está aberta. Por isso ela fica fixa no rodapé, longe da trilha.
  * No celular vira só ícone; o nome aparece no hover (e sempre pro item ativo).
+ *
+ * Serve nos dois modos: item com `href` vira link e NAVEGA (é assim no Labs, onde
+ * cada ferramenta tem rota própria); item sem `href` chama `onTrocar` e troca de
+ * aba sem sair da página (é assim no Indique e Ganhe).
  */
 
 export type ItemDock = {
@@ -17,6 +22,11 @@ export type ItemDock = {
   label: string;
   Icone: LucideIcon;
   descricao: string;
+  /** quando existe, o item leva pra essa tela em vez de trocar de aba */
+  href?: string;
+  /** só acende no endereço EXATO. Serve pro item cuja rota é começo das outras
+   *  (o "Criar criativo" é `/painel/lab`, prefixo de todas as telas do Labs). */
+  exato?: boolean;
 };
 
 export function LabDock({
@@ -25,8 +35,11 @@ export function LabDock({
   onTrocar,
 }: {
   itens: ItemDock[];
-  atual: string;
-  onTrocar: (chave: string) => void;
+  /** item aceso. Vazio acende nenhum: é o caso das telas do grupo que não são
+   *  ferramenta nenhuma, como a de apresentação do Labs. */
+  atual?: string;
+  /** só nos itens sem `href`, que trocam de aba dentro da mesma tela */
+  onTrocar?: (chave: string) => void;
 }) {
   return (
     // No celular a barra sobe: lá embaixo ela encostava na boia do suporte, que
@@ -36,20 +49,14 @@ export function LabDock({
       <div className="pointer-events-auto flex items-center gap-1 rounded-2xl border border-border/70 bg-background/80 p-1.5 shadow-2xl backdrop-blur-xl">
         {itens.map((i) => {
           const ativo = atual === i.chave;
-          return (
-            <button
-              key={i.chave}
-              type="button"
-              onClick={() => onTrocar(i.chave)}
-              aria-pressed={ativo}
-              title={`${i.label}: ${i.descricao}`}
-              className={cn(
-                "group relative flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
-                ativo
-                  ? "bg-primary/15 text-primary shadow-[0_0_20px_-4px_var(--color-primary)]"
-                  : "text-muted-foreground hover:bg-card hover:text-foreground",
-              )}
-            >
+          const classe = cn(
+            "group relative flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
+            ativo
+              ? "bg-primary/15 text-primary shadow-[0_0_20px_-4px_var(--color-primary)]"
+              : "text-muted-foreground hover:bg-card hover:text-foreground",
+          );
+          const conteudo = (
+            <>
               <i.Icone
                 className={cn(
                   "size-5 shrink-0 transition-transform group-hover:scale-110",
@@ -69,6 +76,29 @@ export function LabDock({
               {ativo && (
                 <span className="absolute inset-x-3 -bottom-0.5 h-0.5 rounded-full bg-primary shadow-[0_0_8px_var(--color-primary)]" />
               )}
+            </>
+          );
+
+          return i.href ? (
+            <Link
+              key={i.chave}
+              href={i.href}
+              aria-current={ativo ? "page" : undefined}
+              title={`${i.label}: ${i.descricao}`}
+              className={classe}
+            >
+              {conteudo}
+            </Link>
+          ) : (
+            <button
+              key={i.chave}
+              type="button"
+              onClick={() => onTrocar?.(i.chave)}
+              aria-pressed={ativo}
+              title={`${i.label}: ${i.descricao}`}
+              className={classe}
+            >
+              {conteudo}
             </button>
           );
         })}

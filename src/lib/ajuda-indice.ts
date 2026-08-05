@@ -23,7 +23,9 @@ export const GRUPOS_AJUDA: GrupoAjuda[] = [
     grupo: "Seu influenciador",
     itens: [
       { id: "influenciador", titulo: "O que é um influenciador" },
-      { id: "criar-com-ia", titulo: "Criar com IA, passo a passo" },
+      // o `id` continua "criar-com-ia" de propósito: é a âncora da seção e o que
+      // link antigo e conversa salva do robô já apontam. Só a etiqueta mudou.
+      { id: "criar-com-ia", titulo: "Novo influenciador, passo a passo" },
       { id: "outras-formas", titulo: "As outras 3 formas de criar" },
     ],
   },

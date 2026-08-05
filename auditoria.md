@@ -50,13 +50,6 @@ Se o bug tiver contorno simples, afetar poucos usuários e não envolver dados s
 - **Detalhe técnico:** a variável `processando` considera só `na_fila` e `renderizando`; falta o status `"processando"` (fase em que o worker sobe cada corte). O painel principal (`/painel/page.tsx`) já foi corrigido; essa página ficou.
 - **Status:** pendente.
 
-#### 2. 🟢 (Nota 2) Admin: contador "em produção" não conta os que estão finalizando
-- **Quando acontece:** no painel admin (visão geral), enquanto um vídeo está "Finalizando", ele não entra na contagem de "em produção".
-- **Onde:** `src/app/(app)/admin/page.tsx:32`
-- **Impacto:** número levemente menor que o real; cosmético (só o admin vê).
-- **Detalhe técnico:** `status: { in: ["na_fila","renderizando"] }` - falta `"processando"`.
-- **Status:** pendente.
-
 #### 3. 🟢 (Nota 2) Estúdio: prévia de voz continua tocando ao fechar o seletor
 - **Quando acontece:** clica no play de uma voz e fecha o dropdown clicando fora - o áudio segue tocando até o fim.
 - **Onde:** `src/components/app/seletor-voz.tsx`
@@ -109,12 +102,6 @@ Se o bug tiver contorno simples, afetar poucos usuários e não envolver dados s
 - **Onde:** `src/app/api/worker/concluir/[id]/route.ts:179-189` (fecha sem debitar) vs `:103` e `:249` (os outros dois modos debitam).
 - **Status:** pendente.
 
-#### 13. 🟡 (Nota 5) Renovação paga da assinatura não atualiza a validade antiga
-- **Quando acontece:** conta que tem uma DATA de assinatura já vencida (ex.: dias dados pelo admin, ou histórico da Kiwify) paga a renovação na Cakto: o webhook credita o bônus mensal e liga "assinante", mas não mexe na data vencida, então a biblioteca continua bloqueada mesmo com a mensalidade paga.
-- **Onde:** `src/app/api/cakto/webhook/route.ts:155-162` (não toca `assinaturaAte`); a regra de acesso considera data vencida = sem assinatura.
-- **Impacto:** cliente paga e não recebe o acesso. Atinge poucos casos hoje (a maioria tem validade nula = permanente), mas é silencioso quando acontece.
-- **Status:** pendente.
-
 #### 14. 🟢 (Nota 4) Excluir usuário apaga junto todo o histórico financeiro dele
 - **Quando acontece:** o admin exclui um usuário em /admin/usuarios: todas as transações de crédito (compras, débitos, estornos) somem em cascata. Os totais do painel (ex.: "créditos gastos") encolhem sem aviso, a trilha de auditoria daquelas vendas se perde e um reembolso que chegar depois não encontra mais a conta.
 - **Onde:** `src/app/actions/usuarios.ts:93` + `prisma/schema.prisma:266` (`CreditoTransacao` com `onDelete: Cascade`).
@@ -165,6 +152,16 @@ Se o bug tiver contorno simples, afetar poucos usuários e não envolver dados s
 ---
 
 ### Concluído:
+
+#### 2. 🟢 (Nota 2) Admin: contador "em produção" não contava os que estão finalizando
+- **Quando acontecia:** no painel admin (visão geral), enquanto um vídeo estava "Finalizando", ele não entrava na contagem de "em produção".
+- **Onde:** a contagem hoje vive em `src/lib/admin.ts:76`.
+- **Status:** CORRIGIDO (verificado em 05/08/2026): a lista de produção agora é `["na_fila", "renderizando", "processando"]`, incluindo a fase de finalização.
+
+#### 13. 🟡 (Nota 5) Renovação paga da assinatura não atualizava a validade antiga
+- **Quando acontecia:** conta com DATA de assinatura já vencida pagava a renovação na Cakto: o webhook creditava o bônus mensal e ligava "assinante", mas não mexia na data vencida, então a biblioteca continuava bloqueada mesmo com a mensalidade paga.
+- **Onde:** `src/app/api/cakto/webhook/route.ts:167`.
+- **Status:** CORRIGIDO (verificado em 05/08/2026): o webhook agora chama `estenderAssinatura(user.id, DIAS_ASSINATURA)`, que atualiza `assinaturaAte` a partir do maior entre hoje e o vencimento atual (`src/lib/creditos.ts:50-62`).
 
 #### 22. 🟠 (Nota 8) Editor automático: tudo que a pessoa monta na tela é jogado fora na hora de gerar
 - **Quando acontecia:** sempre que alguém usava o Editor automático. A pessoa colocava os clipes na ordem que queria, cortava cada um pelas alças verdes, escrevia os textos e via a prévia. Ao clicar em "Gerar vídeo", nada disso ia junto: só os arquivos soltos e as configurações. O renderizador então decidia sozinho quais fotos entravam, em que ordem, quanto tempo cada uma ficava e escrevia as próprias legendas.

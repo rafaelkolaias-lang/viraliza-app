@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import {
@@ -396,7 +396,8 @@ export function ViralizaLab({
   }
 
   return (
-    <div className="relative pb-8">
+    // a folga de baixo (espaço da barrinha flutuante) vem do layout do Labs
+    <div className="relative">
       <LabCabecalho
         Icone={Video}
         chamada="O laboratório onde produtos viram criativos"
@@ -413,7 +414,7 @@ export function ViralizaLab({
 
       {etapa === "cena" && sub === "estilo" && (
         <Tela chave="estilo">
-          {/* ATALHO logo na entrada: quem JÁ tem a foto da influencer com o
+          {/* ATALHO logo na entrada: quem JÁ tem a foto da influenciadora com o
               produto não precisa do funil da imagem: vai direto pro vídeo,
               sem gastar crédito nenhum na imagem. */}
           <button
@@ -433,7 +434,7 @@ export function ViralizaLab({
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-semibold sm:text-base">
-                Já tenho a imagem da minha influencer com o produto
+                Já tenho a imagem da minha influenciadora com o produto
               </span>
               <span className="block text-xs text-muted-foreground sm:text-sm">
                 Pula a criação da imagem e vai direto pro vídeo. Não gasta crédito na imagem.
@@ -638,7 +639,7 @@ export function ViralizaLab({
               <SkipForward className="size-4.5 shrink-0 text-primary" />
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-semibold">
-                  Já tenho a imagem da minha influencer com o produto
+                  Já tenho a imagem da minha influenciadora com o produto
                 </span>
                 <span className="block text-xs text-muted-foreground">
                   Usa a sua foto e vai direto pro vídeo, sem gastar crédito na imagem.

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/dal";
 import { chat, llmConfigurado } from "@/lib/llm";
 import { PROMPT_SISTEMA, nomeDaRota, separarLinks } from "@/lib/suporte-base";
-import { respostaGuiada, type FalaBot } from "@/lib/suporte-guia";
+import { contextoDoPasso, respostaGuiada, type FalaBot } from "@/lib/suporte-guia";
 
 export const runtime = "nodejs";
 // O LLM roda na máquina do dono, não numa nuvem: carregar o modelo do zero leva
@@ -117,18 +117,26 @@ export async function POST(req: Request) {
    * Vale só pra "escolhi o caminho 1" e "pode seguir"; qualquer pergunta de
    * verdade continua indo pro LLM logo abaixo. Sai na hora, sem espera.
    */
-  const guiada = respostaGuiada(
-    historico
-      .filter((m) => m.texto?.trim())
-      .map((m) => ({
-        autor: m.autor === "user" ? "user" : "bot",
-        texto: m.texto!.trim(),
-      })) as FalaBot[],
-  );
+  const falas = historico
+    .filter((m) => m.texto?.trim())
+    .map((m) => ({
+      autor: m.autor === "user" ? "user" : "bot",
+      texto: m.texto!.trim(),
+    })) as FalaBot[];
+
+  const guiada = respostaGuiada(falas);
   if (guiada) return NextResponse.json({ texto: guiada.texto, links: guiada.links });
 
+  /**
+   * Quando a guia não assume mas um passo a passo está rolando, o modelo recebe
+   * onde a conversa parou. Sem isso ele responde no vácuo e pula pro fim (num
+   * teste real mandou "clique em gerar" com a pessoa parada no passo 1).
+   * Vai no FIM do prompt de sistema porque é o que o qwen mais respeita.
+   */
+  const contexto = contextoDoPasso(falas);
+
   const mensagens = [
-    { role: "system" as const, content: PROMPT_SISTEMA },
+    { role: "system" as const, content: contexto ? `${PROMPT_SISTEMA}\n\n${contexto}` : PROMPT_SISTEMA },
     ...historico
       .filter((m) => m.texto?.trim())
       .map((m) => ({
@@ -140,11 +148,12 @@ export async function POST(req: Request) {
   try {
     const bruto = await chat(mensagens, {
       temperature: 0.2, // suporte não é lugar de criatividade
-      // Teto é a segunda trava do "seja curto": mesmo que o modelo ignore a
-      // regra do prompt, ele não despeja um textão. Não abaixar de ~280: o
-      // roteiro "que tipo de vídeo" é a resposta longa permitida e sairia
-      // cortada no meio da lista.
-      maxTokens: 280,
+      // Teto só pra não existir resposta infinita, NÃO pra encurtar: quem cuida
+      // do tamanho é a regra 1 do prompt. Com 280 a resposta boa era a que
+      // saía cortada, porque passo de tela com opções ("são 5 estilos de
+      // câmera, cada um serve pra...") não cabe em 35 palavras. O widget quebra
+      // texto comprido em balões, então tamanho aqui não vira parede de texto.
+      maxTokens: 700,
       timeoutMs: ESPERA_MS,
     });
     if (!bruto.trim()) throw new Error("resposta vazia");

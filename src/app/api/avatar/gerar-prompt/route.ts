@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/dal";
 import { gerarPromptIA, type ImagemVisao } from "@/lib/gerador-prompt";
 import { IDIOMAS_FALA } from "@/lib/avatar-modelo";
+import { getCarteira, debitarClamp } from "@/lib/creditos";
+import { CUSTO_PROMPT_LAB } from "@/lib/lab-custos";
 
 export const runtime = "nodejs";
 export const maxDuration = 90;
@@ -9,7 +11,11 @@ export const maxDuration = 90;
 /**
  * Gerador de prompt: recebe as fotos (avatar opcional + produto), o que a pessoa
  * quer e o formato (normal UGC ou JSON), e devolve o prompt pronto escrito pela
- * IA seguindo a metodologia da aula. Não cobra créditos.
+ * IA seguindo a metodologia da aula.
+ *
+ * Cobra `CUSTO_PROMPT_LAB` créditos, e SÓ NO SUCESSO: o saldo é conferido antes
+ * de chamar a IA (pra pessoa levar o aviso em vez de esperar à toa) e o desconto
+ * acontece depois que o prompt volta pronto. Falha da IA não cobra nada.
  */
 export async function POST(req: Request) {
   const user = await getCurrentUser();
@@ -50,6 +56,22 @@ export async function POST(req: Request) {
     );
   }
 
+  // demo entra junto com admin: em todo o resto do app ela gera sem pagar
+  const isAdmin = user.role === "admin" || user.role === "demo";
+  if (!isAdmin) {
+    const { saldoCentavos } = await getCarteira(user.id);
+    if (saldoCentavos < CUSTO_PROMPT_LAB) {
+      return NextResponse.json(
+        {
+          erro: `Você precisa de ${CUSTO_PROMPT_LAB} créditos pra gerar o prompt. Compre na aba Créditos.`,
+          faltaCreditos: true,
+          custo: CUSTO_PROMPT_LAB,
+        },
+        { status: 402 },
+      );
+    }
+  }
+
   const prompt = await gerarPromptIA(
     imagens,
     {
@@ -67,9 +89,16 @@ export async function POST(req: Request) {
 
   if (!prompt) {
     return NextResponse.json(
-      { erro: "Não consegui gerar agora. Tente de novo em instantes." },
+      { erro: "Não consegui gerar agora. Tente de novo em instantes (não descontamos créditos)." },
       { status: 502 },
     );
   }
+
+  if (!isAdmin) {
+    await debitarClamp(user.id, CUSTO_PROMPT_LAB, "debito_geracao", {
+      descricao: "Gerador de prompt",
+    }).catch(() => {});
+  }
+
   return NextResponse.json({ ok: true, prompt });
 }

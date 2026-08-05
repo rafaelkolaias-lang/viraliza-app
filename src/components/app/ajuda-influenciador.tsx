@@ -49,7 +49,7 @@ export function AjudaInfluenciador() {
         </Texto>
 
         <div className="grid gap-3 sm:grid-cols-3">
-          <Cartao Icone={Sparkles} titulo="Criar com IA">
+          <Cartao Icone={Sparkles} titulo="Novo influenciador">
             Você escolhe como ele é (rosto, corpo, cabelo, roupa) e a IA desenha a
             pessoa. Custa {CUSTO_AVATAR} créditos.
           </Cartao>
@@ -73,7 +73,7 @@ export function AjudaInfluenciador() {
       {/* ================= CRIAR COM IA ================= */}
       <Secao
         id="criar-com-ia"
-        titulo="Criar com IA, passo a passo"
+        titulo="Novo influenciador, passo a passo"
         subtitulo="São 7 telinhas, uma pergunta de cada vez. Leva uns 2 minutos pra responder."
       >
         <div className="rounded-xl border border-border bg-background/50 p-4">
@@ -82,7 +82,7 @@ export function AjudaInfluenciador() {
             No menu do lado esquerdo, clique em{" "}
             <strong className="text-foreground">Personalize com IA</strong> pra abrir os
             atalhos e depois em{" "}
-            <strong className="text-foreground">Criar com IA</strong>.
+            <strong className="text-foreground">Novo influenciador</strong>.
           </p>
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
             Abre uma tela com três jeitos de criar. O das 7 perguntas é o primeiro,{" "}
@@ -167,7 +167,7 @@ export function AjudaInfluenciador() {
           duas vezes.
         </Aviso>
 
-        <Atalho href="/painel/meus-avatares/criar">Abrir Criar com IA</Atalho>
+        <Atalho href="/painel/meus-avatares/criar">Abrir Novo influenciador</Atalho>
       </Secao>
 
       {/* ================= OUTRAS FORMAS ================= */}
@@ -197,7 +197,7 @@ export function AjudaInfluenciador() {
             </p>
             <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
               É o segundo cartão da tela{" "}
-              <strong className="text-foreground">Criar com IA</strong>. Use quando quiser
+              <strong className="text-foreground">Novo influenciador</strong>. Use quando quiser
               que o influenciador seja parecido com você ou com alguém real.
             </p>
           </div>

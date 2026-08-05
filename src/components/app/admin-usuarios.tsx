@@ -1,13 +1,15 @@
-"use client";
+﻿"use client";
 
-import { Fragment, useState, useTransition } from "react";
+import { Fragment, useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Coins, Plus, Minus, X, BookOpen, Wrench, Check, Ban } from "lucide-react";
+import { Coins, Plus, Minus, X, BookOpen, Wrench, Check, Ban, Images } from "lucide-react";
 import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
@@ -22,10 +24,34 @@ import {
   alterarSuspeita,
 } from "@/app/actions/usuarios";
 import { cn } from "@/lib/utils";
+import {
+  FERRAMENTAS,
+  GRUPO_ROTULO,
+  somaGrupo,
+  somarUso,
+  usoVazio,
+  type GrupoUso,
+} from "@/lib/uso-ferramentas";
 import type { LinhaUsuario } from "@/lib/admin";
 
 const fmt = (n: number) => Math.round(n).toLocaleString("pt-BR");
 const ATALHOS = [1000, 2000, 5000, 10000];
+const GRUPOS: GrupoUso[] = ["imagem", "videoIa", "outro"];
+
+/** número que some quando é zero (deixa a tabela limpa pra achar quem usa) */
+function Num({ v, forte }: { v: number; forte?: boolean }) {
+  return (
+    <span
+      className={cn(
+        "tabular-nums",
+        v === 0 && "text-muted-foreground/40",
+        v > 0 && forte && "font-medium text-foreground",
+      )}
+    >
+      {fmt(v)}
+    </span>
+  );
+}
 
 const NIVEL_INFO: Record<string, { rotulo: string; emoji: string }> = {
   bronze: { rotulo: "Bronze", emoji: "🥉" },
@@ -50,6 +76,23 @@ export function AdminUsuarios({ usuarios }: { usuarios: LinhaUsuario[] }) {
   const [aberto, setAberto] = useState<string | null>(null);
   const [valor, setValor] = useState("");
   const [salvando, startSalvar] = useTransition();
+
+  // rodapé: soma de todo mundo + quais ferramentas a galera mais usa
+  const totais = useMemo(() => {
+    const uso = usuarios.reduce((acc, u) => somarUso(acc, u.uso), usoVazio());
+    const ranking = FERRAMENTAS.map((f) => ({ rotulo: f.rotulo, n: uso[f.chave] }))
+      .filter((r) => r.n > 0)
+      .sort((a, b) => b.n - a.n)
+      .slice(0, 5);
+    return {
+      imagens: somaGrupo(uso, "imagem"),
+      videoIa: somaGrupo(uso, "videoIa"),
+      outros: somaGrupo(uso, "outro"),
+      gasto: usuarios.reduce((s, u) => s + u.gastoCentavos, 0),
+      saldo: usuarios.reduce((s, u) => s + u.saldoCentavos, 0),
+      ranking,
+    };
+  }, [usuarios]);
 
   function aplicar(userId: string, creditos: number) {
     if (!creditos) return toast.error("Informe um valor.");
@@ -134,7 +177,24 @@ export function AdminUsuarios({ usuarios }: { usuarios: LinhaUsuario[] }) {
           <TableRow>
             <TableHead>Usuário</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead className="hidden text-right sm:table-cell">Gerados</TableHead>
+            <TableHead
+              className="hidden text-right sm:table-cell"
+              title="Imagens geradas no Novo influenciador, no Viraliza Labs e no Viral Boost"
+            >
+              Imagens
+            </TableHead>
+            <TableHead
+              className="hidden text-right sm:table-cell"
+              title="Vídeos feitos por IA: Novo influenciador, Viraliza Labs e Viral Boost"
+            >
+              Vídeos IA
+            </TableHead>
+            <TableHead
+              className="hidden text-right lg:table-cell"
+              title="Editor automático, marca em lote, cortes, influenciador, MapsLeads e gerador de prompt"
+            >
+              Outros
+            </TableHead>
             <TableHead className="text-right">Gasto</TableHead>
             <TableHead className="text-right">Saldo</TableHead>
             <TableHead className="text-right">Crédito</TableHead>
@@ -207,8 +267,14 @@ export function AdminUsuarios({ usuarios }: { usuarios: LinhaUsuario[] }) {
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="hidden text-right text-sm text-muted-foreground sm:table-cell">
-                    {fmt(u.jobs)}
+                  <TableCell className="hidden text-right text-sm sm:table-cell">
+                    <Num v={somaGrupo(u.uso, "imagem")} forte />
+                  </TableCell>
+                  <TableCell className="hidden text-right text-sm sm:table-cell">
+                    <Num v={somaGrupo(u.uso, "videoIa")} forte />
+                  </TableCell>
+                  <TableCell className="hidden text-right text-sm lg:table-cell">
+                    <Num v={somaGrupo(u.uso, "outro")} />
                   </TableCell>
                   <TableCell className="text-right text-sm">
                     <span className={u.gastoCentavos > 0 ? "font-medium" : "text-muted-foreground"}>
@@ -236,7 +302,7 @@ export function AdminUsuarios({ usuarios }: { usuarios: LinhaUsuario[] }) {
 
                 {editando && (
                   <TableRow className="bg-muted/30 hover:bg-muted/30">
-                    <TableCell colSpan={6} className="py-4">
+                    <TableCell colSpan={8} className="py-4">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-xs font-medium text-muted-foreground">
                           Adicionar rápido:
@@ -400,6 +466,50 @@ export function AdminUsuarios({ usuarios }: { usuarios: LinhaUsuario[] }) {
                           </span>
                         </div>
                       )}
+
+                      {/* O que essa pessoa fez, ferramenta por ferramenta */}
+                      <div className="mt-3 border-t border-border/60 pt-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-medium text-muted-foreground">
+                            O que já usou (desde que entrou):
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="ml-auto h-8"
+                            render={<Link href={`/admin/criacoes?u=${u.id}`} />}
+                          >
+                            <Images className="size-4" />
+                            Ver criações
+                          </Button>
+                        </div>
+                        <div className="mt-2 grid gap-x-6 gap-y-3 sm:grid-cols-3">
+                          {GRUPOS.map((g) => (
+                            <div key={g}>
+                              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                {GRUPO_ROTULO[g]}
+                              </p>
+                              {FERRAMENTAS.filter((f) => f.grupo === g).map((f) => (
+                                <div
+                                  key={f.chave}
+                                  title={f.ajuda}
+                                  className="flex items-baseline justify-between gap-2 border-b border-dashed border-border/40 py-1 last:border-0"
+                                >
+                                  <span
+                                    className={cn(
+                                      "text-xs",
+                                      u.uso[f.chave] === 0 && "text-muted-foreground/60",
+                                    )}
+                                  >
+                                    {f.rotulo}
+                                  </span>
+                                  <Num v={u.uso[f.chave]} forte />
+                                </div>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </TableCell>
                   </TableRow>
                 )}
@@ -407,7 +517,43 @@ export function AdminUsuarios({ usuarios }: { usuarios: LinhaUsuario[] }) {
             );
           })}
         </TableBody>
+        <TableFooter>
+          <TableRow className="hover:bg-transparent">
+            <TableCell className="text-xs font-medium text-muted-foreground">
+              Total ({usuarios.length} {usuarios.length === 1 ? "usuário" : "usuários"})
+            </TableCell>
+            <TableCell />
+            <TableCell className="hidden text-right text-sm sm:table-cell">
+              <Num v={totais.imagens} forte />
+            </TableCell>
+            <TableCell className="hidden text-right text-sm sm:table-cell">
+              <Num v={totais.videoIa} forte />
+            </TableCell>
+            <TableCell className="hidden text-right text-sm lg:table-cell">
+              <Num v={totais.outros} />
+            </TableCell>
+            <TableCell className="text-right text-sm">
+              <Num v={totais.gasto} forte />
+            </TableCell>
+            <TableCell className="text-right text-sm">
+              <Num v={totais.saldo} forte />
+            </TableCell>
+            <TableCell />
+          </TableRow>
+        </TableFooter>
       </Table>
+
+      {totais.ranking.length > 0 && (
+        <p className="border-t border-border bg-muted/20 px-3 py-2 text-[11px] text-muted-foreground">
+          <b className="text-foreground">Mais usadas:</b>{" "}
+          {totais.ranking.map((r, i) => (
+            <span key={r.rotulo}>
+              {i > 0 && " · "}
+              {r.rotulo} ({fmt(r.n)})
+            </span>
+          ))}
+        </p>
+      )}
     </div>
   );
 }

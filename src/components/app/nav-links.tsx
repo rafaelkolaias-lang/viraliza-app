@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity,
+  BarChart3,
   Bell,
   Camera,
   ChevronDown,
@@ -113,17 +114,28 @@ type Grupo = {
   raiz: string;
   label: string;
   icon: typeof Home;
+  /** o nome do grupo LEVA pra tela dele em vez de só abrir/fechar a listinha
+   *  (a setinha ao lado continua abrindo e fechando). Ligado no Viraliza Labs,
+   *  que é a porta de entrada do laboratório e tem a barrinha de ferramentas. */
+  navegavel?: boolean;
   itens: readonly SubItem[];
 };
 
 const GRUPOS: readonly Grupo[] = [
   {
     chave: "nav_personalize_aberto",
-    raiz: "/painel/meus-avatares",
+    // a raiz é o "Novo influenciador", e não a galeria (`/painel/meus-avatares`),
+    // pra clicar no nome cair na PORTA DE ENTRADA do grupo, igual no Viraliza Labs.
+    // O grupo continua acendendo nas outras duas telas: elas estão nos `itens`.
+    raiz: "/painel/meus-avatares/criar",
     label: "Personalize com IA",
     icon: Palette,
+    navegavel: true,
     itens: [
-      { href: "/painel/meus-avatares/criar", label: "Criar com IA", icon: Sparkles },
+      // era "Criar com IA": não dizia criar O QUÊ, e "com IA" não separa nada
+      // (o app inteiro é com IA). O nome do botão que gera de verdade, no fim do
+      // quiz, continua sendo "Criar influenciador" - são coisas diferentes.
+      { href: "/painel/meus-avatares/criar", label: "Novo influenciador", icon: Sparkles },
       {
         href: "/painel/meus-avatares",
         label: "Galeria de avatares",
@@ -135,9 +147,14 @@ const GRUPOS: readonly Grupo[] = [
   },
   {
     chave: "nav_lab_aberto",
-    raiz: "/painel/lab",
+    // a raiz é a tela de APRESENTAÇÃO, não o funil: clicar no nome do grupo abre
+    // a explicação das 4 ferramentas. O funil segue em `/painel/lab` (é onde o
+    // login cai e pra onde a galeria manda a imagem), e continua a um clique
+    // pelo "Criar criativo" logo abaixo e pela barrinha do rodapé.
+    raiz: "/painel/lab/inicio",
     label: "Viraliza Labs",
     icon: FlaskConical,
+    navegavel: true,
     itens: [
       { href: "/painel/lab", label: "Criar criativo", icon: Compass, exato: true },
       { href: "/painel/lab/livre", label: "Vídeo livre", icon: Video },
@@ -149,10 +166,11 @@ const GRUPOS: readonly Grupo[] = [
     chave: "nav_ferramentas_aberto",
     // era `/painel/ferramentas` (uma grade de cards que repetia estes atalhos).
     // A tela foi apagada: com o submenu aqui, ela virou um clique a mais pro
-    // mesmo lugar. A raiz agora é a 1ª ferramenta, usada só na barra recolhida.
+    // mesmo lugar. A raiz é a 1ª ferramenta, que é onde clicar no nome cai.
     raiz: "/painel/novo",
     label: "Ferramentas",
     icon: Wrench,
+    navegavel: true,
     itens: [
       { href: "/painel/novo", label: "Editor automático", icon: Sparkles },
       { href: "/painel/lote", label: "Aplicar marca em lote", icon: Stamp },
@@ -166,12 +184,14 @@ const GRUPOS: readonly Grupo[] = [
 export const adminItems = [
   { href: "/admin", label: "Visão geral", icon: Gauge },
   { href: "/admin/financas", label: "Finanças", icon: DollarSign },
-  { href: "/admin/videos", label: "Vídeos", icon: Clapperboard },
-  { href: "/admin/imagens", label: "Imagens", icon: ImageIcon },
+  { href: "/admin/uso", label: "Uso das ferramentas", icon: BarChart3 },
+  // Vídeos, Imagens e Avatares viraram UMA tela (mesma pergunta, três lugares).
+  // As antigas continuam de pé em /admin/videos, /admin/imagens e /admin/avatares,
+  // só saíram do menu pra ele não crescer.
+  { href: "/admin/criacoes", label: "Criação dos usuários", icon: Sparkles },
   { href: "/admin/usuarios", label: "Usuários", icon: Users },
   { href: "/admin/bonus", label: "Bônus IG", icon: Camera },
   { href: "/admin/indicacoes", label: "Indicações", icon: Gift },
-  { href: "/admin/avatares", label: "Avatares", icon: UserRound },
   { href: "/admin/chat", label: "Chat", icon: MessageCircle },
   { href: "/admin/reportes", label: "Reportes de vídeo", icon: Flag },
   { href: "/admin/excluidos", label: "Excluídos", icon: Trash2 },
@@ -313,9 +333,9 @@ function Item({
 
 /**
  * Um grupo retrátil. A setinha recolhe/expande os atalhos; o nome só abre e
- * fecha também, EXCETO nos grupos `navegavel`, onde ele leva pra uma tela que
- * não está entre os atalhos. Com a barra recolhida sobra só o ícone, que leva
- * pra tela do grupo (os sub-itens não cabem numa coluna de ícones).
+ * fecha também, EXCETO nos grupos `navegavel`, onde ele leva pra tela do grupo.
+ * Com a barra recolhida sobra só o ícone, que leva pra tela do grupo (os
+ * sub-itens não cabem numa coluna de ícones).
  */
 function GrupoRetratil({
   grupo,
@@ -358,12 +378,21 @@ function GrupoRetratil({
   return (
     <>
       <div className="flex items-center gap-1">
-        {/* o nome NÃO navega: só abre e fecha. A tela de cada grupo já é um dos
-            atalhos logo abaixo, então levar pra algum lugar aqui seria repetir */}
-        <button type="button" onClick={alternar} aria-expanded={aberto} className={classeNome}>
-          <grupo.icon className="size-4.5" />
-          {grupo.label}
-        </button>
+        {/* Por padrão o nome NÃO navega: só abre e fecha, porque a tela do grupo
+            já é um dos atalhos logo abaixo. Nos grupos `navegavel` ele leva pra
+            tela do grupo de propósito, pra quem clica no nome cair na porta de
+            entrada em vez de só ver a listinha piscar. */}
+        {grupo.navegavel ? (
+          <Link href={grupo.raiz} onClick={onNavigate} className={classeNome}>
+            <grupo.icon className="size-4.5" />
+            {grupo.label}
+          </Link>
+        ) : (
+          <button type="button" onClick={alternar} aria-expanded={aberto} className={classeNome}>
+            <grupo.icon className="size-4.5" />
+            {grupo.label}
+          </button>
+        )}
         <button
           type="button"
           onClick={alternar}
@@ -477,8 +506,9 @@ export function NavLinks({
           />
         ))}
 
-        {/* Personalize com IA, Viraliza Labs e Ferramentas: a setinha (e o nome,
-            fora do Ferramentas) recolhe/expande os atalhos do grupo. */}
+        {/* Personalize com IA, Viraliza Labs e Ferramentas: a setinha recolhe e
+            expande os atalhos do grupo. O nome faz o mesmo, menos no Viraliza
+            Labs, onde ele abre a tela do laboratório. */}
         {GRUPOS.map((grupo) => (
           <GrupoRetratil
             key={grupo.chave}

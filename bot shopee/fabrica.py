@@ -835,6 +835,107 @@ def _caminho_clipe(prod_dir, c):
     return p if os.path.isfile(p) else None
 
 
+# ---------------------------------------------------------------------------
+# Cena de apoio SEM descrição: a IA OLHA o clipe (decidido pelo dono em 05/08/2026).
+# O que a pessoa escreveu continua mandando; isto só entra quando ela deixou o
+# campo em branco, senão a cena entraria em qualquer ponto da fala.
+# ---------------------------------------------------------------------------
+# Começo, meio e fim do trecho CORTADO: é a comparação entre os três que revela o
+# movimento. Um print só do meio não separa "mão abrindo a caixa" de "caixa parada".
+QUADROS_CENA = (0.15, 0.5, 0.85)
+LARGURA_QUADRO = 512        # o bastante pra IA enxergar, e segura o custo da chamada
+MAX_CENAS_DESCRITAS = 12    # teto de segurança (2 min de base = no máximo 12 apoios)
+
+
+def _quadros_da_cena(path, tipo, ini, fim):
+    """Prints que a IA vai olhar pra entender essa cena, em bytes JPEG.
+
+    Foto vira um print só (não tem movimento pra comparar), e trecho curto
+    demais também: três prints do mesmo instante seriam três vezes o mesmo custo."""
+    os.makedirs(DIR_TEMP, exist_ok=True)
+    base = re.sub(r"[^\w.-]+", "_", os.path.basename(path))[:50]
+    if tipo == "image":
+        marcas = [None]
+    else:
+        dur = max(0.0, fim - ini)
+        marcas = [ini + dur * p for p in QUADROS_CENA] if dur > 0.4 else [ini]
+    saida = []
+    for k, marca in enumerate(marcas):
+        jpg = os.path.join(DIR_TEMP, f"cena_{base}_{k}.jpg")
+        cmd = [FFMPEG, "-y"]
+        if marca is not None:
+            cmd += ["-ss", f"{max(0.0, marca):.2f}"]
+        cmd += ["-i", path, "-frames:v", "1", "-vf", f"scale={LARGURA_QUADRO}:-2",
+                "-q:v", "4", jpg]
+        try:
+            if run(cmd).returncode == 0 and os.path.getsize(jpg) > 0:
+                with open(jpg, "rb") as f:
+                    saida.append(f.read())
+        except OSError:
+            pass
+        finally:
+            try:
+                os.remove(jpg)
+            except OSError:
+                pass
+    return saida
+
+
+def completar_descricoes(prod_dir, roteiro, com_copy):
+    """Descreve com a IA as cenas de apoio que a pessoa deixou SEM descrição.
+
+    A descrição escrita à mão sempre manda: só chega aqui quem está em branco.
+    O que sai daqui alimenta as duas coisas que a descrição alimentava: o encaixe
+    do apoio no momento certo da fala (`plano_broll`) e o `contexto_cenas` da copy.
+
+    `com_copy` diz se a copy da IA vai rodar neste job. Quando ela NÃO roda, a
+    cena que a pessoa já arrastou pra um segundo fixo nem precisa ser olhada: o
+    momento dela já está decidido e ninguém mais usaria a frase.
+
+    A frase é gravada no próprio roteiro (é de lá que o `build_montagem` lê).
+    Devolve quantas cenas foram descritas; sem chave de IA, sem quadro ou com a
+    chamada falhando, devolve 0 e o render segue exatamente como seguia antes."""
+    alvos = []
+    for c in (roteiro.get("clipes") or []):
+        if c.get("papel") == "principal":
+            continue          # o principal não descreve cena: quem conta é a fala dele
+        if str(c.get("descricao") or "").strip():
+            continue          # a pessoa escreveu: o que ela disse vale
+        if not com_copy and c.get("entra") is not None:
+            continue          # já tem momento fixo e não há copy pra escrever
+        alvos.append(c)
+        if len(alvos) >= MAX_CENAS_DESCRITAS:
+            break
+    if not alvos:
+        return 0
+
+    cenas = []
+    for i, c in enumerate(alvos):
+        caminho = _caminho_clipe(prod_dir, c)
+        if not caminho:
+            continue
+        try:
+            ini, fim = float(c.get("in", 0)), float(c.get("out", 0))
+        except (TypeError, ValueError):
+            ini, fim = 0.0, 0.0
+        quadros = _quadros_da_cena(caminho, c.get("tipo"), ini, fim)
+        if quadros:
+            cenas.append({"i": i, "tipo": c.get("tipo"), "quadros": quadros})
+    if not cenas:
+        return 0
+
+    try:
+        frases = gemini_copy.descrever_cenas(cenas)
+    except Exception:
+        return 0
+    feitas = 0
+    for i, frase in frases.items():
+        if 0 <= i < len(alvos) and frase:
+            alvos[i]["descricao"] = frase
+            feitas += 1
+    return feitas
+
+
 def _norm_v(i):
     """Normaliza um vídeo/imagem pro palco 9:16 (mesmo enquadramento do resto)."""
     return (f"[{i}:v]{_pre_crop()}scale={W}:{H}:force_original_aspect_ratio=decrease,"
@@ -1700,12 +1801,17 @@ def processar(prod_dir, forcar):
             except ValueError:
                 n_var = 1
             sem_copy = str(cfg.get("sem_copy", "")).strip().lower() in ("1", "sim", "true")
+            com_copy = not sem_copy and formato in ("legenda", "voz")
+            # cena que a pessoa subiu sem descrever: a IA OLHA os quadros do clipe e
+            # escreve o que ele mostra. Roda UMA vez, antes das variantes, e o
+            # resultado vale pro encaixe do apoio e pra copy.
+            completar_descricoes(prod_dir, roteiro, com_copy)
             # o que a pessoa escreveu sobre cada cena guia a copy (sem isso a IA
             # escreveria às cegas, já que aqui o plano_edicao não roda)
             contexto = contexto_cenas(roteiro)
             for i in range(n_var):
                 copy = {}
-                if not sem_copy and formato in ("legenda", "voz"):
+                if com_copy:
                     copy = gemini_copy.gerar_copy(
                         produto, descricao, formato=formato, tom=tom,
                         contexto_visual=contexto,
