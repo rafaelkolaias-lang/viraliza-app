@@ -1,5 +1,6 @@
 import "server-only";
 import { listarPedidos, type PedidoLista } from "@/lib/cakto";
+import { prisma } from "@/lib/prisma";
 
 /**
  * Ranking do Indique e Ganhe.
@@ -78,6 +79,39 @@ function ehIndicacao(tipo: string) {
   return !!tipo && tipo !== "producer";
 }
 
+/**
+ * Ajuste MANUAL por afiliado: venda real que veio SEM o link (a pessoa divulgou
+ * o link errado, mas a venda foi dela). Como a Cakto não tem a comissão, o
+ * ajuste soma aqui — no ranking e na tela da pessoa.
+ *
+ * Fica na tabela Configuracao, uma linha por e-mail:
+ *   chave: afiliado_ajuste:<email>   valor: {"vendas":1,"centavos":4821}
+ */
+type AjusteAfiliado = { vendas: number; centavos: number };
+
+async function ajustesManuais(): Promise<Map<string, AjusteAfiliado>> {
+  const out = new Map<string, AjusteAfiliado>();
+  try {
+    const linhas = await prisma.configuracao.findMany({
+      where: { chave: { startsWith: "afiliado_ajuste:" } },
+    });
+    for (const l of linhas) {
+      const email = l.chave.slice("afiliado_ajuste:".length).trim().toLowerCase();
+      try {
+        const v = JSON.parse(l.valor) as AjusteAfiliado;
+        const vendas = Math.max(0, Number(v?.vendas) || 0);
+        const centavos = Math.max(0, Number(v?.centavos) || 0);
+        if (email && (vendas || centavos)) out.set(email, { vendas, centavos });
+      } catch {
+        // valor torto não derruba o ranking
+      }
+    }
+  } catch {
+    // banco fora do ar: segue só com a Cakto
+  }
+  return out;
+}
+
 /** "marcosrogeriom92@gmail.com" -> "marcos•••@gmail.com" */
 function mascarar(email: string): string {
   const [nome, dominio] = email.split("@");
@@ -112,6 +146,14 @@ export async function rankingAfiliados(dias = 30, topN = 10): Promise<Afiliado[]
       atual.centavos += c.valorCentavos;
       por.set(email, atual);
     }
+  }
+
+  // vendas confirmadas fora do link entram por cima do que a Cakto conta
+  for (const [email, aj] of await ajustesManuais()) {
+    const atual = por.get(email) ?? { vendas: 0, centavos: 0 };
+    atual.vendas += aj.vendas;
+    atual.centavos += aj.centavos;
+    por.set(email, atual);
   }
 
   const lista = [...por.entries()]
@@ -158,6 +200,22 @@ export async function minhasIndicacoes(email: string, dias = 90): Promise<MinhaA
     });
     // reembolso e chargeback não entram no total: a Cakto estorna a comissão
     if (ehPago(p)) total += meu.valorCentavos;
+  }
+
+  // ajuste manual desta pessoa: aparece como venda normal no histórico dela
+  const meuAjuste = (await ajustesManuais()).get(alvo);
+  if (meuAjuste && meuAjuste.vendas > 0) {
+    const cada = Math.round(meuAjuste.centavos / meuAjuste.vendas);
+    for (let i = 0; i < meuAjuste.vendas; i++) {
+      vendas.push({
+        refId: `ajuste-${i + 1}`,
+        quando: "",
+        produto: "Viraliza (venda confirmada pelo suporte)",
+        comissaoCentavos: cada,
+        status: "paid",
+      });
+    }
+    total += meuAjuste.centavos;
   }
 
   vendas.sort((a, b) => (a.quando < b.quando ? 1 : -1));
