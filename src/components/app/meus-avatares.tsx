@@ -186,9 +186,9 @@ export function MeusAvatares({ avataresIniciais = [] }: { avataresIniciais?: Ava
       )}
 
       {/* ===== AÇÕES =====
-          Só o "Enviar imagem" mora aqui. Criar com IA saiu de propósito: é um
-          atalho do menu "Personalize com IA", e repetir o botão na galeria dava
-          dois caminhos pro mesmo lugar. */}
+          Só o "Enviar imagem" mora aqui. O "Novo influenciador" saiu de propósito:
+          é um atalho do menu "Personalize com IA", e repetir o botão na galeria
+          dava dois caminhos pro mesmo lugar. */}
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
@@ -224,8 +224,8 @@ export function MeusAvatares({ avataresIniciais = [] }: { avataresIniciais?: Ava
             <p className="font-medium">Nenhum influenciador seu por aqui ainda</p>
             <p className="max-w-sm text-sm text-muted-foreground">
               Envie a imagem de alguém que você já tem, aqui em cima, ou use o{" "}
-              <strong className="text-foreground">Criar com IA</strong> no menu da
-              esquerda. Ele passa a aparecer na hora de gerar seus vídeos.
+              <strong className="text-foreground">Novo influenciador</strong> no menu
+              da esquerda. Ele passa a aparecer na hora de gerar seus vídeos.
             </p>
           </div>
         )}

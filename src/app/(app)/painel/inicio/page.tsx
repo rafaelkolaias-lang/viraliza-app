@@ -1,158 +1,97 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Gem, Play, LayoutGrid, Wrench } from "lucide-react";
-import { requireUser } from "@/lib/dal";
+import { Gem, Play } from "lucide-react";
+import { assinaturaAtiva, requireUser } from "@/lib/dal";
+import { getCarteira } from "@/lib/creditos";
+import { contarVideosDoUsuario } from "@/lib/jobs";
 import { getTotalVirais } from "@/lib/virais";
 import { getTotalProdutos } from "@/lib/produtos";
+import { getCategorias, getTotalAcervo } from "@/lib/acervo";
+import { blogTemArtigos } from "@/lib/blog";
 import { HeroHub } from "@/components/hub/hero-hub";
-import { CategoriaCard } from "@/components/hub/categoria-card";
+import { InicioAtalhos, InicioCatalogo } from "@/components/app/inicio-hub";
 import { EBOOKS } from "@/lib/membro";
 
 export const metadata: Metadata = { title: "Início" };
 export const dynamic = "force-dynamic";
 
-function fmt(n: number) {
-  return n.toLocaleString("pt-BR");
-}
-
+/**
+ * Início: o mapa da plataforma inteira.
+ *
+ * Regra desta tela: TUDO que existe pro usuário aparece aqui, inclusive o que
+ * está travado (biblioteca sem assinatura) e o que ainda não abriu (Academy,
+ * Blog). O que está travado ganha uma etiqueta em vez de sumir, senão a pessoa
+ * nem descobre que aquilo existe pra querer assinar.
+ *
+ * Quando entrar ferramenta nova na plataforma, ela entra no catálogo em
+ * `components/app/inicio-hub.tsx` (é o único lugar a mexer aqui).
+ */
 export default async function InicioPage() {
   const user = await requireUser();
-  const [totalCortes, totalProdutos] = await Promise.all([
+
+  const [
+    carteira,
+    liberado,
+    videos,
+    totalVirais,
+    totalProdutos,
+    totalAcervo,
+    categorias,
+  ] = await Promise.all([
+    getCarteira(user.id),
+    assinaturaAtiva(user),
+    contarVideosDoUsuario(user.id),
     getTotalVirais(),
     getTotalProdutos(),
+    getTotalAcervo(),
+    getCategorias(),
   ]);
 
-  // Ferramentas - cada carta abre (ou abrirá) a ferramenta.
-  const ferramentas = [
-    {
-      titulo: "Editor automático",
-      subtitulo: "Crie um vídeo",
-      capa: "/capas/editor.png",
-      href: "/painel/novo",
-      emBreve: false,
-    },
-    {
-      titulo: "Cortes de qualquer vídeo",
-      subtitulo: "Cole o link e corte",
-      capa: "/capas/cortes-auto.png",
-      href: "/painel/cortes",
-      emBreve: false,
-    },
-    {
-      titulo: "MapsLeads",
-      subtitulo: "Captação de leads",
-      capa: "/capas/mapsleads.png",
-      href: "/painel/leads",
-      emBreve: false,
-    },
-  ];
-
-  // Coleções da vitrine - cada carta abre o acervo daquela origem.
-  // Por enquanto só a Shopee tem conteúdo; as outras ficam "Em breve".
-  const colecoes = [
-    {
-      titulo: "Shopee",
-      subtitulo: `+${fmt(totalCortes)} vídeos · +${fmt(totalProdutos)} produtos`,
-      capa: "/capas/shopee.png",
-      href: "/painel/shopee",
-      emBreve: false,
-    },
-    {
-      titulo: "Acervo de cortes",
-      subtitulo: "+19 mil · filmes, séries, podcasts, memes",
-      capa: "/capas/acervo.png",
-      href: "/painel/acervo",
-      emBreve: false,
-    },
-    {
-      titulo: "Cortes do YouTube",
-      subtitulo: "Cortes virais",
-      capa: "/capas/youtube.png",
-      href: "/painel/acervo",
-      emBreve: false,
-    },
-    {
-      titulo: "Reels do Instagram",
-      subtitulo: "Cortes virais",
-      capa: "/capas/instagram.png",
-      href: "/painel/acervo",
-      emBreve: false,
-    },
-    {
-      titulo: "Vídeos do TikTok",
-      subtitulo: "Cortes virais",
-      capa: "/capas/tiktok.png",
-      href: "/painel/acervo",
-      emBreve: false,
-    },
-  ];
+  // Texto da tarjinha de assinatura. Admin e demo contam como ativa e podem não
+  // ter data nenhuma (`assinaturaAte` null = não vence), por isso os 3 casos.
+  const vence = carteira.assinaturaAte;
+  const assinaturaTexto = !liberado
+    ? "Sem assinatura ativa"
+    : vence
+      ? `Assinatura até ${vence.toLocaleDateString("pt-BR", {
+          day: "2-digit",
+          month: "2-digit",
+          timeZone: "America/Sao_Paulo",
+        })}`
+      : "Assinatura ativa";
 
   return (
     <div className="space-y-8">
       <HeroHub
         nome={user.nome}
-        totalCortes={totalCortes}
-        totalProdutos={totalProdutos}
+        saldoCentavos={carteira.saldoCentavos}
+        assinaturaTexto={assinaturaTexto}
+        assinaturaAtiva={liberado}
+        prontos={videos.prontos}
+        emProducao={videos.emProducao}
       />
 
-      <section className="space-y-3">
-        <div>
-          <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-            <LayoutGrid className="size-5 text-primary" />
-            Explore o acervo
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Clique numa capa pra ver todos os vídeos da coleção.
-          </p>
-        </div>
+      <InicioAtalhos />
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {colecoes.map((c) => (
-            <CategoriaCard
-              key={c.titulo}
-              href={c.href}
-              titulo={c.titulo}
-              subtitulo={c.subtitulo}
-              capa={c.capa}
-              emBreve={c.emBreve}
-            />
-          ))}
-        </div>
-      </section>
+      <InicioCatalogo
+        bibliotecaLiberada={liberado}
+        blogTemArtigo={blogTemArtigos()}
+        totalVirais={totalVirais}
+        totalProdutos={totalProdutos}
+        totalAcervo={totalAcervo}
+        totalCategorias={categorias.length}
+      />
 
-      <section className="space-y-3">
-        <div>
-          <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-            <Wrench className="size-5 text-primary" />
-            Ferramentas
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Produza e prospecte sem sair do hub.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {ferramentas.map((f) => (
-            <CategoriaCard
-              key={f.titulo}
-              href={f.href}
-              titulo={f.titulo}
-              subtitulo={f.subtitulo}
-              capa={f.capa}
-              emBreve={f.emBreve}
-            />
-          ))}
-        </div>
-      </section>
-
+      {/* Os ebooks da Área Membro ficam por último, com a capa de cada um: é o
+          único conteúdo da tela que vale mais como imagem do que como texto. */}
       <section className="space-y-3">
         <div>
           <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
             <Gem className="size-5 text-primary" />
-            Área Membro
+            Ebooks da Área Membro
           </h2>
           <p className="text-sm text-muted-foreground">
-            Tutoriais e ebooks pra você vender mais. Clique pra assistir e ler.
+            Material pra você vender mais. Clique numa capa pra ler.
           </p>
         </div>
 

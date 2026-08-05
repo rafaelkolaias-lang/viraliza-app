@@ -1,8 +1,9 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { UserPlus, Trash2, Ban, Unlock, RotateCcw } from "lucide-react";
+import { UserPlus, Trash2, Ban, Unlock, RotateCcw, Images } from "lucide-react";
 import { toast } from "sonner";
 import {
   Table,
@@ -233,6 +234,15 @@ export function UsuariosAdmin({
                   </TableCell>
                   <TableCell>
                     <div className="flex justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        title="Ver tudo que essa pessoa criou"
+                        className="text-primary hover:bg-primary/10 hover:text-primary"
+                        render={<Link href={`/admin/criacoes?u=${u.id}`} />}
+                      >
+                        <Images className="size-4" />
+                      </Button>
                       {u.role === "demo" && (
                         <Button
                           variant="ghost"

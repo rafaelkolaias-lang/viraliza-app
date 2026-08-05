@@ -40,7 +40,7 @@ import {
 import type { AvatarCriado } from "@/lib/avatar-modelo";
 
 /**
- * "Criar com IA": monta o influenciador em 7 passos, cada um com a sua caixa e a
+ * "Novo influenciador": monta o influenciador em 7 passos, cada um com a sua caixa e a
  * trilha numerada em cima. Substituiu o quiz de uma pergunta por tela: aqui a
  * pessoa vê o caminho inteiro e volta em qualquer passo com um clique.
  *

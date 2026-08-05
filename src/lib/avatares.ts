@@ -119,7 +119,7 @@ export async function registrarAvatar(opts: {
   const origem = origemDe(a.escolhas);
   // O que a IA criou aqui também entra em "Minhas imagens". Origem "upload" fica
   // de fora por dois motivos: a foto é dela (não geramos nada) e é por esse
-  // caminho que passa o "Salvar como influencer" de uma imagem do Lab, que JÁ
+  // caminho que passa o "Salvar como influenciador" de uma imagem do Lab, que JÁ
   // está na galeria. Sem isso o mesmo card aparecia duas vezes e o contador de
   // vídeos era somado nas duas linhas.
   // Sem await de propósito: a galeria é bônus, não pode atrasar a resposta.

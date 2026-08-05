@@ -223,7 +223,7 @@ export async function POST(req: Request) {
 
   // Toda imagem gerada entra em "Minhas imagens" com as escolhas que a criaram:
   // é isso que deixa o card virar "Novo vídeo" sem refazer a imagem. Virar
-  // INFLUENCIADOR continua sendo escolha dela (botão "Salvar como influencer").
+  // INFLUENCIADOR continua sendo escolha dela (botão "Salvar como influenciador").
   const imagemId = await salvarNaGaleria({
     userId: user.id,
     origem: "lab",

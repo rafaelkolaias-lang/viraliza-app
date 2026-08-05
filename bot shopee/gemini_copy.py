@@ -485,6 +485,99 @@ Responda SOMENTE JSON: {{"indices": [lista de números], "motivo": "curto"}}""")
     return list(imagens_paths)  # se falhar, usa todas
 
 
+# Quantas cenas cabem numa chamada de visão. Cada cena manda até 3 quadros, e
+# lote grande demais deixa a resposta preguiçosa (o modelo repete a mesma frase
+# genérica pra tudo em vez de olhar cena por cena).
+CENAS_POR_LOTE = 6
+# mesmo teto do campo "descrever a cena" da tela (src/lib/montagem.ts)
+MAX_DESCRICAO = 160
+
+
+def descrever_cenas(cenas):
+    """Olha os quadros de cada clipe de apoio e escreve, numa frase, o que ele MOSTRA.
+
+    É o que salva a cena que a pessoa subiu SEM descrever: sem nenhuma pista do
+    conteúdo, o `plano_broll` só consegue espalhar os apoios pelo ritmo, em vez
+    de encaixar no trecho da fala que combina com aquela imagem.
+
+    cenas: [{i, tipo, quadros: [bytes jpeg]}] - 3 quadros num vídeo (começo, meio
+    e fim do trecho cortado) e 1 numa foto.
+    Retorna {indice_da_cena: "frase"}. Dicionário vazio nunca é erro fatal: o
+    render segue exatamente como seguia antes."""
+    if not _KEYS or not cenas:
+        return {}
+    out = {}
+    for k in range(0, len(cenas), CENAS_POR_LOTE):
+        try:
+            out.update(_descrever_lote(cenas[k:k + CENAS_POR_LOTE]))
+        except Exception:
+            continue          # lote que falhou fica sem descrição, o resto vale
+    return out
+
+
+def _descrever_lote(cenas):
+    """Uma chamada de visão com as cenas do lote (quadros rotulados na ordem)."""
+    partes, esperadas = [], 0
+    for c in cenas:
+        quadros = [q for q in (c.get("quadros") or []) if q]
+        if not quadros:
+            continue
+        esperadas += 1
+        if c.get("tipo") == "image" or len(quadros) == 1:
+            partes.append(f"CENA {c.get('i')} (foto parada):")
+        else:
+            partes.append(f"CENA {c.get('i')} ({len(quadros)} quadros do MESMO trecho de "
+                          "vídeo, na ordem: começo, meio e fim):")
+        for q in quadros:
+            partes.append(types.Part.from_bytes(data=q, mime_type="image/jpeg"))
+    if not esperadas:
+        return {}
+    partes.append(f"""Estas são cenas de apoio de um vídeo de venda: elas vão entrar por
+cima da pessoa que fala, no momento em que a fala dela combinar com o que a cena mostra.
+
+Descreva CADA cena em UMA frase curta (no máximo 12 palavras), em português do Brasil,
+dizendo o que aparece na tela. Regras:
+- Diga o que se VÊ: o objeto/produto, a parte dele em destaque e a ação. Ex.: "close no
+  tecido da legging sendo esticado", "caixa do produto sendo aberta na mesa".
+- Nos vídeos, compare os quadros na ordem pra captar o MOVIMENTO (o que muda entre o
+  primeiro e o último). Se nada muda, descreva só o que está em quadro.
+- NÃO invente marca, preço, material nem benefício que não dê pra ver.
+- Nada de opinião ou copy de venda: é uma etiqueta do conteúdo, não um anúncio.
+- Uma entrada por cena, usando o mesmo número que veio no rótulo "CENA N".
+
+Responda SOMENTE JSON:
+{{"cenas": [{{"cena": 0, "mostra": "close no tecido sendo esticado"}}]}}""")
+    erros = []
+    for _ in range(len(_KEYS)):
+        key = next(_ciclo)
+        try:
+            client = genai.Client(api_key=key)
+            resp = client.models.generate_content(
+                model=MODELO, contents=partes,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json", temperature=0.2),
+            )
+            uso.add_gemini(MODELO, getattr(resp, "usage_metadata", None))
+            d = json.loads(resp.text)
+            break
+        except Exception as e:
+            erros.append(str(e)[:120])
+    else:
+        return {}
+    out = {}
+    for item in (d.get("cenas") or []):
+        if not isinstance(item, dict):
+            continue
+        try:
+            i = int(item.get("cena"))
+        except (TypeError, ValueError):
+            continue
+        frase = str(item.get("mostra") or "").strip()[:MAX_DESCRICAO]
+        if frase:
+            out[i] = frase
+    return out
+
+
 def plano_broll(fala, apoios, dur_base):
     """Escolhe EM QUE SEGUNDO cada clipe de apoio entra por cima do vídeo principal.
 

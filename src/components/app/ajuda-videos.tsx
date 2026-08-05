@@ -30,6 +30,7 @@ import {
   Texto,
   Titulinho,
 } from "@/components/app/ajuda-blocos";
+import { CUSTO_PROMPT_LAB } from "@/lib/lab-custos";
 
 /**
  * Grupo "Criar vídeos": os quatro caminhos que geram vídeo, do mais novo
@@ -114,7 +115,8 @@ export function AjudaVideos() {
           </Cartao>
           <Cartao Icone={PenLine} titulo="Gerador de prompt">
             Você manda a foto do produto e a IA escreve a descrição técnica pra você
-            colar no campo. <strong className="text-foreground">É de graça</strong> e
+            colar no campo. Custa{" "}
+            <strong className="text-foreground">{CUSTO_PROMPT_LAB} créditos</strong> e
             melhora muito o resultado da imagem.
           </Cartao>
         </div>

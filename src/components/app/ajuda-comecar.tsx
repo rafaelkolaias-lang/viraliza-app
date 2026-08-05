@@ -25,6 +25,7 @@ import {
   Titulinho,
 } from "@/components/app/ajuda-blocos";
 import { CREDITOS_FIXO } from "@/lib/precos";
+import { CUSTO_PROMPT_LAB } from "@/lib/lab-custos";
 
 /**
  * Grupo "Começando": o que fazer no primeiro dia, como o dinheiro funciona
@@ -70,9 +71,11 @@ export function AjudaComecar() {
         </div>
 
         <Aviso tom="dica" titulo="A regra de ouro pra economizar">
-          Tudo que é <strong className="text-foreground">texto</strong> na plataforma
-          (a IA escrever a cena, a fala, a ficha do influenciador, o roteiro) é de graça
-          e você pode refazer quantas vezes quiser. O que consome crédito é a{" "}
+          Quase tudo que é <strong className="text-foreground">texto</strong> na
+          plataforma (a IA escrever a cena, a fala, a ficha do influenciador, o roteiro) é
+          de graça e você pode refazer quantas vezes quiser. A exceção é o Gerador de
+          prompt, que custa {CUSTO_PROMPT_LAB} créditos porque lê as suas fotos. O que
+          consome crédito mesmo é a{" "}
           <strong className="text-foreground">imagem</strong> e o{" "}
           <strong className="text-foreground">vídeo</strong>. Então capriche no texto
           antes de mandar gerar.
@@ -123,6 +126,7 @@ export function AjudaComecar() {
             ["Criar um influenciador com IA", "20"],
             ["Enviar a imagem de um influenciador pronto", "0 (de graça)"],
             ["Textos escritos pela IA (cena, fala, ficha, roteiro)", "0 (de graça)"],
+            ["Gerador de prompt (a IA lê suas fotos)", String(CUSTO_PROMPT_LAB)],
             ["Editor automático e Cortes (usando IA)", "Pelo uso real"],
             ["Editor automático no modo sem IA", String(CREDITOS_FIXO.editorManual)],
             ["Marca em lote (por vídeo carimbado)", String(CREDITOS_FIXO.lote)],

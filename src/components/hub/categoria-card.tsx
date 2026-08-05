@@ -13,12 +13,18 @@ export function CategoriaCard({
   subtitulo,
   capa,
   emBreve = false,
+  selo,
 }: {
   href: string;
   titulo: string;
   subtitulo: string;
   capa: string;
   emBreve?: boolean;
+  /** Etiqueta no canto de cima, à esquerda (ex.: "Só assinantes"). O card
+   *  continua clicável: quem não pode entrar vê o aviso na própria tela de
+   *  destino (`BibliotecaBloqueada`), então esconder o caminho só faria a
+   *  pessoa não saber que aquilo existe. */
+  selo?: string;
 }) {
   const conteudo = (
     <div className="relative aspect-[4/5]">
@@ -36,6 +42,12 @@ export function CategoriaCard({
       />
       {/* escurece a base pra leitura do texto */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-transparent" />
+
+      {selo && !emBreve ? (
+        <span className="absolute left-2 top-2 rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-semibold text-amber-950 shadow-sm">
+          {selo}
+        </span>
+      ) : null}
 
       {emBreve ? (
         <span className="absolute right-2 top-2 rounded-full bg-background/80 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground backdrop-blur-sm">

@@ -23,6 +23,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { StatCard } from "@/components/app/stat-card";
 import { GraficoVendas } from "@/components/app/grafico-vendas";
+import { FinancasUsuarios } from "@/components/app/financas-usuarios";
 import { getPainelFinancas, PERIODOS_FINANCAS, DIAS_PADRAO } from "@/lib/financas";
 import { elevenSaldo } from "@/lib/diagnostico";
 
@@ -257,41 +258,7 @@ export default async function FinancasPage({
             </p>
           </div>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Usuário</TableHead>
-                  <TableHead className="text-right">Custo APIs</TableHead>
-                  <TableHead className="hidden text-right sm:table-cell">Créditos gastos</TableHead>
-                  <TableHead className="text-right">Margem</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {f.gastos.porUsuario.map((u) => (
-                  <TableRow key={u.userId}>
-                    <TableCell>
-                      <p className="text-sm font-medium">{u.nome}</p>
-                      <p className="text-xs text-muted-foreground">{u.email}</p>
-                    </TableCell>
-                    <TableCell className="text-right text-sm font-semibold">
-                      {brl(u.custoCentavos)}
-                    </TableCell>
-                    <TableCell className="hidden text-right text-sm text-muted-foreground sm:table-cell">
-                      {brl(u.creditosCentavos)}
-                    </TableCell>
-                    <TableCell
-                      className={`text-right text-sm font-semibold ${
-                        u.margemCentavos < 0 ? "text-red-500" : "text-emerald-600"
-                      }`}
-                    >
-                      {u.margemCentavos < 0 ? "−" : "+"} {brl(Math.abs(u.margemCentavos))}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <FinancasUsuarios linhas={f.gastos.porUsuario} />
         )}
         <p className="mt-2 text-[11px] text-muted-foreground">
           Margem = créditos que o usuário gastou menos o custo real de API que ele gerou.

@@ -315,7 +315,7 @@ export function LabImagem({
             ) : (
               <UserRoundPlus className="size-4" />
             )}
-            {salvo ? "Salvo nos influenciadores" : "Salvar como influencer"}
+            {salvo ? "Salvo nos influenciadores" : "Salvar como influenciador"}
           </button>
         )}
         {/* enquanto o painel "usar imagem que já tenho" está aberto, o botão de

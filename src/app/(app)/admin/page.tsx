@@ -124,7 +124,17 @@ export default async function AdminPage() {
         <StatCard label="Online agora" value={stats.online} icon={Wifi} />
         <StatCard
           label="Créditos gastos"
-          value={stats.creditosGastos.toLocaleString("pt-BR")}
+          value={
+            <>
+              {(stats.creditosGastos / 100).toLocaleString("pt-BR", {
+                style: "currency",
+                currency: "BRL",
+              })}{" "}
+              <span className="text-base font-normal text-muted-foreground">
+                ({stats.creditosGastos.toLocaleString("pt-BR")})
+              </span>
+            </>
+          }
           icon={Coins}
         />
       </div>
@@ -148,7 +158,13 @@ export default async function AdminPage() {
         <AdminUsuarios usuarios={usuarios} />
         <p className="mt-2 text-[11px] text-muted-foreground">
           Gasto = créditos consumidos em produção (geração + processamento). Clique em
-          Gerenciar pra adicionar/remover crédito. 1 crédito = R$ 0,01.
+          Gerenciar pra adicionar/remover crédito e ver o detalhe de uso da pessoa,
+          ferramenta por ferramenta. 1 crédito = R$ 0,01. Pra comparar todo mundo lado a
+          lado e filtrar por período, veja{" "}
+          <Link href="/admin/uso" className="underline underline-offset-2 hover:text-foreground">
+            Uso das ferramentas
+          </Link>
+          .
         </p>
       </div>
 

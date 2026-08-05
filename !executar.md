@@ -8,7 +8,40 @@
 
 ## Tarefas Pendentes — Claude 1:
 
-(nenhuma)
+### X 11. Tela de apresentação (os "quadradinhos" do Labs) no "Personalize com IA" e no "Ferramentas"
+
+**Status: PENDENTE** | Pedido do dono em 05/08/2026, anotado pelo Claude 3.
+
+**O que é:** os grupos **Personalize com IA** e **Ferramentas** devem ganhar a mesma tela de apresentação que o Viraliza Labs já tem em `/painel/lab/inicio`: um cartão por ferramenta, com vídeo quadrado em cima, o nome, uma frase do que ela faz e um botão "Abrir".
+
+**Por que ela existe (ler antes de começar):** o nome das ferramentas não se explica sozinho. A barrinha do rodapé até tem uma frase de cada uma, mas só no balãozinho do mouse, que no celular NÃO existe. A tela EXPLICA, não repete atalho. **Cuidado especial no Ferramentas:** já existiu uma `/painel/ferramentas` e ela foi APAGADA justamente por ser só uma grade de atalhos repetidos, um clique a mais pro mesmo lugar (está escrito no `nav-links.tsx`, no grupo `nav_ferramentas_aberto`). O que justifica a volta dela é a explicação + o vídeo mostrando o que sai de cada ferramenta. Se sair só uma grade de botões, vai ser apagada de novo.
+
+**Modelo pronto pra copiar:** tela `src/app/(app)/painel/lab/inicio/page.tsx` (Server Component, só `LabCabecalho` + o grid), grid `src/components/app/lab-inicio.tsx`, cabeçalho `src/components/app/lab-cabecalho.tsx`.
+
+**Passos:**
+
+1. **Criar as duas telas**, cada uma DENTRO da pasta do seu grupo, pra já herdar o layout:
+   - Personalize com IA -> `src/app/(app)/painel/meus-avatares/inicio/page.tsx` (3 cartões: Novo influenciador, Galeria de avatares, Meus cenários).
+   - Ferramentas -> `src/app/(app)/painel/(ferramentas)/ferramentas/page.tsx`, que dá o endereço `/painel/ferramentas` (o parêntese não entra na URL). 5 cartões: Editor automático, Aplicar marca em lote, MapsLeads, Cortes de qualquer vídeo, Minerador.
+
+2. **Não copiar o JSX 3 vezes.** Hoje o `lab-inicio.tsx` tem a lista cravada dentro dele. Como agora são 3 telas iguais, extrair o grid pra um componente que RECEBE a lista (ex.: `<GradeFerramentas itens={...} />`) e cada tela passa a sua. O Labs passa a usar o mesmo.
+
+3. **Ligar o nome do menu na tela nova:** em `src/components/app/nav-links.tsx`, no array `GRUPOS`, trocar o `raiz` de dois grupos (os dois já têm `navegavel: true`):
+   - `nav_personalize_aberto`: `/painel/meus-avatares/criar` -> `/painel/meus-avatares/inicio`
+   - `nav_ferramentas_aberto`: `/painel/novo` -> `/painel/ferramentas`
+   **`nav-links.tsx` é arquivo disputado por vários Claudes: conferir o `!agentes.md` antes de abrir.**
+
+4. **Esconder a barrinha do rodapé nessas telas**, senão fica o mesmo menu duas vezes na mesma página. O Labs já faz isso em `lab-barra.tsx:67` (`if (pathname === LAB_INICIO) return null;`). O `personalize-barra.tsx` e o `ferramentas-barra.tsx` ainda NÃO usam `usePathname`, então tem que importar (os dois já são `"use client"`).
+
+5. **Conferir qual item do menu acende.** No Labs o "Criar criativo" precisou de `exato: true` porque a rota dele era o começo das outras. Nos dois casos aqui o problema não deve aparecer (a Galeria já tem `exato: true`, e as 5 do Ferramentas são rotas irmãs), mas confirmar na tela.
+
+6. **Vídeo dos cartões: NÃO existe ainda pra essas 8 ferramentas.** Fazer os cartões **sem** o campo `chave`: sem ele o cartão cai no ícone grande, que é exatamente como os 3 cartões do Labs ficavam antes do vídeo chegar. Deixar o campo pronto pro dono só mandar os vídeos depois. O caminho é `chave` -> `midiaFerramenta(chave)` (`src/lib/lab-midia.ts`) -> serverrk em `lab/ferramentas/<chave>.mp4` + `<chave>.jpg`. **Quando os vídeos chegarem:** recomprimir pra 480px sem áudio ANTES de subir (linha de `ffmpeg` no comentário do topo do `lab-inicio.tsx`); o arquivo cru do Grok vem em 960px e 4 deles davam 32MB numa tela só. E lembrar do cache de 4h da Cloudflare, que guarda até o 404 (explicado no topo do `lib/lab-midia.ts`).
+
+7. **Textos:** uma frase curta por ferramenta dizendo o que ela FAZ. **Sem citar preço**, de propósito: o valor aparece na hora de gerar, e assim esta tela não vira um segundo lugar pra desatualizar quando um preço mudar. Sem travessão "—" (proibido pelo `temporary_rules.md`).
+
+8. **Conferir no fim:** `npx tsc --noEmit`, `npx eslint` e abrir as duas telas no dev server.
+
+**Arquivos:** `src/app/(app)/painel/meus-avatares/inicio/page.tsx` (novo), `src/app/(app)/painel/(ferramentas)/ferramentas/page.tsx` (novo), `src/components/app/lab-inicio.tsx`, `src/components/app/nav-links.tsx`, `src/components/app/personalize-barra.tsx`, `src/components/app/ferramentas-barra.tsx`.
 
 ---
 

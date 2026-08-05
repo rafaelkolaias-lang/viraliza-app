@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -8,7 +9,8 @@ export function StatCard({
   sub,
 }: {
   label: string;
-  value: string | number;
+  /** aceita texto ou trecho montado (ex: valor em reais + créditos em menor) */
+  value: ReactNode;
   icon: LucideIcon;
   /** legenda secundária pequena (ex: "cliente pagou R$25,89") */
   sub?: string;

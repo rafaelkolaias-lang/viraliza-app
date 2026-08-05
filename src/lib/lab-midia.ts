@@ -9,6 +9,15 @@
  *
  * O nome do arquivo é sempre a CHAVE do estilo ou do movimento: `<chave>.mp4`
  * com o poster `<chave>.jpg` do lado.
+ *
+ * ARMADILHA DO CLOUDFLARE (05/08/2026): esse domínio responde com
+ * `cache-control: max-age=14400`, ou seja, 4 horas. Duas consequências:
+ * 1. Trocar um exemplo mantendo o mesmo nome NÃO aparece na hora, nem pra você
+ *    nem pros usuários. Ou espera as 4h, ou limpa o cache do arquivo no painel
+ *    da Cloudflare, ou sobe com nome novo e troca a chave aqui.
+ * 2. Ele também guarda o 404. Se alguém abrir a URL ANTES do arquivo existir, o
+ *    erro fica em cache e continua preto mesmo depois de subir. Nesse caso, é
+ *    só forçar (Ctrl+Shift+R), que ele revalida.
  */
 const BASE = (
   process.env.NEXT_PUBLIC_LAB_MEDIA || "https://media.univershoop.com/lab"
@@ -22,6 +31,18 @@ export const midiaEstilo = (chave: string) => ({
 export const midiaMovimento = (chave: string) => ({
   video: `${BASE}/movimentos/${chave}.mp4`,
   poster: `${BASE}/movimentos/${chave}.jpg`,
+});
+
+/**
+ * Vídeo de demonstração de cada ferramenta na tela de apresentação do Lab
+ * (`/painel/lab/inicio`). Quadrado, ~10s, mudo, em loop.
+ *
+ * Peso importa aqui porque a tela toca os quatro de uma vez: subir sempre em
+ * 480px e sem áudio, nunca o arquivo cru do Grok (960px, vários MB cada).
+ */
+export const midiaFerramenta = (chave: string) => ({
+  video: `${BASE}/ferramentas/${chave}.mp4`,
+  poster: `${BASE}/ferramentas/${chave}.jpg`,
 });
 
 /** Foto do passo "Cenário" (a cena vazia, sem gente, que vira o fundo). */

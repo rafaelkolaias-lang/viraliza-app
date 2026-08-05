@@ -1,4 +1,4 @@
-import { CUSTO_IMAGEM_LAB, custoVideoLab } from "@/lib/lab-custos";
+import { CUSTO_IMAGEM_LAB, CUSTO_PROMPT_LAB, custoVideoLab } from "@/lib/lab-custos";
 import { CUSTO_AVATAR } from "@/lib/avatar-modelo";
 import type { LinkTela } from "@/lib/suporte-conversas";
 
@@ -49,16 +49,16 @@ export function respostasProntas(garantiaDias: number): Pronta[] {
       pergunta: "Quanto custa gerar um vídeo?",
       resposta:
         `Depende da duração: ${custoVideoLab("6s")} créditos com 6 segundos, ${custoVideoLab("10s")} com 10 e ${custoVideoLab("15s")} com 15. O preço é o mesmo com ou sem o influenciador falando.\n\n` +
-        `A imagem da cena custa ${CUSTO_IMAGEM_LAB} créditos à parte, e todo texto que a IA escreve é de graça. Pelo botão abaixo você vê seu saldo.`,
+        `A imagem da cena custa ${CUSTO_IMAGEM_LAB} créditos à parte. Os textos que a IA escreve dentro do funil (cena, fala, roteiro) são de graça; só o Gerador de prompt cobra, ${CUSTO_PROMPT_LAB} créditos. Pelo botão abaixo você vê seu saldo.`,
       links: [{ rota: "/painel/creditos", nome: "Créditos" }],
     },
     {
       pergunta: "Onde crio meu influenciador?",
       resposta:
-        "No menu Personalize com IA, em Criar com IA. Lá tem os três jeitos: do zero, a partir de uma foto real ou já segurando o seu produto.\n\n" +
-        `Criar com IA custa ${CUSTO_AVATAR} créditos. Se você já tem a foto da pessoa, enviar é de graça. Use os botões abaixo pra ir direto.`,
+        "No menu Personalize com IA, em Novo influenciador. Lá tem os três jeitos: do zero, a partir de uma foto real ou já segurando o seu produto.\n\n" +
+        `Criar o influenciador com IA custa ${CUSTO_AVATAR} créditos. Se você já tem a foto da pessoa, enviar é de graça. Use os botões abaixo pra ir direto.`,
       links: [
-        { rota: "/painel/meus-avatares/criar", nome: "Criar com IA" },
+        { rota: "/painel/meus-avatares/criar", nome: "Novo influenciador" },
         { rota: "/painel/meus-avatares", nome: "Galeria de avatares" },
       ],
     },

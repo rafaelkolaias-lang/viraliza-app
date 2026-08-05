@@ -13,7 +13,7 @@ import { numeroDaSecao } from "@/lib/ajuda-indice";
  * esses blocos: nenhum deles tem estado, todos são Server Components.
  *
  * A régua do texto é a pessoa mais perdida da plataforma: nada de "configure o
- * avatar", e sim "clique no botão verde escrito Criar com IA".
+ * avatar", e sim "clique no botão verde escrito Criar influenciador".
  */
 
 /** Bloco numerado de conteúdo. O número sai do índice, não da mão. */

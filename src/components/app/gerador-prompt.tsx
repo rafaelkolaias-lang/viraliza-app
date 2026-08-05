@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { DURACOES, ESTILOS_VIDEO, IDIOMAS_FALA, custoVideoAvatar } from "@/lib/avatar-modelo";
 import { normalizarImagem, ERRO_IMAGEM } from "@/lib/imagem-cliente";
 import { guardarPromptParaLivre } from "@/lib/lab-handoff";
+import { CUSTO_PROMPT_LAB } from "@/lib/lab-custos";
 
 /**
  * GERADOR DE PROMPT: a pessoa sobe o avatar (opcional) + as fotos do produto, diz
@@ -392,7 +393,8 @@ export function GeradorPrompt() {
 
         <p className="mt-2 text-[11px] text-muted-foreground">
           JSON funciona melhor no Gemini e no Grok direto. O Normal é o formato UGC pronto pro
-          Vídeo livre. Gerar o prompt é grátis.
+          Vídeo livre. Cada prompt gerado custa {CUSTO_PROMPT_LAB} créditos, e se a IA falhar
+          você não paga nada.
         </p>
       </div>
 
@@ -409,7 +411,9 @@ export function GeradorPrompt() {
         )}
       >
         {gerando ? <Loader2 className="size-5 animate-spin" /> : <Wand2 className="size-5" />}
-        {gerando ? "A IA está escrevendo seu prompt..." : "Gerar prompt com IA"}
+        {gerando
+          ? "A IA está escrevendo seu prompt..."
+          : `Gerar prompt com IA (${CUSTO_PROMPT_LAB} créditos)`}
       </button>
 
       {/* ===== RESULTADO ===== */}

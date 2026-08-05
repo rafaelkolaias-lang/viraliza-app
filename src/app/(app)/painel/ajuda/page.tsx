@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 /**
  * CENTRAL DE AJUDA: o manual da plataforma escrito pra quem nunca mexeu em nada
  * parecido. A régua é a pessoa mais perdida: nada de "configure o avatar", e sim
- * "clique no botão verde escrito Criar com IA".
+ * "clique no botão verde escrito Criar influenciador".
  *
  * Montagem: índice fixo à esquerda (âncoras) + grupos de seções à direita. O
  * conteúdo mora em `components/app/ajuda-*.tsx` e a numeração em

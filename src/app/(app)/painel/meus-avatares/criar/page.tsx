@@ -3,7 +3,7 @@ import { CriarInfluenciador } from "@/components/app/criar-influenciador";
 import { requireUser } from "@/lib/dal";
 import { listarAvatares } from "@/lib/avatares";
 
-export const metadata: Metadata = { title: "Criar com IA" };
+export const metadata: Metadata = { title: "Novo influenciador" };
 export const dynamic = "force-dynamic";
 
 export default async function CriarAvatarPage() {
