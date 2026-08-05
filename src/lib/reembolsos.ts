@@ -21,6 +21,8 @@ import {
   pedidoEstornado,
   statusReembolsoSolicitado as statusReembolsoSolicitadoCakto,
 } from "@/lib/cakto";
+import { rebaixarPorReembolso, restaurarNivel } from "@/lib/niveis";
+import { cancelarLiberacoesDoPedido } from "@/lib/liberacao-creditos";
 
 /**
  * Regras de reembolso:
@@ -36,7 +38,7 @@ import {
  * - CHARGEBACK -> tudo do reembolso aceito + BLOQUEIA o login.
  */
 
-const parseInfo = (desc?: string | null): { assinanteAntes?: boolean } => {
+const parseInfo = (desc?: string | null): { assinanteAntes?: boolean; nivelAntes?: string } => {
   try {
     return JSON.parse(desc || "{}");
   } catch {
@@ -74,6 +76,9 @@ export async function suspenderPorReembolso(email: string, orderId: string) {
   if (!user) return false;
   if (await existeTransacaoOrder(orderId, "suspensao_reembolso")) return false;
 
+  // pediu reembolso -> a conta cai pra bronze na hora (volta se cancelar o pedido)
+  const nivelAntes = await rebaixarPorReembolso(user.id);
+
   await prisma.$transaction(async (tx) => {
     const u = await tx.user.findUnique({
       where: { id: user.id },
@@ -93,6 +98,7 @@ export async function suspenderPorReembolso(email: string, orderId: string) {
         descricao: JSON.stringify({
           m: "Reembolso solicitado na Kiwify: créditos congelados até a decisão",
           assinanteAntes: u.assinante,
+          nivelAntes,
         }),
         kiwifyOrderId: orderId,
       },
@@ -135,6 +141,8 @@ export async function restaurarSuspensao(orderId: string) {
       },
     });
   });
+  // devolve também o nível que a pessoa tinha antes de pedir o reembolso
+  await restaurarNivel(susp.userId, info.nivelAntes);
   console.log("[reembolsos] suspensão revertida", orderId);
   return true;
 }
@@ -171,11 +179,36 @@ export async function aplicarReembolsoAceito(sale: KiwifySale, orderId: string) 
 
   let debitado = 0;
   if (creditosPacote > 0) {
-    // reembolso de PACOTE: perde só os créditos daquele pacote
-    debitado = await debitarClamp(user.id, creditosPacote, "estorno", {
-      descricao: `Estorno Kiwify: ${sale.product?.name || "pacote de créditos"}`,
-      kiwifyOrderId: orderId,
-    });
+    // reembolso de PACOTE: perde os créditos daquele pacote.
+    // 1) o que ainda estava PRESO na quarentena deste pedido nunca chegou a
+    //    entrar no saldo - cancelar já "devolve" essa parte.
+    const canceladoPreso = await cancelarLiberacoesDoPedido(orderId);
+    const restante = Math.max(0, creditosPacote - canceladoPreso);
+    // 2) do que entrou, tira o que ainda houver no saldo
+    debitado =
+      restante > 0
+        ? await debitarClamp(user.id, restante, "estorno", {
+            descricao: `Estorno: ${sale.product?.name || "pacote de créditos"}`,
+            kiwifyOrderId: orderId,
+          })
+        : 0;
+    if (debitado === 0) {
+      // marcador de idempotência mesmo sem saldo a debitar
+      await lancar(user.id, 0, "estorno", {
+        descricao: `Estorno: ${sale.product?.name || "pacote de créditos"} (crédito preso cancelado)`,
+        kiwifyOrderId: orderId,
+      });
+    }
+    // 3) o que já foi GASTO e não deu pra recuperar vira saldo devedor: a conta
+    //    trava pra gerar até a pessoa comprar de novo (a compra quita primeiro).
+    const falta = restante - debitado;
+    if (falta > 0) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { dividaCentavos: { increment: falta } },
+      });
+      console.log("[reembolsos] saldo devedor lançado", orderId, user.email, falta);
+    }
   } else {
     // reembolso da PLATAFORMA (entrada): perde os créditos de brinde + assinatura
     const brinde = await totalBrinde(user.id);
@@ -197,6 +230,10 @@ export async function aplicarReembolsoAceito(sale: KiwifySale, orderId: string) 
       data: { assinante: false },
     });
   }
+
+  // reembolso aceito: a conta fica (ou volta a ficar) bronze - o restaurarSuspensao
+  // acima pode ter devolvido o nível antigo, e aqui a perda é definitiva.
+  await rebaixarPorReembolso(user.id);
 
   if (chargeback) {
     // contestação no cartão: bloqueia o login (derruba a sessão também)

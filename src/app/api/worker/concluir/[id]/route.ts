@@ -6,6 +6,7 @@ import { workerAutorizado } from "@/lib/worker-auth";
 import { pastaSaida, pastaEntrada } from "@/lib/jobs";
 import { custoCreditos, CREDITOS_FIXO, type Consumo } from "@/lib/precos";
 import { debitarClamp, jobJaDebitado } from "@/lib/creditos";
+import { registrarConsumoJob } from "@/lib/gastos-api";
 import { notificarJobPronto } from "@/lib/notificacoes";
 
 export const runtime = "nodejs";
@@ -24,6 +25,21 @@ async function debitarJob(
   job: { id: string; userId: string; tipo: string },
   consumoRaw: FormDataEntryValue | null,
 ) {
+  let consumo: Consumo = {};
+  try {
+    consumo = JSON.parse(String(consumoRaw ?? "{}")) as Consumo;
+  } catch {}
+
+  // Contabilidade do DONO (aba Finanças): grava o gasto real de API do job.
+  // Fica FORA do débito de créditos de propósito: job de admin/demo não paga
+  // crédito, mas a API cobrou do mesmo jeito. Idempotente por jobId.
+  await registrarConsumoJob(
+    job.userId,
+    job.id,
+    consumo,
+    job.tipo === "cortes" ? "cortes" : "fabrica",
+  ).catch(() => {});
+
   try {
     if (await jobJaDebitado(job.id)) return;
     const dono = await prisma.user.findUnique({
@@ -31,11 +47,6 @@ async function debitarJob(
       select: { role: true },
     });
     if (!dono || dono.role === "admin" || dono.role === "demo") return;
-
-    let consumo: Consumo = {};
-    try {
-      consumo = JSON.parse(String(consumoRaw ?? "{}")) as Consumo;
-    } catch {}
 
     let creditos = custoCreditos(consumo);
     let tipo: "debito_geracao" | "debito_processamento" = "debito_geracao";

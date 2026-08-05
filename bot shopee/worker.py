@@ -406,7 +406,17 @@ def rodar_cortes(base, headers, job, nome):
     n = contador["n"]
     if n == 0:
         return 0, "Não gerou nenhum corte (veja o log acima)."
-    concluir_finalizar(base, headers, job_id, 0)
+    # consumo de APIs do cortador (tokens do Gemini): vai junto no finalizar pra
+    # web debitar pelo custo real e somar na aba Finanças.
+    consumo = None
+    p_consumo = os.path.join(DIR_SAIDA, f"{nome}_consumo.json")
+    try:
+        with open(p_consumo, encoding="utf-8") as f:
+            consumo = json.load(f)
+        os.remove(p_consumo)
+    except Exception:
+        consumo = None
+    concluir_finalizar(base, headers, job_id, 0, consumo)
     return n, ""
 
 

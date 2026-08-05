@@ -10,6 +10,7 @@ import {
   ChevronDown,
   Clapperboard,
   Coins,
+  Crown,
   DollarSign,
   Film,
   Flag,
@@ -18,10 +19,11 @@ import {
   Gauge,
   Gift,
   GraduationCap,
-  Heart,
+  Newspaper,
   Home,
   Image as ImageIcon,
   LayoutGrid,
+  LifeBuoy,
   MapPin,
   MessageCircle,
   MessageSquarePlus,
@@ -84,10 +86,12 @@ const navTopo: NavItem[] = [
 
 // Itens depois do grupo Ferramentas
 const navFim: NavItem[] = [
+  { href: "/painel/assinatura", label: "Assinatura", icon: Crown },
   { href: "/painel/creditos", label: "Créditos", icon: Coins },
+  { href: "/painel/ajuda", label: "Ajuda", icon: LifeBuoy },
   { href: "/painel/indique", label: "Indique e Ganhe", icon: Gift },
   { href: "/painel/sugestoes", label: "Sugestões", icon: MessageSquarePlus },
-  { href: "/painel/apoiar", label: "Apoie o projeto", icon: Heart },
+  { href: "/painel/blog", label: "Blog", icon: Newspaper },
 ];
 
 // Sub-itens do grupo "Ferramentas" (expansível)

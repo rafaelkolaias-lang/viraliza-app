@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { Flame } from "lucide-react";
 import { PrateleiraVirais } from "@/components/hub/prateleira-virais";
 import { getPrateleirasVirais, getTotalVirais } from "@/lib/virais";
-import { requireAssinatura } from "@/lib/dal";
+import { guardaBiblioteca } from "@/lib/dal";
+import { BibliotecaBloqueada } from "@/components/app/biblioteca-bloqueada";
 
 export const metadata: Metadata = { title: "Cortes" };
 export const dynamic = "force-dynamic";
@@ -14,7 +15,8 @@ function href(nicho: string) {
 const POR_PRATELEIRA = 20;
 
 export default async function ViraisPage() {
-  await requireAssinatura();
+  const { liberado } = await guardaBiblioteca();
+  if (!liberado) return <BibliotecaBloqueada />;
   // semente de rotação por visita: gira as prateleiras de nicho a cada entrada
   // (a página é force-dynamic, então cada acesso gera uma nova).
   const rotacaoSeed = Math.floor(Math.random() * 1_000_000_000) + 1;

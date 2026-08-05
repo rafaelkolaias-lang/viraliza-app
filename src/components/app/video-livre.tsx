@@ -122,7 +122,7 @@ export function VideoLivre({
       if (!r.ok || !data.jobId) {
         toast.error(
           data.faltaCreditos
-            ? `Você precisa de ${data.custo ?? custoVideoAvatar(duracao, comFala)} créditos pra gerar esse vídeo.`
+            ? `Você precisa de ${data.custo ?? custoVideoAvatar(duracao)} créditos pra gerar esse vídeo.`
             : data.erro ?? "Não consegui iniciar a geração. Tente de novo.",
         );
         return;
@@ -268,7 +268,7 @@ export function VideoLivre({
           )}
 
           <span className="ml-auto text-xs font-bold text-primary">
-            {custoVideoAvatar(duracao, comFala)} créditos
+            {custoVideoAvatar(duracao)} créditos
           </span>
 
           <button

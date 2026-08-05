@@ -1,17 +1,11 @@
-import type { Metadata } from "next";
-import { requireUser } from "@/lib/dal";
-import { meusApoios, todosApoios } from "@/lib/apoios";
-import { ApoiarPainel } from "@/components/app/apoiar-painel";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Apoie o projeto" };
-export const dynamic = "force-dynamic";
-
-export default async function ApoiarPage() {
-  const user = await requireUser();
-  const admin = user.role === "admin";
-  const [meus, todos] = await Promise.all([
-    meusApoios(user.id),
-    admin ? todosApoios() : Promise.resolve([]),
-  ]);
-  return <ApoiarPainel admin={admin} meus={meus} todos={todos} />;
+/**
+ * Aba "Apoie o projeto" DESCONTINUADA (04/08/2026): saiu do menu e o lugar dela
+ * virou o Blog. Quem chegar aqui por link antigo cai lá. O restante da doação
+ * (lib/apoios, webhook InfinitePay, apoiar-painel.tsx) fica no código só pra
+ * histórico dos apoios antigos; nada mais aponta pra cá.
+ */
+export default function ApoiarPage() {
+  redirect("/painel/blog");
 }

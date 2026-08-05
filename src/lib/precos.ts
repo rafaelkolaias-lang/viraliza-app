@@ -60,6 +60,10 @@ export type Consumo = {
   geminiFlashTokens?: number;
   geminiImgTokens?: number;
   elevenChars?: number;
+  /** segundos de cena animada no Veo (a fábrica só gera quando "gerar_cena: sim").
+   *  Por enquanto entra SÓ no custo do admin (gastos-api); não é cobrado do
+   *  usuário em custoCreditos até calibrarmos os preços (ver reminder.md). */
+  veoSegundos?: number;
 };
 
 /** Converte o consumo real em CRÉDITOS (1 crédito = R$ 0,01), já com +20%. */

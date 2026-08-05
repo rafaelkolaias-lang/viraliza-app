@@ -8,12 +8,13 @@ Unidades:
   geminiFlashTokens -> tokens totais nos modelos de texto/visao (gemini-2.5-flash)
   geminiImgTokens   -> tokens totais nos modelos de imagem (gemini-2.5-flash-image)
   elevenChars       -> caracteres narrados na ElevenLabs
+  veoSegundos       -> segundos de cena animada gerados no Veo
 """
 import json
 import threading
 
 _lock = threading.Lock()
-_uso = {"geminiFlashTokens": 0, "geminiImgTokens": 0, "elevenChars": 0}
+_uso = {"geminiFlashTokens": 0, "geminiImgTokens": 0, "elevenChars": 0, "veoSegundos": 0}
 
 
 def add_gemini(model, usage_metadata):
@@ -38,6 +39,17 @@ def add_eleven(chars):
     if n > 0:
         with _lock:
             _uso["elevenChars"] += n
+
+
+def add_veo(segundos):
+    """Soma os segundos de um clipe gerado no Veo (so quando a geracao deu certo)."""
+    try:
+        n = int(segundos or 0)
+    except Exception:
+        n = 0
+    if n > 0:
+        with _lock:
+            _uso["veoSegundos"] += n
 
 
 def snapshot():

@@ -22,7 +22,7 @@ import {
   Sunset,
   Tv,
   Dumbbell,
-  PencilLine,
+  Lightbulb,
   Upload,
   Loader2,
 } from "lucide-react";
@@ -35,10 +35,12 @@ import type { CenarioMeu } from "@/lib/cenarios-usuario";
 /**
  * Passo "Cenário" do Viraliza Lab: onde a cena acontece. Todo cenário é um card
  * com FOTO (decisão do Lucas em 04/ago/2026: sem cards de ícone; cenário sem
- * foto sai da lista). As exceções são "Descrever outro" (escrever à mão) e
- * "Subir meu cenário" (a pessoa manda a foto do ambiente DELA — vira a chave
+ * foto sai da lista). Só existem dois caminhos: usar um cenário da plataforma ou
+ * "Subir meu cenário" (a pessoa manda a foto do ambiente DELA, vira a chave
  * "meu:<id>", salva na conta, só ela vê; a foto vai como referência de lugar
- * pro motor).
+ * pro motor). Descrever o cenário à mão saiu em 04/ago/2026: o texto puro dava
+ * resultado imprevisível, então no lugar entrou o quadro de dicas ensinando a
+ * pegar uma foto de ambiente no Pinterest e subir.
  *
  * As fotos da plataforma moram em media.univershoop.com/lab/cenarios/<chave>.jpg
  * (serverrk, fora do repo): trocar/adicionar foto é só scp, sem deploy. A
@@ -80,8 +82,6 @@ export const CENARIOS_LAB: CenarioLab[] = [
   { chave: "varanda", label: "Varanda com vista", Icone: Mountain },
   { chave: "por_do_sol", label: "Pôr do sol", Icone: Sunset },
   { chave: "resort", label: "Resort paradisíaco", Icone: Umbrella },
-  // "Outros" = descrever à mão (único sem foto de propósito)
-  { chave: "outros", label: "Outros", Icone: PencilLine },
 ];
 
 /** Card de cenário com foto (mesma moldura pros da plataforma e pros da pessoa). */
@@ -144,14 +144,10 @@ function CardFoto({
 
 export function LabCenario({
   escolhido,
-  textoLivre,
   onEscolher,
-  onTextoLivre,
 }: {
   escolhido: string | null;
-  textoLivre: string;
   onEscolher: (chave: string) => void;
-  onTextoLivre: (t: string) => void;
 }) {
   // cenários que a PESSOA subiu (só dela): entram no topo da grade
   const [meus, setMeus] = useState<CenarioMeu[]>([]);
@@ -200,8 +196,40 @@ export function LabCenario({
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
         Onde a cena acontece. O fundo aparece desfocado, com o produto e o avatar
-        sempre nítidos. Você também pode subir a foto de um ambiente seu.
+        sempre nítidos. Use um dos nossos cenários ou suba a foto de um ambiente
+        seu.
       </p>
+
+      {/* DICAS PRA SUBIR O SEU: quem não tem foto de ambiente pega uma no Pinterest */}
+      <div className="flex gap-3 rounded-2xl border border-border/60 bg-card/40 p-3.5">
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/15 text-primary">
+          <Lightbulb className="size-4" />
+        </span>
+        <div className="min-w-0 space-y-1.5">
+          <p className="text-sm font-semibold">Dicas pra subir o seu</p>
+          <ul className="space-y-1 text-[13px] leading-relaxed text-muted-foreground">
+            <li>
+              Não tem foto do ambiente? Procure uma no{" "}
+              <a
+                href="https://br.pinterest.com/search/pins/?q=quarto%20aesthetic"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-primary underline-offset-2 hover:underline"
+              >
+                Pinterest
+              </a>{" "}
+              buscando por algo como &quot;quarto aesthetic&quot;, &quot;academia
+              moderna&quot; ou &quot;loja de roupas&quot;, baixe a imagem e suba
+              aqui.
+            </li>
+            <li>
+              Prefira foto em pé (vertical), nítida e sem ninguém aparecendo: o
+              ambiente é só o fundo.
+            </li>
+            <li>Evite imagem com marca de água, logo ou texto escrito por cima.</li>
+          </ul>
+        </div>
+      </div>
 
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
         {/* SUBIR O PRÓPRIO CENÁRIO: salva na conta (só a pessoa vê) e já seleciona */}
@@ -239,55 +267,17 @@ export function LabCenario({
         ))}
 
         {/* cenários da plataforma */}
-        {CENARIOS_LAB.map(({ chave, label, Icone }) => {
-          const ativo = escolhido === chave;
-
-          // "Outros": card de descrever o cenário à mão (sem foto de propósito)
-          if (chave === "outros") {
-            return (
-              <button
-                key={chave}
-                type="button"
-                onClick={() => onEscolher(chave)}
-                aria-pressed={ativo}
-                className={cn(
-                  "flex aspect-[3/4] flex-col items-center justify-center gap-2 rounded-xl border border-dashed px-3 text-sm font-medium transition-all",
-                  ativo
-                    ? "border-primary bg-primary/10 text-primary ring-2 ring-primary/30"
-                    : "border-border text-muted-foreground hover:border-primary/40 hover:bg-card hover:text-foreground",
-                )}
-              >
-                <Icone className="size-6" />
-                Descrever outro
-                <span className="text-[11px] font-normal text-muted-foreground">
-                  Você escreve o cenário
-                </span>
-              </button>
-            );
-          }
-
-          return (
-            <CardFoto
-              key={chave}
-              src={midiaCenario(chave)}
-              label={label}
-              ativo={ativo}
-              onEscolher={() => onEscolher(chave)}
-              Fallback={Icone}
-            />
-          );
-        })}
+        {CENARIOS_LAB.map(({ chave, label, Icone }) => (
+          <CardFoto
+            key={chave}
+            src={midiaCenario(chave)}
+            label={label}
+            ativo={escolhido === chave}
+            onEscolher={() => onEscolher(chave)}
+            Fallback={Icone}
+          />
+        ))}
       </div>
-
-      {escolhido === "outros" && (
-        <input
-          value={textoLivre}
-          onChange={(e) => onTextoLivre(e.target.value.slice(0, 160))}
-          maxLength={160}
-          placeholder="Descreva o cenário (ex: em uma varanda com plantas, no fim da tarde)"
-          className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary/60"
-        />
-      )}
     </div>
   );
 }

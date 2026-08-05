@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/dal";
+import { registrarOpenAITokens } from "@/lib/gastos-api";
 import { estiloPorChave } from "@/lib/estilos-camera";
 
 export const runtime = "nodejs";
@@ -26,7 +27,7 @@ O que você DEVE descrever:
 
 Nada de marketing, emoji, aspas ou fala. Responda apenas com a frase, sem título e sem explicação.`;
 
-async function viaOpenAI(usuario: string): Promise<string | null> {
+async function viaOpenAI(usuario: string, userId: string): Promise<string | null> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) return null;
   for (const modelo of MODELOS) {
@@ -51,7 +52,10 @@ async function viaOpenAI(usuario: string): Promise<string | null> {
       if (!res.ok) continue;
       const data = (await res.json()) as {
         choices?: { message?: { content?: string } }[];
+        usage?: { total_tokens?: number };
       };
+      // contabilidade do dono (aba Finanças): tokens usados nesta chamada
+      await registrarOpenAITokens(userId, data.usage?.total_tokens ?? 0, "lab-cena").catch(() => {});
       const out = data.choices?.[0]?.message?.content?.trim();
       if (out) return out.replace(/^["']|["']$/g, "").trim();
     } catch {
@@ -110,6 +114,6 @@ ${estilo.chave === "maos" ? "ATENÇÃO: neste estilo NÃO aparece o rosto nem o 
 
 Escreva a frase da cena agora, chamando o produto de "o produto" ou "a peça".`;
 
-  const texto = (await viaOpenAI(usuario)) ?? fraseReserva(estilo.chave, detalhe);
+  const texto = (await viaOpenAI(usuario, user.id)) ?? fraseReserva(estilo.chave, detalhe);
   return NextResponse.json({ ok: true, texto });
 }

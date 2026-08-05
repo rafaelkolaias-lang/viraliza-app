@@ -1,5 +1,6 @@
 import "server-only";
 
+import { registrarGeminiTokens } from "@/lib/gastos-api";
 import { extrairJSON } from "@/lib/llm";
 
 /**
@@ -27,11 +28,15 @@ export function geminiConfigurado(): boolean {
   return chaves().length > 0;
 }
 
+/** Quem gerou o gasto (só contabilidade da aba Finanças; opcional). */
+type QuemGastou = { userId?: string | null; origem?: string };
+
 /** Chamada base do Gemini: recebe as parts (texto e/ou imagem) e devolve o texto.
  *  Rotaciona as chaves quando uma estoura/limita. "" se todas falharem. */
 async function gerar(
   parts: Record<string, unknown>[],
   temperature: number,
+  quem?: QuemGastou,
 ): Promise<string> {
   const ks = chaves();
   const body = { contents: [{ parts }], generationConfig: { temperature } };
@@ -50,7 +55,14 @@ async function gerar(
       if (!res.ok) continue;
       const data = (await res.json()) as {
         candidates?: { content?: { parts?: { text?: string }[] } }[];
+        usageMetadata?: { totalTokenCount?: number };
       };
+      // contabilidade do dono (aba Finanças): tokens usados nesta chamada
+      await registrarGeminiTokens(
+        quem?.userId ?? null,
+        data.usageMetadata?.totalTokenCount ?? 0,
+        quem?.origem ?? "web-vision",
+      ).catch(() => {});
       const txt =
         data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
       if (txt.trim()) return txt;
@@ -67,12 +79,13 @@ export async function gerarTextoComImagens(
   instrucao: string,
   imagens: { mime: string; base64: string }[],
   temperature = 0.7,
+  quem?: QuemGastou,
 ): Promise<string> {
   const parts: Record<string, unknown>[] = [{ text: instrucao }];
   for (const img of imagens.slice(0, 4)) {
     parts.push({ inline_data: { mime_type: img.mime, data: img.base64 } });
   }
-  return gerar(parts, temperature);
+  return gerar(parts, temperature, quem);
 }
 
 // ---- Análise de produto (visão) ----
@@ -95,13 +108,14 @@ Não invente nada que não dê pra ver na foto.`;
 
 export async function analisarProduto(
   imagens: { mime: string; base64: string }[],
+  quem?: QuemGastou,
 ): Promise<AnaliseProduto | null> {
   if (!chaves().length || !imagens.length) return null;
   const parts: Record<string, unknown>[] = [{ text: INSTRUCAO_PRODUTO }];
   for (const img of imagens.slice(0, 3)) {
     parts.push({ inline_data: { mime_type: img.mime, data: img.base64 } });
   }
-  const txt = await gerar(parts, 0.2);
+  const txt = await gerar(parts, 0.2, quem ?? { origem: "avatar-analise" });
   const j = extrairJSON<{
     nome?: string;
     tipo?: string;

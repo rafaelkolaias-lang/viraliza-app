@@ -347,7 +347,8 @@ export function ViralizaLab({
   function definirImagem(url: string) {
     setImagem(url);
   }
-  const cenarioOk = !!cenario && (cenario !== "outros" || cenarioTexto.trim().length >= 4);
+  // todo cenário agora é um card (nosso ou o que a pessoa subiu): escolheu, tá ok
+  const cenarioOk = !!cenario;
   const prontoPraImagem = !!produto && cena.trim().length >= 15 && !!avatar && cenarioOk;
 
   // barra neon: cada tela interna preenchida soma um pedaço do "Criar cena"
@@ -667,12 +668,7 @@ export function ViralizaLab({
       {modo === "lab" && etapa ==="cena" && sub === "cenario" && (
         <Tela chave="cenario">
           <Bloco n={5} titulo="Cenário" obrigatorio>
-            <LabCenario
-              escolhido={cenario}
-              textoLivre={cenarioTexto}
-              onEscolher={setCenario}
-              onTextoLivre={setCenarioTexto}
-            />
+            <LabCenario escolhido={cenario} onEscolher={setCenario} />
           </Bloco>
 
           <Navegacao

@@ -35,6 +35,8 @@ load_dotenv()
 from google import genai
 from google.genai import types
 
+import uso  # contabiliza tokens por job (o worker manda pra web no finalizar)
+
 _KEYS = [k for k in ([os.getenv("GEMINI_API_KEY")] + [os.getenv(f"GEMINI_API_KEY_{_i}") for _i in range(2, 21)]) if k]
 _ciclo = itertools.cycle(_KEYS) if _KEYS else None
 MODELO = "gemini-2.5-flash"
@@ -313,6 +315,7 @@ def escolher_cortes(segmentos, dur, maximo, alvo=0):
                     thinking_config=types.ThinkingConfig(thinking_budget=0),
                 ),
             )
+            uso.add_gemini(MODELO, getattr(resp, "usage_metadata", None))
             texto = (resp.text or "").strip()
             if not texto:
                 # diagnostico: por que veio vazio (MAX_TOKENS? SAFETY?)
@@ -575,6 +578,10 @@ def main():
 
     # limpa a pasta de trabalho inteira (vídeo fonte + restos)
     shutil.rmtree(work, ignore_errors=True)
+
+    # consumo de APIs desta rodada (tokens do Gemini que escolheu os cortes):
+    # o worker lê <prefix>_consumo.json e manda pra web no finalizar do job.
+    uso.dump(os.path.join(destino, f"{args.prefix}_consumo.json"))
 
     log(f"\n>>> PRONTO. {len(feitos)} corte(s) em {destino}")
 

@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { ShoppingBag } from "lucide-react";
 import { ProdutosGaleria } from "@/components/app/produtos-galeria";
 import { getProdutosPagina } from "@/lib/produtos";
-import { requireAssinatura } from "@/lib/dal";
+import { guardaBiblioteca } from "@/lib/dal";
+import { BibliotecaBloqueada } from "@/components/app/biblioteca-bloqueada";
 
 export const metadata: Metadata = { title: "Produtos virais" };
 export const dynamic = "force-dynamic";
@@ -14,7 +15,8 @@ export default async function ProdutosPage({
 }: {
   searchParams: Promise<{ page?: string }>;
 }) {
-  const user = await requireAssinatura();
+  const { user, liberado } = await guardaBiblioteca();
+  if (!liberado) return <BibliotecaBloqueada />;
   const sp = await searchParams;
   const pagina = Math.max(1, Number(sp.page) || 1);
 

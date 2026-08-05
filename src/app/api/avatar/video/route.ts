@@ -8,6 +8,8 @@ import { montarPromptProduto, montarPromptAvatarPronto, montarPromptLivre } from
 import { gerarVideoGrok, type ArquivoImagem } from "@/lib/video-robot";
 import { custoVideoAvatar, IDIOMAS_FALA } from "@/lib/avatar-modelo";
 import { getCarteira, debitarClamp } from "@/lib/creditos";
+import { registrarGrokVideo } from "@/lib/gastos-api";
+import { travaDeGeracao } from "@/lib/niveis";
 import { criarNotificacao } from "@/lib/notificacoes";
 import { subirAvatar } from "@/lib/serverrk-upload";
 
@@ -137,8 +139,9 @@ export async function POST(req: Request) {
     }
   }
 
-  // custo depende da duração E da fala (sem fala custa menos). Admin/demo não pagam.
-  const custo = custoVideoAvatar(dur, comFala);
+  // custo depende só da duração (a cota do motor é por segundo gerado, então
+  // vídeo mudo custa igual ao falado). Admin/demo não pagam.
+  const custo = custoVideoAvatar(dur);
   const isAdmin = user.role === "admin" || user.role === "demo";
 
   // checa saldo ANTES de gastar a geração (o débito de fato só sai se o vídeo vier)
@@ -149,6 +152,11 @@ export async function POST(req: Request) {
         { erro: "Créditos insuficientes.", faltaCreditos: true, custo },
         { status: 402 },
       );
+    }
+    // trava por nível da conta: dívida de reembolso, teto diário e simultâneos
+    const trava = await travaDeGeracao(user);
+    if (!trava.ok) {
+      return NextResponse.json({ erro: trava.erro }, { status: trava.status });
     }
   }
 
@@ -289,6 +297,9 @@ export async function POST(req: Request) {
           jobId: job.id,
         }).catch(() => {});
       }
+
+      // contabilidade do dono (aba Finanças): custo médio do Grok por vídeo
+      await registrarGrokVideo(userId, job.id, dur, "avatar-video").catch(() => {});
 
       await prisma.job.update({
         where: { id: job.id },

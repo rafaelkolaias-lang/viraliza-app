@@ -118,19 +118,23 @@ export default async function AdminPage() {
         })}
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
+      {/* Stats: linha 1 = público e consumo */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <StatCard label="Usuários" value={stats.usuarios} icon={Users} />
         <StatCard label="Online agora" value={stats.online} icon={Wifi} />
-        <StatCard label="Vídeos gerados" value={stats.videos} icon={Film} />
-        <StatCard label="Em produção" value={stats.emProducao} icon={Clock} />
-        <StatCard label="Prontos" value={stats.prontos} icon={CheckCircle2} />
-        <StatCard label="Erros" value={stats.erros} icon={XCircle} />
         <StatCard
           label="Créditos gastos"
           value={stats.creditosGastos.toLocaleString("pt-BR")}
           icon={Coins}
         />
+      </div>
+
+      {/* Stats: linha 2 = produção de vídeos */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <StatCard label="Vídeos gerados" value={stats.videos} icon={Film} />
+        <StatCard label="Em produção" value={stats.emProducao} icon={Clock} />
+        <StatCard label="Prontos" value={stats.prontos} icon={CheckCircle2} />
+        <StatCard label="Erros" value={stats.erros} icon={XCircle} />
       </div>
 
       {/* Gráfico por dia */}

@@ -1,9 +1,14 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
-import { aplicarCreditosPendentes } from "@/lib/creditos";
-import { emailComprou as emailComprouCakto } from "@/lib/cakto";
+import { aplicarCreditosPendentes } from "@/lib/liberacao-creditos";
+import {
+  ehPacoteDeCredito,
+  emailComprou as emailComprouCakto,
+  emailComprouEntrada,
+} from "@/lib/cakto";
 import { emailComprou as emailComprouKiwify } from "@/lib/kiwify";
+import { DIAS_ASSINATURA } from "@/lib/creditos";
 
 /**
  * Regras de criação de conta, compartilhadas pelo cadastro por SENHA e pelo login
@@ -49,10 +54,36 @@ export async function podeCriarConta(email: string): Promise<boolean> {
 }
 
 /**
- * Cria a conta já liberada (assinante permanente + 1.000 créditos de boas-vindas) e
- * aplica créditos pendentes de compras feitas antes do cadastro (mesmo e-mail).
- * Não checa a trava aqui - quem chama já validou com podeCriarConta.
+ * Comprou o PLANO DE ENTRADA, e não só um pacote de crédito?
+ *
+ * Só a entrada libera a biblioteca (assinante permanente) e o crédito de boas-vindas.
+ * Antes, qualquer compra dava as duas coisas, então dava pra pular a entrada: comprava
+ * o pacote mais barato (R$10), cadastrava com o mesmo e-mail e ficava com a biblioteca
+ * pra sempre mais 1.000 créditos de brinde, ou seja, R$20 em crédito por R$10 pagos
+ * (auditoria.md #4).
+ *
+ * Decisão nesta ordem:
+ * 1. A allowlist guarda o NOME do produto que liberou o cadastro. Nome que não é de
+ *    pacote ("N Créditos") = entrada.
+ * 2. Se for pacote, ainda pode ter comprado a entrada em outro pedido: confere ao vivo.
+ * 3. Nome desconhecido conta como entrada. Não dá pra provar que foi pacote, e barrar
+ *    cliente legítimo é pior que o risco: a compra de pacote sempre traz o nome dela.
+ */
+export async function comprouEntrada(email: string): Promise<boolean> {
+  const e = email.trim().toLowerCase();
+  const acesso = await prisma.acessoPago.findUnique({ where: { email: e } });
+  if (acesso && !ehPacoteDeCredito(acesso.produto)) return true;
+  return emailComprouEntrada(e);
+}
+
+/**
+ * Cria a conta e aplica os créditos pendentes de compras feitas antes do cadastro
+ * (mesmo e-mail). Não checa a trava aqui - quem chama já validou com podeCriarConta.
  * `senhaHash` null = conta só com Google; `googleId` liga a conta ao Google.
+ *
+ * Quem comprou a ENTRADA nasce assinante permanente com o crédito de boas-vindas.
+ * Quem comprou só pacote de crédito entra sem biblioteca e sem brinde: recebe apenas
+ * os créditos que pagou (aplicados logo abaixo).
  */
 export async function criarContaLiberada(dados: {
   nome: string;
@@ -61,27 +92,41 @@ export async function criarContaLiberada(dados: {
   googleId?: string | null;
 }) {
   const total = await prisma.user.count();
+  const dono = total === 0; // o primeiro a se cadastrar é o dono da plataforma
+  const entrada = dono || (await comprouEntrada(dados.email));
+  const brinde = entrada ? CREDITO_INICIAL : 0;
+  // A entrada é a 1ª cobrança da assinatura mensal: libera 1 ciclo. As renovações
+  // pagas estendem esse vencimento pelo webhook; sem repagar, a biblioteca trava.
+  // O dono (admin) fica permanente (role admin ignora o vencimento de qualquer forma).
+  const assinaturaAte = !entrada
+    ? null
+    : dono
+      ? null
+      : new Date(Date.now() + DIAS_ASSINATURA * 86_400_000);
   const user = await prisma.user.create({
     data: {
       nome: dados.nome,
       email: dados.email,
       senhaHash: dados.senhaHash ?? null,
       googleId: dados.googleId ?? null,
-      // O primeiro a se cadastrar vira ADMIN (o dono da plataforma).
-      role: total === 0 ? "admin" : "user",
-      // Todo cadastro já passou pela trava (comprou), então já nasce assinante:
-      // libera a biblioteca na hora. assinaturaAte = null => permanente.
-      assinante: true,
-      assinaturaAte: null,
-      saldoCentavos: CREDITO_INICIAL,
-      transacoes: {
-        create: {
-          tipo: "ajuste_admin",
-          valor: CREDITO_INICIAL,
-          saldoApos: CREDITO_INICIAL,
-          descricao: "Crédito de boas-vindas (1.000 créditos)",
-        },
-      },
+      role: dono ? "admin" : "user",
+      // Assinatura só pra quem comprou a entrada, e agora com VENCIMENTO (não é mais
+      // permanente): vale DIAS_ASSINATURA e depende de renovação paga pra continuar.
+      assinante: entrada,
+      assinaturaAte,
+      saldoCentavos: brinde,
+      ...(brinde > 0
+        ? {
+            transacoes: {
+              create: {
+                tipo: "ajuste_admin",
+                valor: brinde,
+                saldoApos: brinde,
+                descricao: "Crédito de boas-vindas (1.000 créditos)",
+              },
+            },
+          }
+        : {}),
     },
   });
 

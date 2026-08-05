@@ -12,12 +12,17 @@ export async function register() {
   if (g.__varreduraReembolsos) return; // evita timer duplicado em hot-reload
 
   const { verificarReembolsos, verificarReembolsosCakto } = await import("@/lib/reembolsos");
+  const { aplicarLiberacoesVencidas } = await import("@/lib/liberacao-creditos");
   const rodar = () => {
     verificarReembolsosCakto().catch((e) =>
       console.error("[reembolsos] varredura Cakto falhou", e),
     );
     verificarReembolsos().catch((e) =>
       console.error("[reembolsos] varredura Kiwify falhou", e),
+    );
+    // crédito comprado em quarentena cujo 8º dia chegou: cai no saldo
+    aplicarLiberacoesVencidas().catch((e) =>
+      console.error("[liberacao] varredura falhou", e),
     );
   };
 

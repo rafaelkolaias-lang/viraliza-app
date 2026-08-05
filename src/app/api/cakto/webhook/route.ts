@@ -10,7 +10,14 @@ import {
   pedidoEstornado,
   webhookSecretValido,
 } from "@/lib/cakto";
-import { CREDITO_MENSAL_CENTAVOS, existeTransacaoOrder, lancar } from "@/lib/creditos";
+import {
+  CREDITO_MENSAL_CENTAVOS,
+  DIAS_ASSINATURA,
+  estenderAssinatura,
+  existeTransacaoOrder,
+  lancar,
+} from "@/lib/creditos";
+import { creditarCompraComQuarentena } from "@/lib/liberacao-creditos";
 import { enviarCompraMeta, enviarReembolsoMeta, lerRastreioSck } from "@/lib/meta-capi";
 import { aplicarReembolsoAceito, restaurarSuspensao } from "@/lib/reembolsos";
 import { enviarBoasVindas, enviarCreditosConfirmados } from "@/lib/email";
@@ -155,9 +162,12 @@ export async function POST(req: Request) {
           descricao: "Crédito mensal da assinatura (renovação paga)",
           kiwifyOrderId: orderId,
         });
+        // estende o vencimento por mais um ciclo (a partir do maior entre hoje e o
+        // vencimento atual, então renovar adiantado não perde dias) e marca o mês
+        await estenderAssinatura(user.id, DIAS_ASSINATURA);
         await prisma.user.update({
           where: { id: user.id },
-          data: { assinante: true, creditoMensalEm: new Date() },
+          data: { creditoMensalEm: new Date() },
         });
         return NextResponse.json({
           ok: true,
@@ -179,9 +189,11 @@ export async function POST(req: Request) {
     const user = email ? await prisma.user.findUnique({ where: { email } }) : null;
 
     if (user) {
-      const saldoApos = await lancar(user.id, creditos, "compra", {
+      // passa pela QUARENTENA do nível da conta: bronze/prata só recebem parte
+      // na hora, o resto libera no 8º dia (antifraude de reembolso)
+      const { saldoApos } = await creditarCompraComQuarentena(user.id, creditos, {
         descricao: desc,
-        kiwifyOrderId: orderId,
+        orderId,
       });
       // cliente que JÁ tem conta comprou pacote -> e-mail de créditos (toda compra).
       // Idempotente por pedido: o guard existeTransacaoOrder acima não deixa reenviar.

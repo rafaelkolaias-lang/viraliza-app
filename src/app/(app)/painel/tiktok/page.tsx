@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Music2 } from "lucide-react";
-import { requireAssinatura } from "@/lib/dal";
+import { guardaBiblioteca } from "@/lib/dal";
+import { BibliotecaBloqueada } from "@/components/app/biblioteca-bloqueada";
 import {
   buscarProdutosTiktok,
   categoriasTiktok,
@@ -31,7 +32,8 @@ export default async function TiktokPage({
     page?: string;
   }>;
 }) {
-  await requireAssinatura();
+  const { liberado } = await guardaBiblioteca();
+  if (!liberado) return <BibliotecaBloqueada />;
   const sp = await searchParams;
 
   const ordem = (ORDENS_OK.includes(sp.ordem ?? "") ? sp.ordem : "rank") as OrdemTiktok;

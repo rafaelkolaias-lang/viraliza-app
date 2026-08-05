@@ -446,7 +446,7 @@ export function GeradorPrompt({
           </pre>
           {formato === "normal" && (
             <p className="mt-2 text-[11px] text-muted-foreground">
-              Toque em Usar no Vídeo livre pra gerar aqui mesmo ({custoVideoAvatar(duracao, comFala)}{" "}
+              Toque em Usar no Vídeo livre pra gerar aqui mesmo ({custoVideoAvatar(duracao)}{" "}
               créditos), ou copie e use onde quiser.
             </p>
           )}

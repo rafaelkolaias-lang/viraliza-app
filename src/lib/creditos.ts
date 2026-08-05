@@ -13,6 +13,12 @@ import { prisma } from "@/lib/prisma";
 //    (ver lembrete em reminder.md).
 export const CREDITO_MENSAL_CENTAVOS = 2000;
 
+// Quanto tempo cada pagamento (entrada + cada renovação paga) libera a biblioteca.
+// A assinatura NÃO é mais permanente: se a cobrança mensal não for repaga, ela vence
+// e a biblioteca trava (o crédito comprado continua valendo). São 30 dias do ciclo +
+// 3 de folga, pra uma renovação que chega um pouco atrasada não cortar quem pagou.
+export const DIAS_ASSINATURA = 33;
+
 export type TipoTransacao =
   | "compra"
   | "debito_geracao"
@@ -22,7 +28,9 @@ export type TipoTransacao =
   | "ajuste_admin"
   | "estorno"
   | "suspensao_reembolso" // reembolso SOLICITADO: congela (zera) o saldo até a decisão
-  | "reversao_suspensao"; // reembolso cancelado/decidido: devolve o que foi congelado
+  | "reversao_suspensao" // reembolso cancelado/decidido: devolve o que foi congelado
+  | "liberacao_garantia" // crédito comprado que estava em quarentena e destravou (8º dia)
+  | "quitacao_divida"; // abate do saldo devedor deixado por um reembolso com crédito já gasto
 
 /** Já existe uma transação desse tipo pra esse pedido Kiwify? (idempotência). */
 export async function existeTransacaoOrder(
@@ -53,31 +61,8 @@ export async function estenderAssinatura(userId: string, dias: number) {
   });
 }
 
-/** Aplica créditos de compras Kiwify feitas ANTES do cadastro (mesmo e-mail).
- *  Idempotente: marca o pendente como aplicado e não credita o mesmo pedido 2x. */
-export async function aplicarCreditosPendentes(userId: string, email: string) {
-  const pend = await prisma.creditoPendente.findMany({
-    where: { email: email.trim().toLowerCase(), aplicado: false },
-  });
-  for (const p of pend) {
-    if (await existeTransacaoOrder(p.kiwifyOrderId, "compra")) {
-      await prisma.creditoPendente.update({
-        where: { id: p.id },
-        data: { aplicado: true },
-      });
-      continue;
-    }
-    await lancar(userId, p.valorCentavos, "compra", {
-      descricao: p.descricao ?? "Compra Kiwify",
-      kiwifyOrderId: p.kiwifyOrderId,
-    });
-    await estenderAssinatura(userId, p.assinaturaDias);
-    await prisma.creditoPendente.update({
-      where: { id: p.id },
-      data: { aplicado: true },
-    });
-  }
-}
+// aplicarCreditosPendentes mudou de casa: agora vive em liberacao-creditos.ts,
+// porque compra de pacote passa pela quarentena do nível da conta.
 
 export function brl(centavos: number) {
   return (centavos / 100).toLocaleString("pt-BR", {
@@ -129,14 +114,17 @@ export async function getCarteira(userId: string): Promise<Carteira> {
   };
 }
 
-/** Aplica um delta no saldo e registra no extrato - atômico (1 transação). */
+/** Aplica um delta no saldo e registra no extrato - atômico (1 transação).
+ *  TODA entrada (valor > 0) quita o saldo devedor de reembolso primeiro:
+ *  compra, brinde mensal, bônus, liberação de quarentena, ajuste do admin.
+ *  Retorna o saldo final (já descontada a quitação, se houve). */
 export async function lancar(
   userId: string,
   valorCentavos: number, // + entrada, − saída
   tipo: TipoTransacao,
   opts: { descricao?: string; jobId?: string; kiwifyOrderId?: string } = {},
 ) {
-  return prisma.$transaction(async (tx) => {
+  const saldoApos = await prisma.$transaction(async (tx) => {
     const u = await tx.user.findUnique({
       where: { id: userId },
       select: { saldoCentavos: true },
@@ -161,6 +149,33 @@ export async function lancar(
     });
     return saldoApos;
   });
+
+  if (valorCentavos > 0 && tipo !== "quitacao_divida") {
+    const pago = await quitarDivida(userId);
+    return saldoApos - pago;
+  }
+  return saldoApos;
+}
+
+/** Abate a dívida de reembolso com o saldo disponível. Retorna o valor quitado. */
+export async function quitarDivida(userId: string): Promise<number> {
+  const u = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { dividaCentavos: true },
+  });
+  const divida = u?.dividaCentavos ?? 0;
+  if (divida <= 0) return 0;
+
+  const pago = await debitarClamp(userId, divida, "quitacao_divida", {
+    descricao: "Quitação do saldo devedor de reembolso",
+  });
+  if (pago > 0) {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { dividaCentavos: { decrement: pago } },
+    });
+  }
+  return pago;
 }
 
 export function creditar(
@@ -278,4 +293,8 @@ export async function garantirCreditoMensal(userId: string) {
       },
     });
   });
+
+  // entrada de crédito = quita saldo devedor de reembolso primeiro (este fluxo
+  // não passa pelo lancar, então a quitação é chamada aqui)
+  await quitarDivida(userId);
 }

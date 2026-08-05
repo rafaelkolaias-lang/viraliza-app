@@ -8,6 +8,9 @@ import {
   Receipt,
   AlertTriangle,
   Undo2,
+  Cpu,
+  PiggyBank,
+  Megaphone,
 } from "lucide-react";
 import {
   Table,
@@ -17,9 +20,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Card, CardContent } from "@/components/ui/card";
 import { StatCard } from "@/components/app/stat-card";
 import { GraficoVendas } from "@/components/app/grafico-vendas";
 import { getPainelFinancas, PERIODOS_FINANCAS, DIAS_PADRAO } from "@/lib/financas";
+import { elevenSaldo } from "@/lib/diagnostico";
 
 export const metadata: Metadata = { title: "Admin · Finanças" };
 export const dynamic = "force-dynamic";
@@ -45,10 +50,32 @@ export default async function FinancasPage({
   const sp = await searchParams;
   const pedido = Number(sp?.dias);
   const dias = PERIODOS_FINANCAS.some((p) => p.v === pedido) ? pedido : DIAS_PADRAO;
-  const f = await getPainelFinancas(dias);
+  const [f, eleven] = await Promise.all([getPainelFinancas(dias), elevenSaldo()]);
+
+  // cota da ElevenLabs somada entre as chaves (vira legenda do card dela)
+  const cotaEleven = (() => {
+    const ok = eleven.chaves.filter((c) => c.ok);
+    if (!ok.length) return null;
+    const usado = ok.reduce((s, c) => s + (c.usado ?? 0), 0);
+    const limite = ok.reduce((s, c) => s + (c.limite ?? 0), 0);
+    if (!limite) return null;
+    return `cota: ${Math.round((usado / limite) * 100)}% de ${limite.toLocaleString("pt-BR")} caracteres`;
+  })();
 
   const labelPeriodo =
     PERIODOS_FINANCAS.find((p) => p.v === dias)?.label ?? `${dias} dias`;
+
+  // card de anúncios: sem chave ou com falha mostra o motivo em vez de um zero
+  // mentiroso (zero de verdade é gasto zero, e isso precisa ficar distinguível)
+  const a = f.anuncios;
+  const anuncioTexto = !a.configurado || a.erro ? "-" : `− ${brl(a.centavos)}`;
+  const anuncioLegenda = !a.configurado
+    ? "falta META_ADS_TOKEN e META_ADS_ACCOUNT_ID no env"
+    : a.erro
+      ? a.erro
+      : a.moeda && a.moeda !== "BRL"
+        ? `atenção: a conta cobra em ${a.moeda}, não em reais`
+        : (a.janela ?? undefined);
   const tituloLista =
     dias === 1 ? "Entraram hoje" : dias === 0 ? "Todas as vendas" : `Vendas · últimos ${f.periodo.dias} dias`;
 
@@ -143,6 +170,135 @@ export default async function FinancasPage({
           </>
         )}
       </p>
+
+      {/* ---- Gasto com APIs (o que sai do seu bolso pra plataforma rodar) ---- */}
+      <div>
+        <div className="mb-3">
+          <h2 className="text-sm font-semibold">Custos · {labelPeriodo}</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            OpenAI vem da <b className="text-foreground">fatura oficial</b>
+            {f.gastos.openaiConfigurada ? "" : " (pendente: falta a OPENAI_ADMIN_KEY no env, por enquanto é estimativa)"}
+            ; Gemini, Veo e ElevenLabs são estimados pelo consumo medido de cada geração; Grok usa a média
+            configurada por vídeo de 10s.
+            {f.gastos.registroDesde && (
+              <> Registrando o consumo interno desde <b className="text-foreground">{f.gastos.registroDesde}</b>.</>
+            )}{" "}
+            O gasto com anúncios vem direto da conta de anúncios da Meta e ainda{" "}
+            <b className="text-foreground">não entra no Lucro real</b>. A Meta fecha o dia no fuso
+            da própria conta de anúncios, então o corte do período pode diferir algumas horas do
+            resto da página.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+          {f.gastos.porApi.map((a) => (
+            <Card key={a.api}>
+              <CardContent className="py-4">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-medium text-muted-foreground">{a.label}</p>
+                  <span
+                    className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                      a.real
+                        ? "bg-emerald-500/15 text-emerald-600"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {a.real ? "fatura" : "estimado"}
+                  </span>
+                </div>
+                <p className="mt-1 text-xl font-semibold tracking-tight">
+                  {brl(a.custoCentavos)}
+                </p>
+                <p className="truncate text-[11px] text-muted-foreground/70">
+                  {a.api === "eleven" && cotaEleven ? `${a.detalhe} · ${cotaEleven}` : a.detalhe}
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
+          <StatCard
+            label={`Total em APIs · ${labelPeriodo}`}
+            value={`− ${brl(f.gastos.totalCentavos)}`}
+            icon={Cpu}
+            sub={
+              f.gastos.sistemaCentavos > 0
+                ? `inclui ${brl(f.gastos.sistemaCentavos)} de rotinas sem usuário`
+                : undefined
+            }
+          />
+          <StatCard
+            label={`Anúncios · ${labelPeriodo}`}
+            value={anuncioTexto}
+            icon={Megaphone}
+            sub={anuncioLegenda}
+          />
+          <StatCard
+            label="Lucro real"
+            value={brl(f.lucroRealCentavos)}
+            icon={PiggyBank}
+            sub="líquido − reembolsos − APIs (sem anúncios)"
+          />
+        </div>
+      </div>
+
+      {/* ---- Gasto por usuário (custo real x créditos que ele pagou) ---- */}
+      <div>
+        <h2 className="mb-3 text-sm font-semibold">
+          Gasto por usuário · {labelPeriodo} ({f.gastos.porUsuario.length})
+        </h2>
+        {f.gastos.porUsuario.length === 0 ? (
+          <div className="grid place-items-center rounded-xl border border-dashed border-border py-10 text-center">
+            <Cpu className="size-7 text-muted-foreground" />
+            <p className="mt-3 font-medium">Nenhum gasto de API registrado no período</p>
+            <p className="text-sm text-muted-foreground">
+              As gerações passam a contar a partir de agora (o histórico antigo não tem medição).
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-xl border border-border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Usuário</TableHead>
+                  <TableHead className="text-right">Custo APIs</TableHead>
+                  <TableHead className="hidden text-right sm:table-cell">Créditos gastos</TableHead>
+                  <TableHead className="text-right">Margem</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {f.gastos.porUsuario.map((u) => (
+                  <TableRow key={u.userId}>
+                    <TableCell>
+                      <p className="text-sm font-medium">{u.nome}</p>
+                      <p className="text-xs text-muted-foreground">{u.email}</p>
+                    </TableCell>
+                    <TableCell className="text-right text-sm font-semibold">
+                      {brl(u.custoCentavos)}
+                    </TableCell>
+                    <TableCell className="hidden text-right text-sm text-muted-foreground sm:table-cell">
+                      {brl(u.creditosCentavos)}
+                    </TableCell>
+                    <TableCell
+                      className={`text-right text-sm font-semibold ${
+                        u.margemCentavos < 0 ? "text-red-500" : "text-emerald-600"
+                      }`}
+                    >
+                      {u.margemCentavos < 0 ? "−" : "+"} {brl(Math.abs(u.margemCentavos))}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          Margem = créditos que o usuário gastou menos o custo real de API que ele gerou.
+          Margem <b className="text-red-500">vermelha</b> significa que ele custa mais do que paga
+          (admin e demo não pagam créditos, então aparecem negativos por natureza).
+        </p>
+      </div>
 
       {/* Vendas do período */}
       <div>

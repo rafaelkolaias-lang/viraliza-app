@@ -7,10 +7,13 @@ import {
   Coins,
   Receipt,
   KeyRound,
+  Medal,
 } from "lucide-react";
 import { requireUser } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { getCarteira, fmtCreditos } from "@/lib/creditos";
+import { getNivelBadge, NIVEIS } from "@/lib/niveis";
+import { presoCentavos } from "@/lib/liberacao-creditos";
 import { Button } from "@/components/ui/button";
 import { TrocarSenhaForm } from "@/components/app/trocar-senha-form";
 import { ChaveElevenForm } from "@/components/app/chave-eleven-form";
@@ -29,9 +32,20 @@ const fmtData = new Intl.DateTimeFormat("pt-BR", {
   year: "numeric",
 });
 
+// mesmas cores do card da aba Créditos e do selo do menu
+const COR_NIVEL: Record<string, string> = {
+  bronze: "text-orange-400",
+  prata: "text-slate-200",
+  ouro: "text-yellow-400",
+};
+
 export default async function ContaPage() {
   const user = await requireUser();
-  const carteira = await getCarteira(user.id);
+  const [carteira, nivel, preso] = await Promise.all([
+    getCarteira(user.id),
+    getNivelBadge(user), // null = admin/demo (não mostra o card de nível)
+    presoCentavos(user.id), // crédito comprado em quarentena
+  ]);
   const dados = await prisma.user.findUnique({
     where: { id: user.id },
     select: { elevenKey: true },
@@ -71,7 +85,22 @@ export default async function ContaPage() {
       {/* Plano + créditos */}
       <section className="rounded-2xl border border-border bg-card p-5">
         <h2 className="text-sm font-semibold">Plano e créditos</h2>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div className={`mt-3 grid gap-3 ${nivel ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+          {/* Nível da conta (bronze/prata/ouro) - só usuário comum */}
+          {nivel && (
+            <div className="rounded-xl border border-border bg-background/50 p-4">
+              <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                <Medal className={`size-4 ${COR_NIVEL[nivel]}`} />
+                Nível da conta
+              </p>
+              <p className={`mt-1.5 text-lg font-bold ${COR_NIVEL[nivel]}`}>
+                {NIVEIS[nivel].emoji} {NIVEIS[nivel].rotulo}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                até {NIVEIS[nivel].videosDia} vídeos/dia
+              </p>
+            </div>
+          )}
           <div className="rounded-xl border border-border bg-background/50 p-4">
             <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               <Crown className="size-4 text-amber-400" />
@@ -94,6 +123,11 @@ export default async function ContaPage() {
             <p className="mt-1.5 text-lg font-bold text-primary">
               {fmtCreditos(carteira.saldoCentavos)}
             </p>
+            {preso > 0 && (
+              <p className="text-xs text-muted-foreground">
+                🔒 +{fmtCreditos(preso)} liberando (garantia da compra)
+              </p>
+            )}
           </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">

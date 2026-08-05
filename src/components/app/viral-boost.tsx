@@ -118,7 +118,7 @@ export function ViralBoost() {
   /**
    * Qualquer mudança de escolha invalida a CENA já gerada. Sem isso dava pra
    * voltar na trilha, trocar a historinha e mandar gerar o vídeo com a imagem
-   * velha e o roteiro novo: vídeo incoerente e 75 créditos cobrados do mesmo
+   * velha e o roteiro novo: vídeo incoerente e 95 créditos cobrados do mesmo
    * jeito. Regenerar a cena custa, então a gente só descarta, nunca gera sozinho.
    */
   function invalidarCena() {

@@ -5,6 +5,7 @@ import { getCurrentUser, ferramentasLiberadas } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { pastaEntrada } from "@/lib/jobs";
 import { temSaldo } from "@/lib/creditos";
+import { travaDeGeracao } from "@/lib/niveis";
 import { vozValida } from "@/lib/vozes";
 
 export const runtime = "nodejs";
@@ -131,23 +132,11 @@ export async function POST(req: Request) {
     );
   }
 
-  // Limite de vídeos simultâneos em produção: evita enfileirar muitos com saldo
-  // baixo (o débito é no fim, então sem isso dava pra furar a trava de crédito).
-  if (user.role !== "admin") {
-    const pendentes = await prisma.job.count({
-      where: {
-        userId: user.id,
-        status: { in: ["na_fila", "renderizando", "processando"] },
-      },
-    });
-    if (pendentes >= 3) {
-      return NextResponse.json(
-        {
-          erro: "Você já tem 3 vídeos em produção. Espere terminarem pra gerar mais.",
-        },
-        { status: 429 },
-      );
-    }
+  // Trava por nível da conta (bronze/prata/ouro): dívida de reembolso, teto
+  // diário de vídeos e simultâneos. Substitui o antigo "máx. 3 em produção".
+  const trava = await travaDeGeracao(user);
+  if (!trava.ok) {
+    return NextResponse.json({ erro: trava.erro }, { status: trava.status });
   }
 
   const produto = String(form.get("produto") ?? "").trim();

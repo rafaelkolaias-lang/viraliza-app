@@ -12,6 +12,8 @@ from dotenv import load_dotenv
 from elevenlabs.client import ElevenLabs
 from elevenlabs import VoiceSettings
 
+import uso  # contabiliza caracteres por job (consumo.json -> web -> aba Finanças)
+
 load_dotenv()
 
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -166,6 +168,9 @@ def _tts_uma_chave(api_key, texto, mp3_path):
     audio_b64 = getattr(resp, "audio_base_64", None) or getattr(resp, "audio_base64", None)
     if not audio_b64:
         raise RuntimeError("resposta sem áudio")
+    # gasto do DONO: só conta quando a chave é nossa (BYO do usuário não entra)
+    if api_key != (os.getenv("ELEVEN_USER_KEY") or "").strip():
+        uso.add_eleven(len(texto))
     with open(mp3_path, "wb") as f:
         f.write(base64.b64decode(audio_b64))
 

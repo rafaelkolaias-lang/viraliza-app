@@ -19,6 +19,7 @@ import concurrent.futures as cf
 from dotenv import load_dotenv
 
 import gemini_copy
+import uso  # acumulador de consumo de APIs (grava consumo.json pro worker)
 import venc
 from narrar_video import gerar_voz_com_tempos, agrupar_em_frases
 
@@ -876,6 +877,13 @@ def main():
             nome, status = fut.result()
             print(f"  [{nome}] {status}")
     print("\nFábrica concluída.")
+
+    # Consumo de APIs desta rodada (tokens Gemini, chars ElevenLabs, segundos Veo):
+    # o worker lê esse JSON e manda pra web debitar o custo REAL do job.
+    # Só grava quando rodou UM produto (é como o worker sempre chama); numa rodada
+    # com vários produtos o acumulado é do processo inteiro e não dá pra ratear.
+    if alvo:
+        uso.dump(os.path.join(DIR_PRODUTOS, alvo, "consumo.json"))
 
 
 if __name__ == "__main__":

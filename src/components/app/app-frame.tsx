@@ -36,6 +36,9 @@ export function AppFrame({
   pctNaoGasto = 0,
   avisos = [],
   bonusIgStatus = "nenhum",
+  nivel = null,
+  presoCentavos = 0,
+  dividaCentavos = 0,
 }: {
   user: AppUser;
   children: React.ReactNode;
@@ -47,6 +50,12 @@ export function AppFrame({
   avisos?: AvisoDTO[];
   /** situação do bônus do Instagram (controla o modal de +300 créditos). */
   bonusIgStatus?: StatusBonusIg;
+  /** nível da conta pro selo ao lado do nome (null = não mostra: admin/demo). */
+  nivel?: "bronze" | "prata" | "ouro" | null;
+  /** crédito comprado ainda em quarentena (mostra "+X liberando" sob o saldo). */
+  presoCentavos?: number;
+  /** saldo devedor de reembolso (> 0 mostra o aviso vermelho e a conta não gera). */
+  dividaCentavos?: number;
 }) {
   const [openMenu, setOpenMenu] = useState(false);
   // Barra lateral do desktop recolhida (só ícones). Fica guardado no navegador,
@@ -97,7 +106,13 @@ export function AppFrame({
         <Link
           href="/painel/creditos"
           onClick={() => setOpenMenu(false)}
-          title={compacto ? `${fmtCreditos(saldoCentavos)} créditos` : undefined}
+          title={
+            compacto
+              ? `${fmtCreditos(saldoCentavos)} créditos` +
+                (presoCentavos > 0 ? ` (+${fmtCreditos(presoCentavos)} liberando)` : "") +
+                (dividaCentavos > 0 ? ` - deve ${fmtCreditos(dividaCentavos)}` : "")
+              : undefined
+          }
           className={cn(
             "block rounded-xl border border-border bg-card/60 transition-colors hover:border-primary/50",
             compacto ? "p-2 text-center" : "p-3",
@@ -111,6 +126,16 @@ export function AppFrame({
               <span className="text-[11px] font-bold leading-none">
                 {fmtCreditos(saldoCentavos)}
               </span>
+              {presoCentavos > 0 && (
+                <span className="text-[9px] leading-none text-muted-foreground">
+                  +{fmtCreditos(presoCentavos)}
+                </span>
+              )}
+              {dividaCentavos > 0 && (
+                <span className="text-[9px] font-bold leading-none text-red-500">
+                  -{fmtCreditos(dividaCentavos)}
+                </span>
+              )}
             </span>
           ) : (
           <>
@@ -123,7 +148,10 @@ export function AppFrame({
                 Créditos de IA
               </p>
               <p className="text-sm font-bold leading-none text-foreground">
-                {fmtCreditos(saldoCentavos)}
+                {fmtCreditos(saldoCentavos)}{" "}
+                <span className="text-[10px] font-medium text-muted-foreground">
+                  disponíveis
+                </span>
               </p>
             </div>
             {assinante && (
@@ -133,6 +161,15 @@ export function AppFrame({
               </span>
             )}
           </div>
+          {/* crédito comprado em quarentena: linha própria, separada do disponível */}
+          {presoCentavos > 0 && (
+            <p
+              className="mt-1.5 text-[10px] font-medium text-muted-foreground"
+              title="Crédito da sua compra que destrava sozinho no 8º dia (garantia)"
+            >
+              🔒 {fmtCreditos(presoCentavos)} em liberação (garantia da compra)
+            </p>
+          )}
           {/* barra: quanto do crédito ainda não foi gasto */}
           <div className="mt-2.5">
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
@@ -145,10 +182,17 @@ export function AppFrame({
               {Math.max(0, Math.min(100, pctNaoGasto))}% disponível
             </p>
           </div>
+          {/* saldo devedor de reembolso: geração travada até regularizar */}
+          {dividaCentavos > 0 && (
+            <p className="mt-2 rounded-lg border border-red-500/30 bg-red-500/10 px-2 py-1.5 text-[10px] font-semibold text-red-400">
+              ⚠ Saldo devedor: {fmtCreditos(dividaCentavos)} créditos - compre
+              créditos pra regularizar e voltar a gerar
+            </p>
+          )}
           </>
           )}
         </Link>
-        <UserMenu nome={user.nome} email={user.email} compacto={compacto} />
+        <UserMenu nome={user.nome} email={user.email} compacto={compacto} nivel={nivel} />
       </div>
     </>
   );

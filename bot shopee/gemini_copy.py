@@ -10,6 +10,8 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
+import uso  # contabiliza tokens por job (consumo.json -> web -> aba Finanças)
+
 load_dotenv()
 
 _KEYS = [k for k in ([os.getenv("GEMINI_API_KEY")] + [os.getenv(f"GEMINI_API_KEY_{_i}") for _i in range(2, 21)]) if k]
@@ -101,6 +103,7 @@ def _gen(prompt):
                     temperature=0.9,
                 ),
             )
+            uso.add_gemini(MODELO, getattr(resp, "usage_metadata", None))
             return json.loads(resp.text)
         except Exception as e:
             erros.append(str(e)[:120])
@@ -212,6 +215,7 @@ Responda SOMENTE em JSON: {{"prompt": "...", "negative": "..."}}"""
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json", temperature=0.7),
             )
+            uso.add_gemini(MODELO, getattr(resp, "usage_metadata", None))
             return json.loads(resp.text)
         except Exception as e:
             erros.append(str(e)[:120])
@@ -237,6 +241,7 @@ def remover_marca_dagua(imagem_bytes, mime="image/jpeg", modelo="gemini-2.5-flas
                 model=modelo,
                 contents=[types.Part.from_bytes(data=imagem_bytes, mime_type=mime), instr],
             )
+            uso.add_gemini(modelo, getattr(resp, "usage_metadata", None))
             for part in resp.candidates[0].content.parts:
                 inl = getattr(part, "inline_data", None)
                 if inl and inl.data:
@@ -260,6 +265,7 @@ def tem_pessoa(imagem_bytes, mime="image/jpeg"):
                       'imagem? Responda só JSON {"pessoa": true|false}.'],
             config=types.GenerateContentConfig(response_mime_type="application/json"),
         )
+        uso.add_gemini(MODELO, getattr(resp, "usage_metadata", None))
         v = json.loads(resp.text).get("pessoa", False)
         if isinstance(v, str):
             return v.strip().lower() in ("true", "sim", "yes", "1")
@@ -288,6 +294,7 @@ def vestir_modelo(imagem_bytes, produto, mime="image/jpeg", modelo="gemini-2.5-f
                 model=modelo,
                 contents=[types.Part.from_bytes(data=imagem_bytes, mime_type=mime), instr],
             )
+            uso.add_gemini(modelo, getattr(resp, "usage_metadata", None))
             for part in resp.candidates[0].content.parts:
                 inl = getattr(part, "inline_data", None)
                 if inl and inl.data:
@@ -335,6 +342,7 @@ Responda SOMENTE JSON:
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json", temperature=0.3),
             )
+            uso.add_gemini(MODELO, getattr(resp, "usage_metadata", None))
             return json.loads(resp.text)
         except Exception as e:
             erros.append(str(e)[:120])
@@ -367,6 +375,7 @@ def variar_imagem(imagem_bytes, produto, var_idx=1, mime="image/jpeg",
                 model=modelo,
                 contents=[types.Part.from_bytes(data=imagem_bytes, mime_type=mime), instr],
             )
+            uso.add_gemini(modelo, getattr(resp, "usage_metadata", None))
             for part in resp.candidates[0].content.parts:
                 inl = getattr(part, "inline_data", None)
                 if inl and inl.data:
@@ -419,6 +428,7 @@ Responda SOMENTE JSON:
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json", temperature=0.4),
             )
+            uso.add_gemini(MODELO, getattr(resp, "usage_metadata", None))
             d = json.loads(resp.text)
             idx = [i for i in d.get("indices", [])
                    if isinstance(i, int) and 0 <= i < len(imagens_paths)]
@@ -465,6 +475,7 @@ Responda SOMENTE JSON: {{"indices": [lista de números], "motivo": "curto"}}""")
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json", temperature=0.3),
             )
+            uso.add_gemini(MODELO, getattr(resp, "usage_metadata", None))
             d = json.loads(resp.text)
             idx = [i for i in d.get("indices", []) if isinstance(i, int) and 0 <= i < len(imagens_paths)]
             sel = [imagens_paths[i] for i in idx][:max_fotos]

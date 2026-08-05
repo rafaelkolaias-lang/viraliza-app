@@ -12,6 +12,9 @@ type Plano = {
   sub: string;
   icon: typeof Sparkles;
   destaque?: boolean;
+  /** false = pacote fora do ar: some da tela e ninguém consegue comprar por aqui.
+   *  Único lugar pra ligar e desligar um pacote. */
+  ativo?: boolean;
 };
 
 const PLANOS: Plano[] = [
@@ -20,6 +23,9 @@ const PLANOS: Plano[] = [
     etiqueta: "Para experimentar",
     sub: "Ideal pra testar a plataforma",
     icon: Sparkles,
+    // DESATIVADO por enquanto (volta depois): a taxa fixa do gateway come uma
+    // fatia grande demais de uma venda de R$10. Pra religar, virar pra true.
+    ativo: false,
   },
   {
     valor: 20,
@@ -45,6 +51,14 @@ const PLANOS: Plano[] = [
 function brl(n: number) {
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
+
+// Colunas escritas por extenso porque o Tailwind não gera classe montada em runtime.
+const COLUNAS: Record<number, string> = {
+  1: "lg:grid-cols-1",
+  2: "lg:grid-cols-2",
+  3: "lg:grid-cols-3",
+  4: "lg:grid-cols-4",
+};
 
 export function PlanosCreditos({
   email,
@@ -77,9 +91,17 @@ export function PlanosCreditos({
     setTimeout(() => setCarregando(null), 1200);
   }
 
+  // pacote com ativo: false não aparece e não tem como comprar
+  const planos = PLANOS.filter((p) => p.ativo !== false);
+
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {PLANOS.map((p) => {
+    <div
+      className={cn(
+        "grid grid-cols-1 gap-4 sm:grid-cols-2",
+        COLUNAS[planos.length] ?? "lg:grid-cols-4",
+      )}
+    >
+      {planos.map((p) => {
         const Icon = p.icon;
         const ocupado = carregando === p.valor;
         return (

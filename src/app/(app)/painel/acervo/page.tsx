@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { Film } from "lucide-react";
 import { CategoriaCard } from "@/components/hub/categoria-card";
 import { getCategorias, getTotalAcervo } from "@/lib/acervo";
-import { requireAssinatura } from "@/lib/dal";
+import { guardaBiblioteca } from "@/lib/dal";
+import { BibliotecaBloqueada } from "@/components/app/biblioteca-bloqueada";
 
 export const metadata: Metadata = { title: "Acervo de cortes" };
 export const dynamic = "force-dynamic";
@@ -12,7 +13,8 @@ function fmt(n: number) {
 }
 
 export default async function AcervoPage() {
-  await requireAssinatura();
+  const { liberado } = await guardaBiblioteca();
+  if (!liberado) return <BibliotecaBloqueada />;
   const [categorias, total] = await Promise.all([
     getCategorias(),
     getTotalAcervo(),

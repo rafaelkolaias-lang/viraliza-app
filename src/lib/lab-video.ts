@@ -56,7 +56,7 @@ export const DURACOES_LAB: DuracaoLab[] = [
     label: "6 segundos",
     nota: "Sem fala, só o produto aparecendo. Ideal pra capa e anúncio curto.",
     comFala: false,
-    custo: 30,
+    custo: 50,
   },
   {
     chave: "10s",
@@ -64,7 +64,7 @@ export const DURACOES_LAB: DuracaoLab[] = [
     label: "10 segundos",
     nota: "Uma frase de venda. O básico bem feito.",
     comFala: true,
-    custo: 50,
+    custo: 70,
   },
   {
     chave: "15s",
@@ -72,7 +72,7 @@ export const DURACOES_LAB: DuracaoLab[] = [
     label: "15 segundos",
     nota: "Fala completa: gancho, benefício e chamada. O mais usado.",
     comFala: true,
-    custo: 75,
+    custo: 95,
   },
 ];
 
