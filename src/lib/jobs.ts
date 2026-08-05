@@ -46,10 +46,28 @@ export function paraVideoJob(job: {
   }
   // de onde o vídeo veio: o Lab e o Boost marcam isso nas opções na hora de criar
   let origem: OrigemVideo = job.tipo === "cortes" ? "cortes" : "editor";
+  let audioAjustavel = false;
+  let volumes: VideoJob["volumes"];
   try {
-    const o = job.opcoes ? (JSON.parse(job.opcoes) as { lab?: boolean; boost?: boolean }) : null;
+    const o = job.opcoes
+      ? (JSON.parse(job.opcoes) as {
+          lab?: boolean;
+          boost?: boolean;
+          stems?: { orig?: string; musica?: string; voz?: string };
+          volumes?: { original?: number; musica?: number; voz?: number };
+        })
+      : null;
     if (o?.boost) origem = "boost";
     else if (o?.lab) origem = "lab";
+    // faixas separadas guardadas no render = dá pra refazer só o áudio depois
+    audioAjustavel = !!(o?.stems && (o.stems.orig || o.stems.musica || o.stems.voz));
+    if (audioAjustavel) {
+      volumes = {
+        original: Math.round(o?.volumes?.original ?? 100),
+        musica: Math.round(o?.volumes?.musica ?? 20),
+        voz: Math.round(o?.volumes?.voz ?? 100),
+      };
+    }
   } catch {
     /* opções inválidas: fica com o padrão */
   }
@@ -68,6 +86,8 @@ export function paraVideoJob(job: {
     midias,
     erro: job.erro ?? undefined,
     etapa: job.etapa ?? undefined,
+    audioAjustavel,
+    volumes,
   };
 }
 

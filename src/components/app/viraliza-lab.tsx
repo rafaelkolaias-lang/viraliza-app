@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Video,
   Image as ImageIcon,
@@ -10,9 +10,6 @@ import {
   Check,
   Sparkles,
   SkipForward,
-  Clapperboard,
-  PenLine,
-  Images,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -33,12 +30,8 @@ import { LabVideo, type ConfigVideoLab } from "@/components/app/lab-video";
 import { LabMovimentos } from "@/components/app/lab-movimentos";
 import { LabResumoVideo } from "@/components/app/lab-resumo-video";
 import { LabGerando } from "@/components/app/lab-gerando";
-import { LabDock, type ItemDock } from "@/components/app/lab-dock";
-import { VideoLivre } from "@/components/app/video-livre";
-import { GeradorPrompt } from "@/components/app/gerador-prompt";
-import { LabGaleria } from "@/components/app/lab-galeria";
-import type { ImagemDaGaleria } from "@/lib/galeria-imagens";
-import { AVATARES_PRONTOS } from "@/lib/avatares-prontos";
+import { LabCabecalho } from "@/components/app/lab-cabecalho";
+import { espiarImagemParaVideo, limparImagemParaVideo } from "@/lib/lab-handoff";
 import { custoVideoLab } from "@/lib/lab-custos";
 import { falaCabeNoTempo } from "@/lib/lab-video";
 
@@ -47,6 +40,10 @@ import { falaCabeNoTempo } from "@/lib/lab-video";
  * Três etapas grandes (criar a cena, gerar a IMAGEM, animar em VÍDEO). O "Criar
  * cena" tem quatro telas internas (estilo, produto + descrição, influenciador,
  * cenário) e quem mostra o avanço delas é a barra neon embaixo da trilha.
+ *
+ * Esta tela é SÓ o funil guiado. As outras ferramentas do Labs (minhas imagens,
+ * vídeo livre e gerador de prompt) eram abas de um dock aqui embaixo e hoje têm
+ * rota própria, no submenu "Viraliza Labs" da barra lateral.
  */
 
 const ETAPAS = [
@@ -63,47 +60,6 @@ type SubCena = (typeof SUBS)[number];
 
 /** Telas internas do "Gerar vídeo". */
 type SubVideo = "config" | "movimento" | "resumo" | "gerando";
-
-/**
- * As ferramentas do laboratório, que trocam pelo dock flutuante do rodapé. O
- * funil guiado é a porta de entrada; as outras duas vieram da antiga tela
- * "Vídeo com avatar", que foi aposentada.
- */
-const FERRAMENTAS = [
-  {
-    chave: "lab",
-    label: "Criar criativo",
-    Icone: Compass,
-    descricao: "O caminho guiado, do produto ao vídeo",
-    ajuda: "Ambiente de criação onde você transforma produtos validados em criativos prontos.",
-  },
-  {
-    chave: "imagens",
-    label: "Minhas imagens",
-    Icone: Images,
-    descricao: "Tudo que você já gerou, salvo",
-    ajuda:
-      "Toda imagem que você gera fica guardada aqui. Baixe, favorite ou gere um vídeo novo dela sem precisar montar a cena de novo.",
-  },
-  {
-    chave: "livre",
-    label: "Vídeo livre",
-    Icone: Clapperboard,
-    descricao: "Você escreve o que quer e a IA grava",
-    ajuda:
-      "Escreva com suas palavras o vídeo que você quer, anexe as imagens de referência e a IA grava exatamente aquilo.",
-  },
-  {
-    chave: "prompt",
-    label: "Gerador de prompt",
-    Icone: PenLine,
-    descricao: "A IA escreve o prompt perfeito pra você",
-    ajuda:
-      "Suba suas fotos e a IA escreve o prompt perfeito pra você, com a técnica dos profissionais.",
-  },
-] as const;
-
-type Modo = (typeof FERRAMENTAS)[number]["chave"];
 
 /** Envelope com a animação de entrada de cada tela (sobe suave e aparece). */
 function Tela({ chave, children }: { chave: string; children: React.ReactNode }) {
@@ -289,32 +245,60 @@ export function ViralizaLab({
 }: {
   meusAvatares?: AvatarLab[];
 }) {
-  // ferramenta aberta (dock do rodapé): funil guiado, vídeo livre ou gerador
-  const [modo, setModo] = useState<Modo>("lab");
-  // prompt + imagens vindos do Gerador (pré-preenchem o Vídeo livre)
-  const [livreInicial, setLivreInicial] = useState<{ texto: string; midias: string[] } | null>(null);
-  const [etapa, setEtapa] = useState<Etapa>("cena");
+  /**
+   * "Novo vídeo" da galeria (tela "Minhas imagens"): a imagem já existe e já
+   * sabemos como ela nasceu, então o funil abre montado e direto no passo do
+   * vídeo. Nada é gerado de novo aqui, logo não custa crédito nenhum. A galeria
+   * virou outra rota, então ela deixa a imagem de recado e manda a pessoa pra cá
+   * (ver lab-handoff.ts); quem entra pelo menu não tem recado e começa do zero.
+   */
+  const [retomada] = useState(espiarImagemParaVideo);
+  const ctx = retomada?.contexto ?? {};
+
+  const [etapa, setEtapa] = useState<Etapa>(retomada ? "video" : "cena");
   const [sub, setSub] = useState<SubCena>("estilo");
   // tela interna do "Gerar vídeo": configuração, movimentos, revisão e a geração
   const [subVideo, setSubVideo] = useState<SubVideo>("config");
-  // qual vídeo já foi pedido (sobrevive à troca de aba no dock, que desmonta
-  // a tela de geração e antes fazia ela pedir tudo de novo)
+  // qual vídeo já foi pedido (sobrevive a quem desmonta a tela de geração e
+  // antes fazia ela pedir tudo de novo)
   const [jobVideo, setJobVideo] = useState<string | null>(null);
   // idem pra imagem: marca que ela já foi pedida nessa sessão
   const [imagemPedidaEm, setImagemPedidaEm] = useState<number | null>(null);
-  const [estilo, setEstilo] = useState<string | null>(null);
+  const [estilo, setEstilo] = useState<string | null>(ctx.estilo ?? null);
   // variação do estilo Mãos (POV): "maos" segurando ou "parado" na bancada
-  const [variacao, setVariacao] = useState("maos");
-  const [produto, setProduto] = useState<ProdutoLab | null>(null);
-  const [cena, setCena] = useState("");
-  const [avatar, setAvatar] = useState<AvatarLab | null>(null);
+  const [variacao, setVariacao] = useState(ctx.variacao ?? "maos");
+  const [produto, setProduto] = useState<ProdutoLab | null>(
+    retomada
+      ? {
+          id: ctx.produtoId ?? "galeria",
+          titulo: ctx.produtoTitulo ?? retomada.titulo,
+          imagem: ctx.produtoImagem,
+          meu: !!ctx.produtoMeu,
+        }
+      : null,
+  );
+  const [cena, setCena] = useState(ctx.cena ?? "");
+  const [avatar, setAvatar] = useState<AvatarLab | null>(
+    retomada
+      ? ctx.avatarImagem
+        ? {
+            id: ctx.avatarId ?? "galeria",
+            nome: ctx.avatarNome ?? "Influenciador",
+            imagemUrl: ctx.avatarImagem,
+          }
+        : SEM_AVATAR
+      : null,
+  );
   const [meusAvatares, setMeusAvatares] = useState<AvatarLab[]>(avataresIniciais);
-  const [cenario, setCenario] = useState<string | null>(null);
-  const [cenarioTexto, setCenarioTexto] = useState("");
-  const [imagem, setImagem] = useState<string | null>(null);
+  const [cenario, setCenario] = useState<string | null>(ctx.cenario ?? null);
+  const [cenarioTexto, setCenarioTexto] = useState(ctx.cenarioTexto ?? "");
+  const [imagem, setImagem] = useState<string | null>(retomada?.imagem ?? null);
   // true quando a pessoa clicou em "já tenho a imagem": a etapa da imagem abre no
-  // modo de subir/escolher, sem disparar (e sem cobrar) a geração sozinha
-  const [imagemPropria, setImagemPropria] = useState(false);
+  // modo de subir/escolher, sem disparar (e sem cobrar) a geração sozinha.
+  // Quem chegou pela galeria também entra assim: a imagem dela já está pronta.
+  const [imagemPropria, setImagemPropria] = useState(!!retomada);
+  // fala, instruções e movimento NÃO vêm da imagem retomada de propósito: são do
+  // produto anterior, e se ficassem a pessoa pagaria um vídeo narrando outra coisa
   const [video, setVideo] = useState<ConfigVideoLab>({
     duracao: "15s",
     tom: "animado",
@@ -371,7 +355,7 @@ export function ViralizaLab({
   function irPara(prox: Etapa) {
     // voltar pra montagem da cena encerra o pedido da imagem SÓ se ela já
     // chegou: aí mexer e avançar gera (e custa) uma nova de propósito. No meio
-    // da geração NÃO encerra — senão voltar/avançar disparava uma 2ª cobrança.
+    // da geração NÃO encerra, senão voltar/avançar disparava uma 2ª cobrança.
     if (prox === "cena" && imagem) setImagemPedidaEm(null);
     setEtapa(prox);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -390,39 +374,9 @@ export function ViralizaLab({
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  /**
-   * "Novo vídeo" da galeria: a imagem já existe e já sabemos como ela nasceu,
-   * então o funil volta montado e pula direto pro passo do vídeo. Nada é gerado
-   * de novo aqui, logo não custa crédito nenhum.
-   */
-  function retomarImagem(img: ImagemDaGaleria) {
-    const c = img.contexto ?? {};
-    setEstilo(c.estilo ?? null);
-    setVariacao(c.variacao ?? "maos");
-    setCena(c.cena ?? "");
-    setCenario(c.cenario ?? null);
-    setCenarioTexto(c.cenarioTexto ?? "");
-    setProduto({
-      id: c.produtoId ?? "galeria",
-      titulo: c.produtoTitulo ?? img.titulo,
-      imagem: c.produtoImagem,
-      meu: !!c.produtoMeu,
-    });
-    setAvatar(
-      c.avatarImagem
-        ? { id: c.avatarId ?? "galeria", nome: c.avatarNome ?? "Influenciador", imagemUrl: c.avatarImagem }
-        : SEM_AVATAR,
-    );
-    setImagem(img.imagem);
-    setImagemPropria(true);
-    // fala e instruções são do produto ANTERIOR: se ficassem, a pessoa pagaria
-    // um vídeo narrando outra coisa sem perceber. Movimento também não vale mais.
-    setVideo((v) => ({ ...v, fala: "", instrucoes: "", movimento: null }));
-    setSubVideo("config");
-    setModo("lab");
-    setEtapa("video");
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
+  // O recado da galeria vale uma vez só: entrar no Labs pelo menu, depois, abre
+  // o funil limpo em vez de cair de novo no vídeo da imagem anterior.
+  useEffect(limparImagemParaVideo, []);
 
   /** Zera o funil pra criar outro criativo do zero (mantém os avatares salvos). */
   function recomecar() {
@@ -441,76 +395,26 @@ export function ViralizaLab({
     irPara("cena");
   }
 
-  const ferramenta = FERRAMENTAS.find((f) => f.chave === modo);
-
   return (
-    // a folga embaixo é o espaço do dock flutuante (senão ele tapa o último botão)
-    <div className="relative pb-24 sm:pb-28">
-      <div className="mx-auto flex max-w-5xl flex-col items-center gap-5 pt-2 text-center">
-        <span className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-3 py-1.5 text-[11px] font-medium text-primary sm:px-4 sm:text-xs">
-          <Video className="size-3.5 shrink-0" />
-          {modo === "lab"
-            ? "O laboratório onde produtos viram criativos"
-            : FERRAMENTAS.find((f) => f.chave === modo)?.descricao}
-        </span>
-        <div className="space-y-3">
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            {modo === "lab" ? (
-              <>
-                Viraliza <span className="text-primary">Labs</span>
-              </>
-            ) : (
-              ferramenta?.label
-            )}
-          </h1>
-          <p className="mx-auto max-w-xl text-sm text-muted-foreground sm:text-base">
-            {modo === "lab"
-              ? "Ambiente de criação onde você transforma produtos validados em criativos prontos."
-              : ferramenta?.ajuda}
-          </p>
-        </div>
-        {modo === "lab" && (
+    <div className="relative pb-8">
+      <LabCabecalho
+        Icone={Video}
+        chamada="O laboratório onde produtos viram criativos"
+        titulo={
           <>
-            <Trilha atual={etapa} />
-            <BarraProgresso pct={pct} />
+            Viraliza <span className="text-primary">Labs</span>
           </>
-        )}
-      </div>
+        }
+        descricao="Ambiente de criação onde você transforma produtos validados em criativos prontos."
+      >
+        <Trilha atual={etapa} />
+        <BarraProgresso pct={pct} />
+      </LabCabecalho>
 
-      {modo === "imagens" && (
-        <Tela chave="imagens">
-          <LabGaleria comCabecalho={false} onNovoVideo={retomarImagem} />
-        </Tela>
-      )}
-
-      {modo === "livre" && (
-        <Tela chave="livre">
-          <VideoLivre
-            key={livreInicial ? livreInicial.texto.slice(0, 40) : "vazio"}
-            meusAvatares={meusAvatares}
-            prontos={AVATARES_PRONTOS}
-            textoInicial={livreInicial?.texto ?? ""}
-            midiasIniciais={livreInicial?.midias ?? []}
-          />
-        </Tela>
-      )}
-
-      {modo === "prompt" && (
-        <Tela chave="prompt">
-          <GeradorPrompt
-            onUsarNoLivre={(texto, midias) => {
-              setLivreInicial({ texto, midias });
-              setModo("livre");
-              window.scrollTo({ top: 0, behavior: "smooth" });
-            }}
-          />
-        </Tela>
-      )}
-
-      {modo === "lab" && etapa === "cena" && sub === "estilo" && (
+      {etapa === "cena" && sub === "estilo" && (
         <Tela chave="estilo">
           {/* ATALHO logo na entrada: quem JÁ tem a foto da influencer com o
-              produto não precisa do funil da imagem — vai direto pro vídeo,
+              produto não precisa do funil da imagem: vai direto pro vídeo,
               sem gastar crédito nenhum na imagem. */}
           <button
             type="button"
@@ -605,7 +509,7 @@ export function ViralizaLab({
         </Tela>
       )}
 
-      {modo === "lab" && etapa ==="cena" && estiloSel && sub === "produto" && (
+      {etapa ==="cena" && estiloSel && sub === "produto" && (
         <Tela chave="produto">
           <Bloco n={2} titulo="Selecione um produto" obrigatorio>
             <LabProdutos
@@ -642,7 +546,7 @@ export function ViralizaLab({
         </Tela>
       )}
 
-      {modo === "lab" && etapa ==="cena" && estiloSel && sub === "avatar" && (
+      {etapa ==="cena" && estiloSel && sub === "avatar" && (
         <Tela chave="avatar">
           <Bloco n={4} titulo="Escolha o influenciador" obrigatorio>
             <LabAvatares
@@ -665,7 +569,7 @@ export function ViralizaLab({
         </Tela>
       )}
 
-      {modo === "lab" && etapa ==="cena" && sub === "cenario" && (
+      {etapa ==="cena" && sub === "cenario" && (
         <Tela chave="cenario">
           <Bloco n={5} titulo="Cenário" obrigatorio>
             <LabCenario escolhido={cenario} onEscolher={setCenario} />
@@ -680,7 +584,7 @@ export function ViralizaLab({
         </Tela>
       )}
 
-      {modo === "lab" && etapa ==="cena" && estiloSel && produto && avatar && cenario && sub === "resumo" && (
+      {etapa ==="cena" && estiloSel && produto && avatar && cenario && sub === "resumo" && (
         <Tela chave="resumo">
           <section className="rounded-3xl border border-border/60 bg-card/40 p-5 sm:p-7">
             <LabResumo
@@ -751,7 +655,7 @@ export function ViralizaLab({
           />
         </Tela>
       )}
-      {modo === "lab" && etapa ==="imagem" && estiloSel && produto && avatar && cenario && (
+      {etapa ==="imagem" && estiloSel && produto && avatar && cenario && (
         <Tela chave="imagem">
           <Bloco n={6} titulo="Sua imagem">
             <LabImagem
@@ -781,7 +685,7 @@ export function ViralizaLab({
         </Tela>
       )}
 
-      {modo === "lab" && etapa ==="video" && imagem && subVideo === "config" && (
+      {etapa ==="video" && imagem && subVideo === "config" && (
         <Tela chave="video-config">
           <Bloco n={7} titulo="Como vai ser o vídeo" obrigatorio>
             <LabVideo config={video} onMudar={setVideo} produtoNome={produto?.titulo} />
@@ -799,7 +703,7 @@ export function ViralizaLab({
         </Tela>
       )}
 
-      {modo === "lab" && etapa ==="video" && imagem && subVideo === "movimento" && (
+      {etapa ==="video" && imagem && subVideo === "movimento" && (
         <Tela chave="video-movimento">
           <Bloco n={8} titulo="Movimento do vídeo">
             <LabMovimentos
@@ -819,7 +723,7 @@ export function ViralizaLab({
         </Tela>
       )}
 
-      {modo === "lab" && etapa ==="video" && imagem && subVideo === "resumo" && (
+      {etapa ==="video" && imagem && subVideo === "resumo" && (
         <Tela chave="video-resumo">
           <section className="rounded-3xl border border-border/60 bg-card/40 p-5 sm:p-7">
             <LabResumoVideo
@@ -861,7 +765,7 @@ export function ViralizaLab({
         </Tela>
       )}
 
-      {modo === "lab" && etapa ==="video" && imagem && subVideo === "gerando" && (
+      {etapa ==="video" && imagem && subVideo === "gerando" && (
         <Tela chave="video-gerando">
           <Bloco n={9} titulo="Seu vídeo">
             <LabGerando
@@ -878,15 +782,6 @@ export function ViralizaLab({
           </Bloco>
         </Tela>
       )}
-
-      <LabDock
-        itens={FERRAMENTAS as unknown as ItemDock[]}
-        atual={modo}
-        onTrocar={(chave) => {
-          setModo(chave as Modo);
-          window.scrollTo({ top: 0, behavior: "smooth" });
-        }}
-      />
     </div>
   );
 }

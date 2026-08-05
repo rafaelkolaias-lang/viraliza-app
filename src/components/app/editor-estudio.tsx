@@ -22,6 +22,10 @@ import {
   Package,
   Info,
   Clock,
+  Star,
+  Mic,
+  Wand2,
+  Gauge,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -31,7 +35,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { Segmented } from "@/components/app/segmented";
 import { MediaPicker } from "@/components/app/media-picker";
 import { cn } from "@/lib/utils";
-import { estimarCreditos } from "@/lib/precos";
+import { estimarCreditos, CREDITOS_FIXO } from "@/lib/precos";
+import {
+  MAX_VIDEO_SEG,
+  MAX_APOIO_SEG,
+  MAX_ARQUIVO_MB,
+  MAX_VOLUME_BOOST,
+  SEG_POR_APOIO,
+  SILENCIOS,
+  VOLUMES_PADRAO,
+  VELOCIDADES_MUSICA,
+  VELOCIDADE_PADRAO,
+  maxApoios,
+  tamanhoEmMB,
+} from "@/lib/montagem";
 import { VOZES, VOZ_PADRAO, type VozOpcao } from "@/lib/vozes";
 import { SeletorVoz } from "@/components/app/seletor-voz";
 
@@ -79,6 +96,19 @@ type Clip = {
   dur: number;
   inSec: number;
   outSec: number;
+  /**
+   * "principal" = o vídeo que roda por baixo do começo ao fim, com o SOM DELE
+   * (é a pessoa falando). Só pode existir um, e só vídeo pode ser.
+   * "apoio" = entra por cima, mudo, em tela cheia, e volta pro principal.
+   */
+  papel: "principal" | "apoio";
+  /**
+   * Apoio: em que segundo do principal ele entra. `null` = a IA escolhe olhando
+   * a fala do principal (a tela mostra a distribuição de reserva enquanto isso).
+   */
+  entra: number | null;
+  /** o que aparece nesse clipe, escrito pela pessoa (ex.: "close no tecido") */
+  descricao: string;
 };
 
 type Texto = {
@@ -103,6 +133,43 @@ function fmt(s: number) {
 }
 
 const DUR_IMAGEM = 3;
+/** Quanto tempo um clipe de apoio pode ficar na tela (o render usa os mesmos limites). */
+const APOIO_MIN = 0.8;
+const APOIO_MAX = 6;
+
+/** Quanto tempo esse apoio fica na tela, respeitando o corte que a pessoa fez. */
+function durApoio(c: Clip) {
+  return Math.max(APOIO_MIN, Math.min(APOIO_MAX, c.outSec - c.inSec));
+}
+
+/**
+ * Onde cada apoio entra na linha do principal. Quem a pessoa arrastou manda; o
+ * resto ganha a MESMA distribuição em intervalos iguais que o render usa quando
+ * a IA não responde, pra prévia não mentir. Depois empurra pra frente o que
+ * estiver sobreposto e derruba o que não couber, igual à fábrica.
+ *
+ * Só entram os primeiros apoios que cabem na regra de 1 cena a cada 10 segundos.
+ */
+function momentosApoios(todos: Clip[], durBase: number) {
+  const apoios = todos.slice(0, maxApoios(durBase));
+  const marcas = apoios.map((c, i) => ({
+    id: c.id,
+    dur: durApoio(c),
+    entra: c.entra ?? (durBase * (i + 1)) / (apoios.length + 1),
+    auto: c.entra === null,
+  }));
+  marcas.sort((a, b) => a.entra - b.entra);
+  const saida: { id: string; entra: number; dur: number; auto: boolean }[] = [];
+  let cursor = 0;
+  for (const m of marcas) {
+    const entra = Math.max(cursor, Math.min(m.entra, durBase));
+    const dur = Math.min(m.dur, durBase - entra);
+    if (dur < APOIO_MIN) continue;
+    saida.push({ id: m.id, entra, dur, auto: m.auto });
+    cursor = entra + dur;
+  }
+  return saida;
+}
 
 export function EditorEstudio({
   bloqueado = false,
@@ -130,6 +197,8 @@ export function EditorEstudio({
 
   const [clips, setClips] = useState<Clip[]>([]);
   const [sel, setSel] = useState(0);
+  /** qual dos clipes principais está tocando na prévia (a base é a sequência deles) */
+  const [idxBase, setIdxBase] = useState(0);
   const [tocando, setTocando] = useState(false);
   const [tempo, setTempo] = useState(0); // tempo dentro do clipe atual
 
@@ -150,8 +219,14 @@ export function EditorEstudio({
   const [comMusica, setComMusica] = useState(true);
   const [musica, setMusica] = useState<File[]>([]);
   const [musicaUrl, setMusicaUrl] = useState("");
-  const [volumeMusica, setVolumeMusica] = useState(50);
+  const [volumeMusica, setVolumeMusica] = useState(VOLUMES_PADRAO.musica);
+  const [velocidadeMusica, setVelocidadeMusica] = useState<number>(VELOCIDADE_PADRAO);
+  /** cortar trechos sem fala maiores que X segundos (0 = não cortar) */
+  const [cortarSilencio, setCortarSilencio] = useState(0);
   const [audioVideo, setAudioVideo] = useState<"manter" | "remover">("manter");
+  // mixagem: dá pra ouvir o resultado de cada controle na hora, antes de gerar
+  const [volumeOriginal, setVolumeOriginal] = useState(100);
+  const [volumeVoz, setVolumeVoz] = useState(100);
 
   const [enviando, setEnviando] = useState(false);
 
@@ -161,12 +236,47 @@ export function EditorEstudio({
   // formatos que usam a copy da IA (tom/plataforma/descrição só importam nesses)
   const usaCopy = formato === "legenda" || formato === "voz";
 
-  // duração total (soma dos clipes já cortados) e tempo na linha geral
-  const totalDur = clips.reduce((s, c) => s + (c.outSec - c.inSec), 0);
+  // ---- principais (a base do vídeo, em sequência) e apoios (entram por cima) ----
+  const principais = clips.filter((c) => c.papel === "principal");
+  const modoPrincipal = principais.length > 0;
+  const durBase = principais.reduce((s, c) => s + (c.outSec - c.inSec), 0);
+  const apoios = modoPrincipal ? clips.filter((c) => c.papel !== "principal") : [];
+  /** Em que segundo da base esse principal começa. */
+  const inicioDoBase = (i: number) =>
+    principais.slice(0, i).reduce((s, c) => s + (c.outSec - c.inSec), 0);
+  const marcasApoio = modoPrincipal ? momentosApoios(apoios, durBase) : [];
+  const cabemApoios = modoPrincipal ? maxApoios(durBase) : 0;
+  // apoio com mais de 1 minuto precisa ser cortado antes de gerar. Só conta os
+  // que realmente entram: os que passaram do limite de cenas já ficam de fora.
+  const apoioLongo = apoios
+    .slice(0, cabemApoios)
+    .some((c) => c.outSec - c.inSec > MAX_APOIO_SEG);
+
+  // duração total (com principal o vídeo dura o que ele dura: os apoios
+  // SUBSTITUEM trechos em vez de somar tempo) e tempo na linha geral
+  const somaClipes = clips.reduce((s, c) => s + (c.outSec - c.inSec), 0);
+  const totalDur = modoPrincipal ? durBase : somaClipes;
+  const passouDoTeto = totalDur > MAX_VIDEO_SEG;
   const elapsedAntes = clips
     .slice(0, sel)
     .reduce((s, c) => s + (c.outSec - c.inSec), 0);
-  const tGlobal = elapsedAntes + Math.max(0, tempo - (atual?.inSec ?? 0));
+  // o palco mostra a composição enquanto toca; parado mostra o clipe selecionado,
+  // pra continuar dando pra cortar cada um deles
+  const palco = modoPrincipal && tocando ? principais[idxBase] : atual;
+  // tempo na linha do vídeo: dentro da base é o começo daquele principal mais o
+  // quanto já rodou dele
+  const idxPalcoBase = palco ? principais.findIndex((c) => c.id === palco.id) : -1;
+  const tGlobal = modoPrincipal
+    ? idxPalcoBase >= 0
+      ? inicioDoBase(idxPalcoBase) +
+        Math.max(0, tempo - principais[idxPalcoBase].inSec)
+      : 0
+    : elapsedAntes + Math.max(0, tempo - (atual?.inSec ?? 0));
+  const marcaAtiva =
+    modoPrincipal && tocando
+      ? marcasApoio.find((m) => tGlobal >= m.entra && tGlobal < m.entra + m.dur)
+      : undefined;
+  const apoioNaTela = marcaAtiva ? clips.find((c) => c.id === marcaAtiva.id) : undefined;
   const textosAtivos = textos.filter(
     (t) => t.conteudo.trim() && tGlobal >= t.inSec && tGlobal <= t.outSec,
   );
@@ -189,9 +299,54 @@ export function EditorEstudio({
     return () => URL.revokeObjectURL(u);
   }, [musica]);
 
+  // MIXAGEM AO VIVO: mexeu no controle, ouve na hora. É o mesmo volume que vai
+  // pro render, então o que se ouve aqui é o que sai no vídeo.
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = volumeMusica / 100;
   }, [volumeMusica, musicaUrl]);
+
+  // velocidade da música na prévia. `preservesPitch` mantém o TOM: sem isso a
+  // música acelerada vira voz de desenho e a lenta fica arrastada e grave.
+  // É o mesmo efeito do render (que usa time-stretch, não acelera o arquivo).
+  useEffect(() => {
+    const a = audioRef.current as
+      | (HTMLAudioElement & { preservesPitch?: boolean; webkitPreservesPitch?: boolean })
+      | null;
+    if (!a) return;
+    a.preservesPitch = true;
+    a.webkitPreservesPitch = true;
+    a.playbackRate = velocidadeMusica;
+  }, [velocidadeMusica, musicaUrl]);
+
+  // O `volume` do elemento só vai até 1, então acima de 100% a prévia amplifica
+  // pela Web Audio (mesma coisa que o render faz com o filtro de volume).
+  const ganhoRef = useRef<{ ctx: AudioContext; gain: GainNode } | null>(null);
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    const ganho = volumeOriginal / 100;
+    if (ganho <= 1) {
+      v.volume = ganho;
+      if (ganhoRef.current) ganhoRef.current.gain.gain.value = 1;
+      return;
+    }
+    v.volume = 1;
+    if (!ganhoRef.current) {
+      try {
+        // a ligação é feita UMA vez por elemento: refazer dá erro no navegador
+        const ctx = new AudioContext();
+        const gain = ctx.createGain();
+        ctx.createMediaElementSource(v).connect(gain).connect(ctx.destination);
+        ganhoRef.current = { ctx, gain };
+      } catch {
+        return; // navegador sem Web Audio: fica no volume cheio, sem amplificar
+      }
+    }
+    ganhoRef.current.gain.gain.value = ganho;
+    if (ganhoRef.current.ctx.state === "suspended") {
+      ganhoRef.current.ctx.resume().catch(() => {});
+    }
+  }, [volumeOriginal, palco?.id]);
 
   useEffect(() => {
     return () => {
@@ -220,7 +375,15 @@ export function EditorEstudio({
   const addFiles = useCallback(async (files: File[]) => {
     if (!files.length) return;
     const novos: Clip[] = [];
+    const recusados: string[] = [];
+    const pesados: string[] = [];
     for (const file of files) {
+      // barra aqui o que o servidor recusaria depois: sem isso a pessoa espera o
+      // upload inteiro pra receber um erro no fim
+      if (file.size > MAX_ARQUIVO_MB * 1024 * 1024) {
+        pesados.push(`${file.name} (${tamanhoEmMB(file.size)})`);
+        continue;
+      }
       const url = URL.createObjectURL(file);
       const ehVideo = file.type.startsWith("video");
       let dur = DUR_IMAGEM;
@@ -233,6 +396,12 @@ export function EditorEstudio({
           v.src = url;
         });
       }
+      // o Editor não faz vídeo maior que 2 minutos, então nem aceita a mídia
+      if (ehVideo && dur > MAX_VIDEO_SEG) {
+        URL.revokeObjectURL(url);
+        recusados.push(file.name);
+        continue;
+      }
       novos.push({
         id: novoId(),
         file,
@@ -241,9 +410,24 @@ export function EditorEstudio({
         dur,
         inSec: 0,
         outSec: dur,
+        papel: "apoio",
+        entra: null,
+        descricao: "",
       });
     }
-    setClips((prev) => [...prev, ...novos]);
+    if (recusados.length) {
+      toast.error(
+        recusados.length === 1
+          ? `"${recusados[0]}" passa de ${MAX_VIDEO_SEG / 60} minutos. O editor faz vídeo de até ${MAX_VIDEO_SEG / 60} minutos.`
+          : `${recusados.length} vídeos passam de ${MAX_VIDEO_SEG / 60} minutos e ficaram de fora.`,
+      );
+    }
+    if (pesados.length) {
+      toast.error(
+        `Passa de ${MAX_ARQUIVO_MB} MB por arquivo: ${pesados.join(", ")}. Comprima ou corte antes de subir.`,
+      );
+    }
+    if (novos.length) setClips((prev) => [...prev, ...novos]);
   }, []);
 
   const addArquivos = useCallback(
@@ -393,34 +577,116 @@ export function EditorEstudio({
       videoRef.current?.pause();
       audioRef.current?.pause();
       pararTimer();
-    } else {
-      setTocando(true);
-      if (audioRef.current && musicaUrl && comMusica) {
-        audioRef.current.currentTime = 0;
-        audioRef.current.volume = volumeMusica / 100;
-        audioRef.current.play().catch(() => {});
-      }
-      irPara(sel, true);
+      return;
     }
+    setTocando(true);
+    if (audioRef.current && musicaUrl && comMusica) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.volume = volumeMusica / 100;
+      audioRef.current.play().catch(() => {});
+    }
+    if (modoPrincipal) {
+      // com principal a prévia É a composição: eles tocam em sequência, com o som
+      // deles, e os apoios entram por cima nos momentos marcados.
+      pararTimer();
+      const i = idxBase < principais.length ? idxBase : 0;
+      if (i !== idxBase) setIdxBase(i);
+      const base = principais[i];
+      const v = videoRef.current;
+      // se o palco já estava nesse principal o efeito abaixo não dispara: toca aqui
+      if (v && base && atual?.id === base.id) {
+        if (v.currentTime < base.inSec || v.currentTime >= base.outSec) {
+          v.currentTime = base.inSec;
+        }
+        v.play().catch(() => {});
+      }
+      return;
+    }
+    irPara(sel, true);
   }
 
   useEffect(() => {
     const v = videoRef.current;
-    if (atual?.kind === "video" && v) {
-      v.src = atual.url;
-      v.currentTime = atual.inSec;
+    if (palco?.kind === "video" && v) {
+      v.src = palco.url;
+      v.currentTime = palco.inSec;
+      v.volume = volumeOriginal / 100;
+      if (tocando && modoPrincipal) v.play().catch(() => {});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [atual?.id]);
+  }, [palco?.id]);
 
   function onTimeUpdate() {
     const v = videoRef.current;
-    if (!v || !atual) return;
+    if (!v || !palco) return;
     setTempo(v.currentTime);
-    if (v.currentTime >= atual.outSec) {
-      if (tocando) irPara(sel + 1, true);
-      else v.pause();
+    if (v.currentTime >= palco.outSec) {
+      if (modoPrincipal) {
+        // acabou este principal: emenda no próximo, ou termina o vídeo
+        const prox = idxPalcoBase + 1;
+        if (tocando && prox < principais.length) {
+          setIdxBase(prox);
+          return;
+        }
+        v.pause();
+        audioRef.current?.pause();
+        setTocando(false);
+        setIdxBase(0);
+        v.currentTime = palco.inSec;
+        setTempo(palco.inSec);
+      } else if (tocando) {
+        irPara(sel + 1, true);
+      } else {
+        v.pause();
+      }
     }
+  }
+
+  // ---- clipes principais (a base, em sequência) ----
+  function alternarPrincipal(id: string) {
+    const alvo = clips.find((c) => c.id === id);
+    if (!alvo || alvo.kind !== "video") return;
+    const virandoPrincipal = alvo.papel !== "principal";
+    // os principais ficam JUNTOS no topo, na ordem em que vão tocar. O clipe que
+    // muda de papel vai pro fim desse bloco: marcando, vira o último principal;
+    // desmarcando, vira o primeiro apoio. Nos dois casos é a mesma posição.
+    const destino = clips.filter((c) => c.id !== id && c.papel === "principal").length;
+    setClips((prev) => {
+      const marcados = prev.map((c) =>
+        c.id === id
+          ? {
+              ...c,
+              papel: (virandoPrincipal ? "principal" : "apoio") as Clip["papel"],
+              entra: null,
+              // o principal não descreve cena: quem conta a história é a fala dele
+              descricao: virandoPrincipal ? "" : c.descricao,
+            }
+          : c,
+      );
+      const mudou = marcados.find((c) => c.id === id)!;
+      const outros = marcados.filter((c) => c.id !== id);
+      return [...outros.slice(0, destino), mudou, ...outros.slice(destino)];
+    });
+    setSel(destino);
+    setTocando(false);
+    setIdxBase(0);
+    pararTimer();
+    videoRef.current?.pause();
+    audioRef.current?.pause();
+    // quem narra passa a ser a pessoa: a voz da IA por cima brigaria com a fala dela
+    if (virandoPrincipal && formato === "voz") {
+      setFormato("transcrever");
+      if (audioVideo === "remover") setAudioVideo("manter");
+      toast.info("Com clipe principal quem narra é você: mudei pra Transcrever fala. 🙂");
+    }
+  }
+
+  function setEntraApoio(id: string, valor: number | null) {
+    setClips((prev) => prev.map((c) => (c.id === id ? { ...c, entra: valor } : c)));
+  }
+
+  function setDescricaoClip(id: string, valor: string) {
+    setClips((prev) => prev.map((c) => (c.id === id ? { ...c, descricao: valor } : c)));
   }
 
   // ---- enviar ----
@@ -433,6 +699,18 @@ export function EditorEstudio({
       return toast.error("Adicione pelo menos um clipe ou imagem.");
     if (ehProduto && nome.trim().length < 2)
       return toast.error("Dê um nome ao produto (ou desative 'É um produto?').");
+    if (modoPrincipal && ehProduto && formato === "voz")
+      return toast.error(
+        "Com clipe principal quem narra é você. Escolha Transcrever fala ou Nenhum.",
+      );
+    if (passouDoTeto)
+      return toast.error(
+        `O editor faz vídeo de até ${MAX_VIDEO_SEG / 60} minutos. Corte alguns clipes (agora está em ${fmt(totalDur)}).`,
+      );
+    if (apoioLongo)
+      return toast.error(
+        `Tem cena de apoio com mais de ${MAX_APOIO_SEG / 60} minuto. Corte ela com as alças verdes.`,
+      );
 
     const titulo = ehProduto
       ? nome.trim()
@@ -456,6 +734,17 @@ export function EditorEstudio({
       fd.set("audioVideo", audioVideo);
       fd.set("comMusica", comMusica ? "1" : "0");
       fd.set("volumeMusica", String(volumeMusica));
+      fd.set("velocidadeMusica", String(velocidadeMusica));
+      fd.set("cortarSilencio", String(cortarSilencio));
+      // volumes da mixagem: o render usa exatamente estes números
+      fd.set(
+        "volumes",
+        JSON.stringify({
+          original: volumeOriginal,
+          musica: volumeMusica,
+          voz: volumeVoz,
+        }),
+      );
 
       // textos (camada de legendas com posição + tempo)
       const textosLimpos = textos
@@ -471,7 +760,7 @@ export function EditorEstudio({
       fd.set("legendaPos", textosLimpos[0]?.pos ?? "baixo");
       if (textosLimpos[0]) fd.set("legenda", textosLimpos[0].texto);
 
-      // roteiro (ordem + cortes)
+      // roteiro: ordem, cortes, quem é o principal e quando cada apoio entra
       fd.set(
         "roteiro",
         JSON.stringify(
@@ -481,6 +770,11 @@ export function EditorEstudio({
             ordem,
             in: Number(c.inSec.toFixed(2)),
             out: Number(c.outSec.toFixed(2)),
+            papel: c.papel,
+            ...(c.papel === "apoio"
+              ? { entra: c.entra === null ? null : Number(c.entra.toFixed(2)) }
+              : {}),
+            ...(c.descricao.trim() ? { descricao: c.descricao.trim() } : {}),
           })),
         ),
       );
@@ -511,14 +805,16 @@ export function EditorEstudio({
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
       <audio ref={audioRef} src={musicaUrl || undefined} className="hidden" />
 
-      {/* ===== PALCO ===== */}
-      <div className="space-y-4">
+      {/* ===== PALCO =====
+          gruda no topo ao rolar: com muitos clipes a lista fica longa e a prévia
+          sumia lá em cima. Só no desktop: no celular ela ocuparia a tela toda. */}
+      <div className="space-y-4 lg:sticky lg:top-4 lg:self-start">
         <div className="relative mx-auto aspect-[9/16] w-full max-w-[340px] overflow-hidden rounded-2xl border border-border bg-black">
-          {atual ? (
-            atual.kind === "video" ? (
+          {palco ? (
+            palco.kind === "video" ? (
               <video
                 ref={videoRef}
-                src={atual.url}
+                src={palco.url}
                 playsInline
                 muted={mudo}
                 onTimeUpdate={onTimeUpdate}
@@ -528,7 +824,7 @@ export function EditorEstudio({
             ) : (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={atual.url}
+                src={palco.url}
                 alt=""
                 onClick={togglePlay}
                 className="size-full object-contain"
@@ -545,8 +841,30 @@ export function EditorEstudio({
             </div>
           )}
 
+          {/* apoio por cima do principal: tela cheia, mudo, e sai sozinho.
+              A key força remontar a cada troca, pra o clipe começar do início. */}
+          {apoioNaTela &&
+            (apoioNaTela.kind === "video" ? (
+              <video
+                key={apoioNaTela.id}
+                src={`${apoioNaTela.url}#t=${apoioNaTela.inSec}`}
+                autoPlay
+                muted
+                playsInline
+                className="absolute inset-0 size-full bg-black object-contain"
+              />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={apoioNaTela.id}
+                src={apoioNaTela.url}
+                alt=""
+                className="absolute inset-0 size-full bg-black object-contain"
+              />
+            ))}
+
           {/* textos ao vivo (por posição) */}
-          {atual &&
+          {palco &&
             (["cima", "meio", "baixo"] as Posicao[]).map((pos) => {
               const ts = textosAtivos.filter((t) => t.pos === pos);
               if (!ts.length) return null;
@@ -572,7 +890,7 @@ export function EditorEstudio({
               );
             })}
 
-          {atual && !tocando && (
+          {palco && !tocando && (
             <button
               type="button"
               onClick={togglePlay}
@@ -645,6 +963,69 @@ export function EditorEstudio({
           titulo={`Clipes (${clips.length})`}
           acao={<AddMidia onPick={addArquivos} />}
         >
+          {clips.length > 1 && (
+            <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 p-2.5 text-[11px] text-muted-foreground">
+              <Star className="mt-0.5 size-3.5 shrink-0 text-primary" />
+              {modoPrincipal ? (
+                <span>
+                  <b className="text-foreground">
+                    {principais.length === 1
+                      ? "Clipe principal ligado."
+                      : `${principais.length} clipes principais ligados.`}
+                  </b>{" "}
+                  A narração é a sua fala {principais.length === 1 ? "nele" : "neles"},
+                  então a voz da IA fica desligada.{" "}
+                  {principais.length > 1 &&
+                    "Eles tocam em sequência, na ordem da lista (use as setinhas pra trocar). "}
+                  Os outros clipes entram por cima, mudos, em tela cheia, voltando pra você
+                  depois. O vídeo vai durar {fmt(durBase)} e cabem{" "}
+                  <b className="text-foreground">
+                    {cabemApoios} {cabemApoios === 1 ? "cena" : "cenas"} de apoio
+                  </b>{" "}
+                  (1 a cada {SEG_POR_APOIO}s).
+                </span>
+              ) : (
+                <span>
+                  Tem vídeo em que você aparece <b className="text-foreground">narrando</b>?
+                  Toque na <b className="text-foreground">estrela</b> dele. Pode marcar
+                  mais de um: eles tocam em sequência formando a base, e os outros clipes
+                  entram por cima mostrando o produto.
+                </span>
+              )}
+            </div>
+          )}
+
+          {modoPrincipal && (
+            <div className="rounded-lg border border-border bg-card p-2.5">
+              <div className="mb-1.5 flex items-center gap-2">
+                <Scissors className="size-4 shrink-0 text-primary" />
+                <p className="text-xs font-medium">Cortar partes sem fala</p>
+              </div>
+              <div className="grid grid-cols-5 gap-1.5">
+                {SILENCIOS.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setCortarSilencio(s)}
+                    className={cn(
+                      "rounded-md border px-1 py-1.5 text-xs font-medium tabular-nums transition-colors",
+                      s === cortarSilencio
+                        ? "border-primary bg-primary/12 text-primary"
+                        : "border-border text-muted-foreground hover:border-primary/40 hover:text-foreground",
+                    )}
+                  >
+                    {s === 0 ? "Não" : `${s.toLocaleString("pt-BR")}s`}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1 text-[10px] text-muted-foreground">
+                {cortarSilencio === 0
+                  ? "Sem corte: a base sai do jeito que você gravou."
+                  : `Todo trecho calado por mais de ${cortarSilencio.toLocaleString("pt-BR")}s sai fora, imagem e som juntos, com uma folga pra não engolir a respiração. O vídeo fica mais curto, então pode caber menos cena de apoio. O corte acontece no render: a prévia aqui toca o clipe inteiro.`}
+              </p>
+            </div>
+          )}
+
           {clips.length === 0 ? (
             <p className="rounded-lg border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
               Nenhum clipe ainda.
@@ -655,72 +1036,152 @@ export function EditorEstudio({
                 <li
                   key={c.id}
                   className={cn(
-                    "flex items-center gap-2 rounded-lg border bg-card p-1.5",
+                    "rounded-lg border bg-card p-1.5",
                     i === sel ? "border-primary" : "border-border",
+                    c.papel === "principal" && "border-primary/70 bg-primary/5",
                   )}
                 >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTocando(false);
-                      pararTimer();
-                      irPara(i, false);
-                    }}
-                    className="relative size-12 shrink-0 overflow-hidden rounded-md bg-black"
-                  >
-                    {c.kind === "video" ? (
-                      <video
-                        src={`${c.url}#t=0.3`}
-                        muted
-                        preload="metadata"
-                        className="size-full object-cover"
-                      />
-                    ) : (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={c.url} alt="" className="size-full object-cover" />
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTocando(false);
+                        pararTimer();
+                        irPara(i, false);
+                      }}
+                      className="relative size-12 shrink-0 overflow-hidden rounded-md bg-black"
+                    >
+                      {c.kind === "video" ? (
+                        <video
+                          src={`${c.url}#t=0.3`}
+                          muted
+                          preload="metadata"
+                          className="size-full object-cover"
+                        />
+                      ) : (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={c.url} alt="" className="size-full object-cover" />
+                      )}
+                      <span className="absolute left-0.5 top-0.5 rounded bg-black/70 px-1 text-[9px] font-bold text-white">
+                        {i + 1}
+                      </span>
+                    </button>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-medium">{c.file.name}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {c.kind === "video" ? "Vídeo" : "Imagem"} ·{" "}
+                        {fmt(c.outSec - c.inSec)}
+                        {c.papel === "principal" && (
+                          <b className="ml-1 text-primary">
+                            · principal{" "}
+                            {principais.length > 1 &&
+                              `${principais.findIndex((p) => p.id === c.id) + 1}º`}
+                          </b>
+                        )}
+                        {modoPrincipal && c.papel === "apoio" && (
+                          <span className="ml-1">· apoio (mudo)</span>
+                        )}
+                      </p>
+                    </div>
+                    {c.kind === "video" && (
+                      <button
+                        type="button"
+                        onClick={() => alternarPrincipal(c.id)}
+                        className="shrink-0"
+                        title={
+                          c.papel === "principal"
+                            ? "Deixar de ser o clipe principal"
+                            : "Usar como clipe principal (roda por baixo, com o som dele)"
+                        }
+                        aria-label="Clipe principal"
+                      >
+                        <Star
+                          className={cn(
+                            "size-4",
+                            c.papel === "principal"
+                              ? "fill-primary text-primary"
+                              : "text-muted-foreground hover:text-foreground",
+                          )}
+                        />
+                      </button>
                     )}
-                    <span className="absolute left-0.5 top-0.5 rounded bg-black/70 px-1 text-[9px] font-bold text-white">
-                      {i + 1}
-                    </span>
-                  </button>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-medium">{c.file.name}</p>
-                    <p className="text-[11px] text-muted-foreground">
-                      {c.kind === "video" ? "Vídeo" : "Imagem"} ·{" "}
-                      {fmt(c.outSec - c.inSec)}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 flex-col">
+                    {/* com principais, as setas ordenam a BASE (quem toca primeiro).
+                        Nos apoios elas somem: neles o que manda é o momento. */}
+                    {(!modoPrincipal || c.papel === "principal") && (
+                      <div className="flex shrink-0 flex-col">
+                        <button
+                          type="button"
+                          onClick={() => mover(i, -1)}
+                          disabled={i === 0}
+                          className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                          aria-label="Subir"
+                        >
+                          <ChevronLeft className="size-4 rotate-90" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => mover(i, 1)}
+                          disabled={
+                            modoPrincipal
+                              ? i + 1 >= principais.length
+                              : i === clips.length - 1
+                          }
+                          className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                          aria-label="Descer"
+                        >
+                          <ChevronRight className="size-4 rotate-90" />
+                        </button>
+                      </div>
+                    )}
                     <button
                       type="button"
-                      onClick={() => mover(i, -1)}
-                      disabled={i === 0}
-                      className="text-muted-foreground hover:text-foreground disabled:opacity-30"
-                      aria-label="Subir"
+                      onClick={() => removerClip(c.id)}
+                      className="shrink-0 text-muted-foreground hover:text-destructive"
+                      aria-label="Remover"
                     >
-                      <ChevronLeft className="size-4 rotate-90" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => mover(i, 1)}
-                      disabled={i === clips.length - 1}
-                      className="text-muted-foreground hover:text-foreground disabled:opacity-30"
-                      aria-label="Descer"
-                    >
-                      <ChevronRight className="size-4 rotate-90" />
+                      <Trash2 className="size-4" />
                     </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => removerClip(c.id)}
-                    className="shrink-0 text-muted-foreground hover:text-destructive"
-                    aria-label="Remover"
-                  >
-                    <Trash2 className="size-4" />
-                  </button>
+
+                  {/* Descrever a cena: é assim que a IA sabe O QUE tem nesse
+                      clipe, pra encaixar no trecho certo da fala e pra copy
+                      falar do que está na tela. O principal não tem: a fala DELE
+                      é que é a narração, e a IA lê essa fala transcrevendo. */}
+                  {c.papel !== "principal" && (
+                    <Input
+                      value={c.descricao}
+                      onChange={(e) => setDescricaoClip(c.id, e.target.value)}
+                      maxLength={160}
+                      placeholder="O que aparece aqui (ex: close no tecido da blusa)"
+                      className="mt-1.5 h-8 text-xs"
+                    />
+                  )}
+
+                  {modoPrincipal && c.papel === "apoio" && (
+                    <MomentoApoio
+                      clip={c}
+                      durBase={durBase}
+                      marca={marcasApoio.find((m) => m.id === c.id)}
+                      excedente={
+                        apoios.findIndex((a) => a.id === c.id) >= cabemApoios
+                      }
+                      cabem={cabemApoios}
+                      onChange={(v) => setEntraApoio(c.id, v)}
+                    />
+                  )}
                 </li>
               ))}
             </ul>
+          )}
+
+          {clips.length > 0 && (
+            <p className="text-[11px] text-muted-foreground">
+              <b className="text-foreground">Descrever a cena é opcional</b>, mas ajuda
+              muito:{" "}
+              {modoPrincipal
+                ? "é assim que a IA sabe em que ponto da sua fala cada apoio encaixa. O principal não precisa: ela lê a fala dele."
+                : "a IA usa isso pra escrever uma copy que combina com o que está na tela."}
+            </p>
           )}
         </Secao>
 
@@ -798,6 +1259,23 @@ export function EditorEstudio({
                 </span>
               </div>
             )}
+
+            {!mudo && (
+              <div className="mt-3">
+                <ControleVolume
+                  icon={Volume2}
+                  label="Volume do som do vídeo"
+                  valor={volumeOriginal}
+                  max={MAX_VOLUME_BOOST}
+                  onChange={setVolumeOriginal}
+                  dica={
+                    modoPrincipal
+                      ? "Sua voz no clipe principal. Dê o play na prévia e ajuste ouvindo."
+                      : "Som que já vem nos seus vídeos. Dê o play na prévia e ajuste ouvindo."
+                  }
+                />
+              </div>
+            )}
           </div>
 
           <div>
@@ -821,38 +1299,61 @@ export function EditorEstudio({
 
             {comMusica && (
               <div className="mt-3 space-y-3">
+                {/* aceita vídeo também: a plataforma usa só o SOM dele como
+                    música (é comum a pessoa ter o áudio dentro de um mp4) */}
                 <MediaPicker
                   kind="audio"
                   files={musica}
-                  onChange={setMusica}
+                  onChange={(fs) => {
+                    const grande = fs.find(
+                      (f) => f.size > MAX_ARQUIVO_MB * 1024 * 1024,
+                    );
+                    if (grande) {
+                      toast.error(
+                        `"${grande.name}" tem ${tamanhoEmMB(grande.size)} e o limite é ${MAX_ARQUIVO_MB} MB por arquivo.`,
+                      );
+                      return;
+                    }
+                    setMusica(fs);
+                  }}
                   multiple={false}
-                  hint="Suba a sua música, ou deixe vazio que a IA escolhe uma pra você"
+                  accept="audio/*,video/*"
+                  // o player aqui já toca no volume e na velocidade escolhidos
+                  volume={volumeMusica / 100}
+                  velocidade={velocidadeMusica}
+                  hint="Suba um áudio ou um vídeo (usamos só o som dele), ou deixe vazio que a IA escolhe uma pra você"
                 />
 
                 {/* volume: controla tanto a sua música quanto a automática */}
-                <div>
-                  <div className="flex items-center gap-3">
-                    <Music className="size-4 shrink-0 text-primary" />
-                    <input
-                      type="range"
-                      min={0}
-                      max={100}
-                      value={volumeMusica}
-                      onChange={(e) => setVolumeMusica(Number(e.target.value))}
-                      className="h-1.5 flex-1 cursor-pointer accent-primary"
-                      aria-label="Volume da música"
-                    />
-                    <span className="w-9 text-right text-xs tabular-nums text-muted-foreground">
-                      {volumeMusica}%
-                    </span>
-                  </div>
-                  <p className="mt-1 text-[10px] text-muted-foreground">
-                    Controla o volume da música (sua ou a automática). Deixe baixo pra não abafar a voz.
-                  </p>
-                </div>
+                <ControleVolume
+                  icon={Music}
+                  label="Volume da música"
+                  valor={volumeMusica}
+                  onChange={setVolumeMusica}
+                  dica="Vale pra sua música e pra automática. Deixe baixo pra não abafar a voz."
+                />
+
+                <VelocidadeMusica
+                  valor={velocidadeMusica}
+                  onChange={setVelocidadeMusica}
+                  temPreview={!!musicaUrl}
+                />
               </div>
             )}
           </div>
+
+          {ehProduto && formato === "voz" && (
+            <div>
+              <ControleVolume
+                icon={Mic}
+                label="Volume da narração"
+                valor={volumeVoz}
+                max={MAX_VOLUME_BOOST}
+                onChange={setVolumeVoz}
+                dica="Voz da IA. Ela só existe depois do render, então não dá pra ouvir aqui: no vídeo pronto tem o botão Reajustar áudio pra acertar ouvindo, sem gastar crédito."
+              />
+            </div>
+          )}
         </Secao>
 
         {/* produto (opcional) */}
@@ -909,7 +1410,10 @@ export function EditorEstudio({
               <div className="space-y-1.5">
                 <Label className="text-xs">Formato</Label>
                 <Segmented
-                  options={FORMATOS}
+                  // com clipe principal a voz da IA sairia por cima da sua fala
+                  options={
+                    modoPrincipal ? FORMATOS.filter((f) => f.value !== "voz") : FORMATOS
+                  }
                   value={formato}
                   onChange={(v) => {
                     setFormato(v);
@@ -921,6 +1425,12 @@ export function EditorEstudio({
                   }}
                 />
                 <p className="text-[11px] text-muted-foreground">{FORMATO_NOTA[formato]}</p>
+                {modoPrincipal && (
+                  <p className="text-[11px] text-muted-foreground">
+                    <b className="text-foreground">Voz narrada</b> fica de fora aqui: quem
+                    narra é você, no clipe principal.
+                  </p>
+                )}
               </div>
               {usaCopy && (
                 <>
@@ -958,25 +1468,46 @@ export function EditorEstudio({
           )}
         </Secao>
 
+        {/* No modo "Nenhum" a IA não entra, então não há consumo a estimar: o
+            preço é o fixo de processamento e a tela mostra o valor EXATO. Com a
+            estimativa por segundo aqui, vídeo curto sem IA prometia menos do que
+            seria cobrado de verdade. */}
         {clips.length > 0 && !bloqueado && (
           <p className="text-center text-xs text-muted-foreground">
             Usará{" "}
             <span className="font-semibold text-primary">
-              no máximo{" "}
-              {estimarCreditos(
-                ehProduto && formato === "voz" ? "voz" : "legenda",
-                totalDur,
-              ).toLocaleString("pt-BR")}{" "}
-              créditos
+              {formato === "nenhum" ? (
+                <>{CREDITOS_FIXO.editorManual} créditos</>
+              ) : (
+                <>
+                  no máximo{" "}
+                  {estimarCreditos(
+                    ehProduto && formato === "voz" ? "voz" : "legenda",
+                    totalDur,
+                  ).toLocaleString("pt-BR")}{" "}
+                  créditos
+                </>
+              )}
             </span>
           </p>
+        )}
+
+        {(passouDoTeto || apoioLongo) && (
+          <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-[11px] text-amber-200/90">
+            <Info className="mt-0.5 size-3.5 shrink-0 text-amber-400" />
+            <span>
+              {passouDoTeto
+                ? `Seu vídeo está com ${fmt(totalDur)}. O editor faz até ${MAX_VIDEO_SEG / 60} minutos: corte ou tire alguns clipes.`
+                : `Tem cena de apoio com mais de ${MAX_APOIO_SEG / 60} minuto. Corte ela com as alças verdes.`}
+            </span>
+          </div>
         )}
 
         <Button
           type="button"
           size="lg"
           className="h-11 w-full"
-          disabled={enviando || bloqueado}
+          disabled={enviando || bloqueado || passouDoTeto || apoioLongo}
           onClick={gerar}
         >
           {bloqueado ? (
@@ -1045,6 +1576,202 @@ function BotaoOpcao({
       <Icon className="size-4" />
       {label}
     </button>
+  );
+}
+
+/**
+ * Velocidade da música. O tom é mantido nos dois lados (na prévia pelo
+ * `preservesPitch` do navegador, no render pelo time-stretch do ffmpeg), então
+ * mudar a velocidade só muda o andamento: não fica com cara de acelerado.
+ */
+function VelocidadeMusica({
+  valor,
+  onChange,
+  temPreview,
+}: {
+  valor: number;
+  onChange: (v: number) => void;
+  temPreview: boolean;
+}) {
+  return (
+    <div>
+      <div className="mb-1.5 flex items-center gap-2">
+        <Gauge className="size-4 shrink-0 text-primary" />
+        <p className="text-xs text-muted-foreground">Velocidade da música</p>
+      </div>
+      <div className="grid grid-cols-4 gap-1.5">
+        {VELOCIDADES_MUSICA.map((v) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => onChange(v)}
+            className={cn(
+              "rounded-md border px-1 py-1.5 text-xs font-medium tabular-nums transition-colors",
+              v === valor
+                ? "border-primary bg-primary/12 text-primary"
+                : "border-border text-muted-foreground hover:border-primary/40 hover:text-foreground",
+            )}
+          >
+            {v.toLocaleString("pt-BR")}x
+          </button>
+        ))}
+      </div>
+      <p className="mt-1 text-[10px] text-muted-foreground">
+        O tom da música é mantido: só o andamento muda, sem ficar com voz de desenho.
+        {temPreview
+          ? " Dê o play na prévia pra ouvir."
+          : " Suba a sua música pra ouvir na prévia."}
+        {valor < 0.5 &&
+          " Abaixo de 0,5x alguns navegadores não tocam a prévia, mas no vídeo final funciona."}
+      </p>
+    </div>
+  );
+}
+
+/** Um controle de volume da mixagem (mexeu, ouve na hora na prévia). */
+function ControleVolume({
+  icon: Icon,
+  label,
+  valor,
+  dica,
+  max = 100,
+  onChange,
+}: {
+  icon: typeof Volume2;
+  label: string;
+  valor: number;
+  dica: string;
+  /** 150 nas faixas que aceitam amplificar (som do vídeo e narração). */
+  max?: number;
+  onChange: (v: number) => void;
+}) {
+  const amplificando = valor > 100;
+  return (
+    <div>
+      <div className="flex items-center gap-3">
+        <Icon className="size-4 shrink-0 text-primary" />
+        <input
+          type="range"
+          min={0}
+          max={max}
+          value={valor}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="h-1.5 flex-1 cursor-pointer accent-primary"
+          aria-label={label}
+        />
+        <span
+          className={cn(
+            "w-11 text-right text-xs tabular-nums",
+            amplificando ? "font-semibold text-primary" : "text-muted-foreground",
+          )}
+        >
+          {valor}%
+        </span>
+      </div>
+      <p className="mt-1 text-[10px] text-muted-foreground">
+        {dica}
+        {max > 100 &&
+          (amplificando
+            ? " Acima de 100% a gente amplifica o som, com proteção pra não estourar."
+            : " Dá pra passar de 100% se a gravação ficou baixa.")}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Quando esse clipe de apoio entra por cima do principal. Por padrão quem decide
+ * é a IA (ela lê a fala do principal na hora do render); arrastando aqui a
+ * pessoa fixa o momento e a IA não mexe mais nesse clipe.
+ */
+function MomentoApoio({
+  clip,
+  durBase,
+  marca,
+  excedente,
+  cabem,
+  onChange,
+}: {
+  clip: Clip;
+  durBase: number;
+  marca?: { entra: number; dur: number; auto: boolean };
+  /** passou da conta de 1 cena a cada 10 segundos do principal */
+  excedente: boolean;
+  cabem: number;
+  onChange: (v: number | null) => void;
+}) {
+  const dur = durApoio(clip);
+  const max = Math.max(0, durBase - dur);
+  const sugerido = marca?.entra ?? 0;
+  const longo = clip.outSec - clip.inSec > MAX_APOIO_SEG;
+
+  if (excedente) {
+    return (
+      <p className="mt-1.5 border-t border-border/60 pt-1.5 text-[11px] text-amber-500">
+        Passou do limite de {cabem} {cabem === 1 ? "cena" : "cenas"} de apoio (1 a cada{" "}
+        {SEG_POR_APOIO}s do principal). Esse clipe fica de fora: apague ele ou use um
+        principal mais longo.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-1.5 space-y-1.5 border-t border-border/60 pt-1.5">
+      {longo && (
+        <p className="text-[11px] text-amber-500">
+          Cena de apoio aceita no máximo {MAX_APOIO_SEG / 60} minuto. Corte esse clipe
+          com as alças verdes pra poder gerar.
+        </p>
+      )}
+      {clip.entra === null ? (
+        <div className="flex items-center gap-1.5 text-[11px]">
+          <Wand2 className="size-3.5 shrink-0 text-primary" />
+          <span className="flex-1 text-muted-foreground">
+            A IA escolhe o momento
+            {marca ? ` (por volta de ${sugerido.toFixed(1)}s)` : ""}
+          </span>
+          <button
+            type="button"
+            onClick={() => onChange(Number(sugerido.toFixed(1)))}
+            className="font-medium text-primary hover:underline"
+          >
+            escolher eu
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <Clock className="size-3.5 shrink-0 text-primary" />
+            <span className="flex-1">
+              entra em <b className="text-foreground">{clip.entra.toFixed(1)}s</b> e fica{" "}
+              {dur.toFixed(1)}s
+            </span>
+            <button
+              type="button"
+              onClick={() => onChange(null)}
+              className="font-medium text-primary hover:underline"
+            >
+              IA escolhe
+            </button>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={max}
+            step={0.1}
+            value={Math.min(clip.entra, max)}
+            onChange={(e) => onChange(Number(e.target.value))}
+            className="h-1.5 w-full cursor-pointer accent-primary"
+            aria-label="Momento em que esse clipe entra"
+          />
+        </>
+      )}
+      {!marca && (
+        <p className="text-[11px] text-amber-500">
+          Não cabe no tempo do principal: esse clipe ficaria de fora do vídeo.
+        </p>
+      )}
+    </div>
   );
 }
 

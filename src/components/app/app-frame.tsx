@@ -225,19 +225,23 @@ export function AppFrame({
         </div>
         {navInterno(recolhida)}
 
-        {/* pastilha na borda: recolhe e abre a barra */}
+        {/* Pastilha na borda: recolhe e abre a barra.
+            Fica na altura da LOGO, não na do primeiro item do menu: em `top-24`
+            ela caía coladinha no "Início" e parecia um botão daquele item, solto
+            no meio da lista. Aqui em cima ela lê como controle da barra inteira.
+            Os 36px são pra dar onde clicar: com 28px e ícone de 14 era miudinho. */}
         <button
           type="button"
           onClick={alternarBarra}
           aria-label={recolhida ? "Expandir menu" : "Recolher menu"}
           aria-expanded={!recolhida}
           title={recolhida ? "Expandir menu" : "Recolher menu"}
-          className="absolute -right-3.5 top-24 grid size-7 place-items-center rounded-full border border-border bg-background text-muted-foreground shadow-lg transition-all hover:border-primary/60 hover:text-primary hover:shadow-[0_0_16px_-2px_var(--color-primary)]"
+          className="absolute -right-[18px] top-6 grid size-9 place-items-center rounded-full border border-border bg-background text-muted-foreground shadow-lg transition-all hover:border-primary/60 hover:text-primary hover:shadow-[0_0_16px_-2px_var(--color-primary)]"
         >
           {recolhida ? (
-            <PanelLeftOpen className="size-3.5" />
+            <PanelLeftOpen className="size-4.5" />
           ) : (
-            <PanelLeftClose className="size-3.5" />
+            <PanelLeftClose className="size-4.5" />
           )}
         </button>
       </aside>
@@ -267,7 +271,10 @@ export function AppFrame({
         <div
           onClick={() => setOpenMenu(false)}
           aria-hidden
-          className="fixed inset-0 z-40 cursor-pointer bg-black/60 backdrop-blur-sm md:hidden"
+          // z-[45]: entre os botões flutuantes do canto (z-40) e o painel da
+          // gaveta (z-50). No z-40 o empate deixava a boia do suporte aparecendo
+          // por cima do escurecido do menu.
+          className="fixed inset-0 z-[45] cursor-pointer bg-black/60 backdrop-blur-sm md:hidden"
         />
       )}
       {/* Painel deslizante - fechado fica fora da tela E inerte (pointer-events-none). */}

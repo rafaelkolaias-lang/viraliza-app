@@ -16,6 +16,55 @@ function nomeSeguro(nome: string) {
   return path.basename(nome).replace(/[^\w.\- ]+/g, "_").slice(0, 120) || "video.mp4";
 }
 
+type Opcoes = Record<string, unknown>;
+
+function lerOpcoes(job: { opcoes: string | null }): Opcoes {
+  try {
+    const o = JSON.parse(job.opcoes ?? "{}");
+    return o && typeof o === "object" ? (o as Opcoes) : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Guarda no job as FAIXAS DE ÁUDIO separadas que o render produziu (som do
+ * vídeo, música e narração) e apaga o pedido de reajuste que acabou de rodar.
+ * São essas faixas que deixam o botão "Reajustar áudio" refazer só o som depois,
+ * em segundos e sem cobrar de novo. Devolve `undefined` quando nada mudou.
+ */
+function opcoesAtualizadas(
+  job: { opcoes: string | null },
+  form: FormData,
+): string | undefined {
+  const antes = lerOpcoes(job);
+  const depois: Opcoes = { ...antes };
+  let mudou = false;
+
+  const bruto = form.get("stems");
+  if (typeof bruto === "string" && bruto.trim()) {
+    try {
+      const s = JSON.parse(bruto) as { total?: number } & Record<string, unknown>;
+      if (s && typeof s === "object") {
+        depois.stems = {
+          orig: typeof s.orig === "string" ? s.orig : undefined,
+          musica: typeof s.musica === "string" ? s.musica : undefined,
+          voz: typeof s.voz === "string" ? s.voz : undefined,
+        };
+        depois.stemsDur = Number(s.total) || undefined;
+        if (s.volumes) depois.volumes = s.volumes;
+        mudou = true;
+      }
+    } catch {}
+  }
+  if (depois.remix) {
+    // o reajuste pedido já foi aplicado: some com ele pra não repetir
+    delete depois.remix;
+    mudou = true;
+  }
+  return mudou ? JSON.stringify(depois) : undefined;
+}
+
 /**
  * Debita o custo do job no dono (pós-pago, pelo consumo REAL que o worker mediu).
  * Sem uso de API => preço fixo de processamento. Admin/demo não pagam. Idempotente.
@@ -112,9 +161,16 @@ export async function POST(
     // debita ANTES de marcar "pronto": garante que o crédito gasto já aparece
     // no mesmo refresh em que o vídeo fica pronto (sem precisar de F5).
     await debitarJob(job, form.get("consumo"));
+    const opcoesFinal = opcoesAtualizadas(job, form);
     await prisma.job.update({
       where: { id },
-      data: { status: "pronto", duracao, erro: null, etapa: null },
+      data: {
+        status: "pronto",
+        duracao,
+        erro: null,
+        etapa: null,
+        ...(opcoesFinal ? { opcoes: opcoesFinal } : {}),
+      },
     });
     await notificarJobPronto(job).catch(() => {});
     await fs.rm(pastaEntrada(id), { recursive: true, force: true }).catch(() => {});
@@ -141,10 +197,13 @@ export async function POST(
     const dir = pastaSaida(id);
     await fs.mkdir(dir, { recursive: true });
 
-    // acumula no estado já salvo (parte 0 começa do zero - cobre re-runs)
+    // acumula no estado já salvo (parte 0 começa do zero - cobre re-runs).
+    // No reajuste de áudio o vídeo é SUBSTITUÍDO: aí a parte 0 precisa do estado
+    // anterior pra não perder a legenda e as hashtags que já estavam prontas.
+    const ehRemix = !!lerOpcoes(job).remix;
     let saidas: string[] = [];
     let midias: Midia[] = [];
-    if (parte > 0) {
+    if (parte > 0 || ehRemix) {
       try {
         saidas = JSON.parse(job.saidas ?? "[]");
       } catch {}
@@ -176,18 +235,20 @@ export async function POST(
       }
     }
 
+    const antes = midias[parte];
     saidas[parte] = arquivo;
     midias[parte] = {
       arquivo,
       driveId,
       thumbDriveId,
-      thumb,
-      legenda: String(form.get("legenda") ?? "") || undefined,
-      hashtags: String(form.get("hashtags") ?? "") || undefined,
+      thumb: thumb ?? (ehRemix ? antes?.thumb : undefined),
+      legenda: String(form.get("legenda") ?? "") || (ehRemix ? antes?.legenda : undefined),
+      hashtags: String(form.get("hashtags") ?? "") || (ehRemix ? antes?.hashtags : undefined),
     };
 
     const duracao = Number(form.get("duracao") ?? 0) || job.duracao || null;
     const final = total > 0 && parte + 1 >= total;
+    const opcoesParte = final ? opcoesAtualizadas(job, form) : undefined;
     await prisma.job.update({
       where: { id },
       data: {
@@ -196,6 +257,7 @@ export async function POST(
         saidas: JSON.stringify(saidas),
         midias: JSON.stringify(midias),
         erro: null,
+        ...(opcoesParte ? { opcoes: opcoesParte } : {}),
       },
     });
     if (final) {
@@ -258,6 +320,7 @@ export async function POST(
 
   // debita ANTES de marcar "pronto" (crédito visível no mesmo refresh do pronto)
   await debitarJob(job, form.get("consumo"));
+  const opcoesBatch = opcoesAtualizadas(job, form);
   await prisma.job.update({
     where: { id },
     data: {
@@ -267,6 +330,7 @@ export async function POST(
       midias: JSON.stringify(midias),
       erro: null,
       etapa: null,
+      ...(opcoesBatch ? { opcoes: opcoesBatch } : {}),
     },
   });
   await notificarJobPronto(job).catch(() => {});

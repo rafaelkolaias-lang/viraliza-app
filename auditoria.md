@@ -166,6 +166,24 @@ Se o bug tiver contorno simples, afetar poucos usuários e não envolver dados s
 
 ### Concluído:
 
+#### 22. 🟠 (Nota 8) Editor automático: tudo que a pessoa monta na tela é jogado fora na hora de gerar
+- **Quando acontecia:** sempre que alguém usava o Editor automático. A pessoa colocava os clipes na ordem que queria, cortava cada um pelas alças verdes, escrevia os textos e via a prévia. Ao clicar em "Gerar vídeo", nada disso ia junto: só os arquivos soltos e as configurações. O renderizador então decidia sozinho quais fotos entravam, em que ordem, quanto tempo cada uma ficava e escrevia as próprias legendas.
+- **Onde:** `src/components/app/editor-estudio.tsx:469-486` montava os campos `textos` e `roteiro`, e `src/app/api/jobs/route.ts` nunca lia nenhum dos dois.
+- **Impacto:** o editor prometia uma coisa e entregava outra. Cortar um clipe não adiantava nada, mudar a ordem não adiantava nada e o texto escrito à mão nunca aparecia no vídeo. Como o preço é por consumo real, a pessoa pagava por um vídeo que ela não montou.
+- **Status:** CORRIGIDO em 05/08/2026. A montagem agora viaja no job (`opcoes.roteiro` e `opcoes.textos`) e o renderizador monta por ela (`roteiro.json` -> `build_montagem` na fábrica). Sem roteiro, o comportamento antigo continua valendo (fábrica avulsa e jobs antigos).
+
+#### 23. 🟡 (Nota 6) Controle de volume da música não fazia nada no vídeo final
+- **Quando acontecia:** sempre. A pessoa arrastava o controle de volume da música no Editor, o valor era salvo no pedido, e o renderizador nunca lia esse valor: a música saía sempre no volume fixo do código.
+- **Onde:** `src/app/api/jobs/route.ts:173` gravava `volumeMusica` em `opcoes`, mas nem `bot shopee/worker.py` nem `bot shopee/worker_serverrk.py` repassavam pra fábrica, que usava as constantes fixas `VOL_LEGENDA`/`VOL_VOZ`/`VOL_MANTER_MUS` em `bot shopee/fabrica.py:62-64`.
+- **Impacto:** música abafando a narração sem a pessoa ter como resolver, e um controle na tela que dava a sensação de estar funcionando.
+- **Status:** CORRIGIDO em 05/08/2026. Os volumes (música, narração e som original) agora viajam no job e viram parâmetro da fábrica.
+
+#### 24. 🟡 (Nota 6) Formato "Voz narrada": só o primeiro vídeo entrava, o resto era descartado sem avisar
+- **Quando acontecia:** ao gerar no formato "Voz narrada" com mais de um vídeo. O primeiro entrava, os outros sumiam. Com fotos não acontecia (elas entravam normalmente).
+- **Onde:** `bot shopee/fabrica.py:602` (`video = videos[0]`) usava só o primeiro item da lista.
+- **Impacto:** a pessoa subia 3 clipes, esperava o render e recebia um vídeo com o primeiro clipe em loop, sem nenhuma mensagem explicando. Era o formato mais usado da plataforma.
+- **Status:** CORRIGIDO em 05/08/2026. Os vídeos agora entram todos em sequência e o loop só acontece se o conjunto não cobrir a narração.
+
 #### 4. 🔴 (Nota 9) Comprar só um pacote de crédito dava acesso vitalício à biblioteca
 - **Quando acontecia:** a pessoa nunca comprava o produto de entrada. Comprava só o pacote de crédito mais barato (R$10), criava a conta com esse mesmo e-mail e entrava com a biblioteca inteira liberada para sempre (Acervo, Virais, Shopee, Produtos TikTok, Área de membro), mais 1.000 créditos de boas-vindas de brinde.
 - **Onde:** `src/lib/registro.ts` (a conta nascia `assinante: true` com `assinaturaAte: null`, ou seja, permanente, para qualquer compra).

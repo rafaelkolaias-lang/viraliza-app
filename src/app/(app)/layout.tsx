@@ -1,8 +1,14 @@
 import { AppFrame } from "@/components/app/app-frame";
 import { ChatWidget } from "@/components/app/chat-widget";
+import { SuporteChat } from "@/components/app/suporte-chat";
 import { requireUser } from "@/lib/dal";
 import { tocarPresenca } from "@/lib/presenca";
-import { getDividaCentavos, getNivelBadge, tocarAtividadeENivel } from "@/lib/niveis";
+import {
+  JANELA_GARANTIA_DIAS,
+  getDividaCentavos,
+  getNivelBadge,
+  tocarAtividadeENivel,
+} from "@/lib/niveis";
 import { presoCentavos } from "@/lib/liberacao-creditos";
 import { avisosAtivosPara } from "@/lib/notificacoes";
 import { getStatusBonusIg } from "@/lib/bonus-instagram";
@@ -55,7 +61,12 @@ export default async function AppLayout({
       dividaCentavos={divida}
     >
       {children}
-      {/* caixinha do chat: só aparece se o admin abriu conversa com a pessoa */}
+      {/* robô de ajuda: sempre disponível, é o botão de baixo no canto. A janela
+          de garantia vem daqui porque `lib/niveis` é server-only e as respostas
+          prontas do chat citam esse prazo */}
+      <SuporteChat garantiaDias={JANELA_GARANTIA_DIAS} />
+      {/* caixinha do chat com a equipe: só aparece se o admin abriu conversa.
+          Quando aparece, fica LOGO ACIMA do robô (ver chat-widget.tsx). */}
       {user.role !== "admin" && <ChatWidget />}
     </AppFrame>
   );

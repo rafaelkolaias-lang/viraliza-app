@@ -65,8 +65,8 @@ export function AjudaInfluenciador() {
         <Aviso tom="dica" titulo="Começando agora? Não crie nada ainda">
           Faça o primeiro vídeo com um influenciador{" "}
           <strong className="text-foreground">da plataforma</strong> (os de graça, lá
-          embaixo da tela Personalize com IA). Assim você aprende o caminho todo sem
-          gastar crédito. Depois que entender o fluxo, aí sim vale criar o seu.
+          embaixo da Galeria de avatares). Assim você aprende o caminho todo sem gastar
+          crédito. Depois que entender o fluxo, aí sim vale criar o seu.
         </Aviso>
       </Secao>
 
@@ -77,12 +77,16 @@ export function AjudaInfluenciador() {
         subtitulo="São 7 telinhas, uma pergunta de cada vez. Leva uns 2 minutos pra responder."
       >
         <div className="rounded-xl border border-border bg-background/50 p-4">
-          <Titulinho>Onde fica esse botão</Titulinho>
+          <Titulinho>Onde fica</Titulinho>
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
             No menu do lado esquerdo, clique em{" "}
-            <strong className="text-foreground">Personalize com IA</strong>. Na tela que
-            abrir, clique no botão verde{" "}
-            <strong className="text-foreground">Criar com IA</strong>, no topo.
+            <strong className="text-foreground">Personalize com IA</strong> pra abrir os
+            atalhos e depois em{" "}
+            <strong className="text-foreground">Criar com IA</strong>.
+          </p>
+          <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+            Abre uma tela com três jeitos de criar. O das 7 perguntas é o primeiro,{" "}
+            <strong className="text-foreground">Do zero, sem foto</strong>.
           </p>
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
             No celular o menu fica escondido: toque nas três listrinhas no canto de cima
@@ -163,7 +167,7 @@ export function AjudaInfluenciador() {
           duas vezes.
         </Aviso>
 
-        <Atalho href="/painel/meus-avatares">Abrir Personalize com IA</Atalho>
+        <Atalho href="/painel/meus-avatares/criar">Abrir Criar com IA</Atalho>
       </Secao>
 
       {/* ================= OUTRAS FORMAS ================= */}
@@ -179,31 +183,32 @@ export function AjudaInfluenciador() {
               Enviar imagem
             </p>
             <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-              Botão ao lado do &quot;Criar com IA&quot;. Serve quando você já tem a
-              imagem da pessoa salva no computador ou no celular.{" "}
+              Esse fica na <strong className="text-foreground">Galeria de avatares</strong>
+              , não na tela de criar: é o botão{" "}
+              <strong className="text-foreground">Enviar imagem</strong>, no topo. Serve
+              quando você já tem a imagem da pessoa salva no computador ou no celular.{" "}
               <strong className="text-foreground">Não gasta crédito nenhum.</strong>
             </p>
           </div>
           <div className="rounded-xl border border-border bg-background/50 p-4">
             <p className="flex items-center gap-2 text-sm font-semibold">
               <Camera className="size-4 text-primary" />
-              Criar a partir de uma foto sua
+              A partir de uma foto real
             </p>
             <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-              É o link escrito{" "}
-              <strong className="text-foreground">Criar a partir de uma foto sua</strong>
-              , logo abaixo dos dois botões. Use quando quiser que o influenciador seja
-              parecido com você ou com alguém real.
+              É o segundo cartão da tela{" "}
+              <strong className="text-foreground">Criar com IA</strong>. Use quando quiser
+              que o influenciador seja parecido com você ou com alguém real.
             </p>
           </div>
           <div className="rounded-xl border border-border bg-background/50 p-4">
             <p className="flex items-center gap-2 text-sm font-semibold">
               <Package className="size-4 text-primary" />
-              Criar junto com um produto
+              Junto com um produto
             </p>
             <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-              Também é um link abaixo dos botões. Aqui o influenciador já nasce segurando
-              o seu produto na mão, que é a imagem que mais vende.
+              É o terceiro cartão da mesma tela. Aqui o influenciador já nasce segurando o
+              seu produto na mão, que é a imagem que mais vende.
             </p>
           </div>
         </div>
@@ -215,7 +220,7 @@ export function AjudaInfluenciador() {
         </Aviso>
 
         <Texto>
-          Na mesma tela tem a aba <strong className="text-foreground">Cenários</strong>,
+          No mesmo menu tem <strong className="text-foreground">Meus cenários</strong>,
           onde você guarda os seus próprios fundos (a sua loja, a sua cozinha, o seu
           estúdio) pra usar nos vídeos em vez dos cenários prontos.
         </Texto>

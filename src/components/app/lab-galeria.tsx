@@ -1,18 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Heart, Download, Trash2, Video, Loader2, Images } from "lucide-react";
 import { toast } from "sonner";
 import { cn, linkBaixar } from "@/lib/utils";
 import { ROTULO_ORIGEM, type ImagemDaGaleria } from "@/lib/galeria-imagens";
+import { guardarImagemParaVideo } from "@/lib/lab-handoff";
 
 /**
  * "Minhas imagens": tudo que a pessoa gerou na plataforma, num lugar só.
  *
  * A graça não é guardar foto, é o que vem junto: a imagem que nasceu no Lab
  * carrega as escolhas que a criaram (produto, influenciador, estilo e cenário).
- * Por isso o card dela tem "Novo vídeo", que reabre o funil no passo do vídeo
- * com tudo preenchido, sem gerar (nem cobrar) a imagem de novo.
+ * Por isso o card dela tem "Novo vídeo", que leva pro funil já no passo do
+ * vídeo com tudo preenchido, sem gerar (nem cobrar) a imagem de novo.
  *
  * As de outras origens (Viral Boost, Personalize com IA) ficam aqui pra baixar e
  * organizar, mas sem esse atalho, porque o vídeo delas sai de outro fluxo.
@@ -30,11 +32,11 @@ function Card({
   onExcluir,
 }: {
   img: ImagemDaGaleria;
-  onNovoVideo?: () => void;
+  onNovoVideo: () => void;
   onFavoritar: () => void;
   onExcluir: () => void;
 }) {
-  const podeVideo = img.origem === "lab" && !!img.contexto && !!onNovoVideo;
+  const podeVideo = img.origem === "lab" && !!img.contexto;
 
   return (
     <article className="group overflow-hidden rounded-2xl border border-border/60 bg-card/50 transition-colors hover:border-primary/40">
@@ -111,16 +113,21 @@ function Card({
 }
 
 export function LabGaleria({
-  onNovoVideo,
   comCabecalho = true,
 }: {
-  onNovoVideo?: (img: ImagemDaGaleria) => void;
-  /** false quando quem abre já mostra o título (o dock do Lab, por exemplo) */
+  /** false quando quem abre já mostra o título (a página de Minhas imagens) */
   comCabecalho?: boolean;
 }) {
   const [imagens, setImagens] = useState<ImagemDaGaleria[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [soFavoritas, setSoFavoritas] = useState(false);
+  const router = useRouter();
+
+  /** Deixa a imagem (com o contexto dela) pro funil e abre o Labs no vídeo. */
+  function novoVideo(img: ImagemDaGaleria) {
+    guardarImagemParaVideo(img);
+    router.push("/painel/lab");
+  }
 
   useEffect(() => {
     fetch("/api/imagens", { cache: "no-store" })
@@ -222,7 +229,7 @@ export function LabGaleria({
             <Card
               key={img.id}
               img={img}
-              onNovoVideo={onNovoVideo ? () => onNovoVideo(img) : undefined}
+              onNovoVideo={() => novoVideo(img)}
               onFavoritar={() => favoritar(img)}
               onExcluir={() => excluir(img)}
             />

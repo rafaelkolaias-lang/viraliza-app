@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { enviarJobEmPedacos } from "@/lib/upload-chunked";
 import { CHAVE_FONTES_MARCA } from "@/lib/marca-lote-client";
+import { CREDITOS_FIXO } from "@/lib/precos";
 import { AcervoPickerModal, type FonteAcervo } from "@/components/app/acervo-picker-modal";
 import { maisVirais } from "@/app/actions/virais";
 
@@ -742,7 +743,8 @@ export function LoteEmMassa({ demo = false }: { demo?: boolean }) {
         </Button>
         {itens.length > 0 && (
           <p className="text-center text-[11px] text-muted-foreground">
-            Custa 50 créditos por vídeo ({itens.length * 50} no total).
+            Custa {CREDITOS_FIXO.lote} créditos por vídeo (
+            {itens.length * CREDITOS_FIXO.lote} no total).
           </p>
         )}
       </div>

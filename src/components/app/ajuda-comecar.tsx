@@ -24,6 +24,7 @@ import {
   Texto,
   Titulinho,
 } from "@/components/app/ajuda-blocos";
+import { CREDITOS_FIXO } from "@/lib/precos";
 
 /**
  * Grupo "Começando": o que fazer no primeiro dia, como o dinheiro funciona
@@ -119,17 +120,23 @@ export function AjudaComecar() {
             ["Vídeo de 10 segundos", "50"],
             ["Vídeo de 15 segundos", "75"],
             ["Vídeo com influenciador falando (6s / 10s / 15s)", "40 / 50 / 50"],
-            ["Criar um influenciador com IA", "40"],
+            ["Criar um influenciador com IA", "20"],
             ["Enviar a imagem de um influenciador pronto", "0 (de graça)"],
             ["Textos escritos pela IA (cena, fala, ficha, roteiro)", "0 (de graça)"],
-            ["Editor automático, Cortes, Marca em lote, MapsLeads", "Pelo uso real"],
+            ["Editor automático e Cortes (usando IA)", "Pelo uso real"],
+            ["Editor automático no modo sem IA", String(CREDITOS_FIXO.editorManual)],
+            ["Marca em lote (por vídeo carimbado)", String(CREDITOS_FIXO.lote)],
+            ["MapsLeads (por busca)", String(CREDITOS_FIXO.leads)],
           ]}
         />
         <Texto>
           Vídeo com influenciador <strong className="text-foreground">sem fala</strong>{" "}
-          custa 10 créditos a menos. Nas ferramentas antigas (editor, cortes, lote e
-          leads) não tem preço fixo: a cobrança sai pelo que a inteligência artificial
-          realmente consumiu naquele vídeo, e aparece detalhada no extrato.
+          custa 10 créditos a menos. No Editor automático e no Cortes usando IA não tem
+          preço fixo: a cobrança sai pelo que a inteligência artificial realmente
+          consumiu naquele vídeo, e aparece detalhada no extrato. Já o que{" "}
+          <strong className="text-foreground">não usa IA</strong> (a marca em lote, o
+          MapsLeads e o editor no modo sem IA) tem valor fechado, que é só o custo de
+          processamento.
         </Texto>
 
         <Aviso tom="dica" titulo="Deu erro? Não foi cobrado">

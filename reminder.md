@@ -5,6 +5,19 @@ lembretes neste arquivo a pedido do usuário.
 
 ## Lembretes ativos
 
+- **PRODUÇÃO: pôr `LLM_BASE_URL`, `LLM_API_KEY` e `LLM_MODEL` no EasyPanel.**
+  O robô de suporte (a boinha de ajuda no canto de baixo do painel) e o Minerador
+  usam o SEU servidor de LLM (qwen2.5:14b no Ollama + Open WebUI). As três
+  variáveis foram postas no `.env` local em 05/08/2026 e testadas respondendo
+  certo, mas **só existem na sua máquina**: enquanto não forem copiadas pro
+  EasyPanel, em produção o robô responde "o assistente está fora do ar" e o
+  Minerador não funciona. Valores: `LLM_BASE_URL` =
+  `https://llm.univershoop.com/ollama/v1`, `LLM_MODEL` = `qwen2.5:14b` e
+  `LLM_API_KEY` = a chave `sk-...` do Open WebUI (copiar do `.env` na mão, ela
+  não está no git). Não custa nada por chamada, é servidor seu.
+  Obs.: a chave foi enviada por chat em 05/08/2026, então se esse histórico for
+  parar em lugar que não seja só seu, vale gerar outra no Open WebUI.
+
 - **PRODUÇÃO: pôr `META_ADS_TOKEN` e `META_ADS_ACCOUNT_ID` no EasyPanel.**
   O card **"Anúncios"** da aba Finanças (quanto você gastou de tráfego no
   período escolhido) já está **funcionando no local** - token criado e testado
@@ -41,6 +54,25 @@ lembretes neste arquivo a pedido do usuário.
   Ver na Cakto se foi cupom, link promocional, order bump ou preço editado - e se
   esse caminho ainda está ativo. Catalogado como o problema **#20 do
   `auditoria.md`**.
+
+- **VERIFICAR: "lore" (várias cenas) no Gerador de prompt.**
+  Ideia: em vez de escrever 1 prompt de 1 cena só, a pessoa conta a história e
+  escolhe quantas cenas quer (ex.: 3 vídeos de 15 segundos sobre o mesmo produto
+  ou sobre a plataforma), e a IA escreve um prompt por cena com continuidade:
+  mesma pessoa, mesma roupa, mesmo cenário, e a fala dividida em partes que
+  encaixam uma na outra. Uso pretendido: **criativo de Facebook Ads** e
+  **sequência de stories do Instagram**.
+  Hoje NÃO existe: o gerador só escreve 1 prompt de 1 cena (6/10/15s) e cada
+  geração é independente, então 3 vídeos seguidos não contam história nenhuma.
+  Também falta a ponta final: o Editor automático só aceita arquivo do
+  computador, então hoje seria gerar os 3, baixar e subir de novo na mão. Emendar
+  as cenas em sequência o Editor **já sabe fazer** (é só não marcar clipe
+  principal), então o render não precisa mudar.
+  Custo: escrever os prompts é **grátis** pro usuário; o que pesa é gerar os
+  vídeos (3 x 15s = 285 créditos, R$2,85). Se sair, mostrar esse total somado na
+  tela ANTES de mandar gerar.
+  Conversado com o dono em 05/08/2026. Caminho sugerido: primeiro a lore no
+  gerador, depois o atalho "escolher dos meus vídeos" no Editor automático.
 
 - **Configurar o link de checkout da ASSINATURA (`CAKTO_CHECKOUT_ASSINATURA`).**
   A aba `/painel/assinatura` tem o botão Renovar/Assinar, mas o link do checkout
@@ -97,6 +129,21 @@ lembretes neste arquivo a pedido do usuário.
   `cortar_youtube.py` e `fabrica.py`/`worker.py` gravam e enviam o consumo. Além do
   débito, tudo vira linha na tabela `GastoApi` (aba Finanças, gasto por API/usuário).
 
+- **DECIDIDO (05/08/2026): preços das 3 ferramentas SEM IA, definidos pelo dono.**
+  Ficam em `CREDITOS_FIXO` (`src/lib/precos.ts`), e agora as telas e a ajuda LEEM
+  dessa constante em vez de repetir o número na mão:
+  - **Marca em lote: 5 créditos POR VÍDEO** carimbado (era 50). Lote cheio de 12
+    vídeos saiu de R$6,00 pra R$0,60.
+  - **MapsLeads: 50 créditos por busca (MANTIDO).** Foi questionado se fazia
+    sentido cobrar por algo que não usa API; as opções levantadas foram manter,
+    virar de graça com limite diário, ou virar benefício de assinante. O dono
+    escolheu manter. **Não reabrir esse ponto sozinho.**
+  - **Editor automático no modo "Nenhum": 30 créditos** (era 50). Vale só quando
+    o vídeo não consome IA nenhuma; com IA continua sendo pelo consumo real.
+  Junto disso, a tela do Editor foi corrigida: no modo "Nenhum" ela mostrava uma
+  estimativa por segundo (2/seg) e prometia MENOS do que seria cobrado em vídeo
+  curto. Agora mostra o valor fixo exato.
+
 - **Calibrar os valores de crédito (depois do worker + preço das APIs).**
   Falta definir os números reais: (a) quanto é "1 minuto de vídeo texto+áudio"
   (crédito padrão da assinatura) e (b) o preço fixo das ferramentas sem API
@@ -106,10 +153,12 @@ lembretes neste arquivo a pedido do usuário.
 
 - **Ao calibrar preços, atualizar a Central de Ajuda junto.** A tela
   `/painel/ajuda` repete os números na mão pro usuário: 20 créditos a imagem,
-  50/70/95 o vídeo por duração (6s/10s/15s), 40 o influenciador, 50 fixos por
-  vídeo do Lote e por busca do MapsLeads, e os limites de cada nível (5/12/50
-  vídeos por dia, 1/2/3 ao mesmo tempo). Mexeu em `lab-custos.ts`,
-  `avatar-modelo.ts`, `precos.ts` ou `niveis.ts`, revisar os textos em
+  50/70/95 o vídeo por duração (6s/10s/15s), 20 o influenciador e os limites de
+  cada nível (5/12/50 vídeos por dia, 1/2/3 ao mesmo tempo). **Os preços das 3
+  ferramentas sem IA JÁ FORAM resolvidos em 05/08/2026:** a ajuda, o robô de
+  suporte e a tela do Lote agora leem de `CREDITOS_FIXO`, então mexer no preço
+  delas não exige mais editar texto. Mexeu em `lab-custos.ts`,
+  `avatar-modelo.ts` ou `niveis.ts`, revisar os textos em
   `src/components/app/ajuda-comecar.tsx` (tabela de preços e tabela de níveis),
   `ajuda-influenciador.tsx`, `ajuda-videos.tsx` e `ajuda-ferramentas.tsx`.
   Senão a ajuda passa a mentir pro usuário.

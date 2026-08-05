@@ -10,6 +10,7 @@ import {
   ChevronDown,
   Clapperboard,
   Coins,
+  Compass,
   Crown,
   DollarSign,
   Film,
@@ -22,6 +23,7 @@ import {
   Newspaper,
   Home,
   Image as ImageIcon,
+  Images,
   LayoutGrid,
   LifeBuoy,
   MapPin,
@@ -29,6 +31,7 @@ import {
   MessageSquarePlus,
   Music2,
   Palette,
+  PenLine,
   Pickaxe,
   ShoppingBag,
   Sparkles,
@@ -36,6 +39,7 @@ import {
   Trash2,
   UserRound,
   Users,
+  Video,
   Wrench,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -70,22 +74,21 @@ function Foguinho() {
   );
 }
 
-// Itens do topo (antes do grupo Ferramentas)
+// Itens do topo (antes dos grupos retráteis)
 const navTopo: NavItem[] = [
   { href: "/painel/inicio", label: "Início", icon: Home },
   { href: "/painel", label: "Meus vídeos", icon: LayoutGrid },
   { href: "/painel/shopee", label: "Shopee", icon: ShoppingBag },
   { href: "/painel/tiktok", label: "Produtos TikTok", icon: Music2, novidade: true },
   { href: "/painel/acervo", label: "Acervo de cortes", icon: Film },
-  { href: "/painel/meus-avatares", label: "Personalize com IA", icon: Palette, novidade: true },
-  { href: "/painel/lab", label: "Viraliza Labs", icon: FlaskConical, novidade: true },
-  { href: "/painel/viral-boost", label: "Viral Boost", icon: Flame, novidade: true },
-  { href: "/painel/minerador", label: "Minerador", icon: Pickaxe },
-  { href: "/painel/academy", label: "Viraliza Academy", icon: GraduationCap },
 ];
 
 // Itens depois do grupo Ferramentas
 const navFim: NavItem[] = [
+  // Viral Boost fica AQUI, e não no topo: ele é uma ferramenta de geração, então
+  // o lugar dele é depois dos grupos, colado no Academy (pedido do dono).
+  { href: "/painel/viral-boost", label: "Viral Boost", icon: Flame, novidade: true },
+  { href: "/painel/academy", label: "Viraliza Academy", icon: GraduationCap },
   { href: "/painel/assinatura", label: "Assinatura", icon: Crown },
   { href: "/painel/creditos", label: "Créditos", icon: Coins },
   { href: "/painel/ajuda", label: "Ajuda", icon: LifeBuoy },
@@ -94,13 +97,71 @@ const navFim: NavItem[] = [
   { href: "/painel/blog", label: "Blog", icon: Newspaper },
 ];
 
-// Sub-itens do grupo "Ferramentas" (expansível)
-const ferramentasSub = [
-  { href: "/painel/novo", label: "Editor automático", icon: Sparkles },
-  { href: "/painel/lote", label: "Aplicar marca em lote", icon: Stamp },
-  { href: "/painel/leads", label: "MapsLeads", icon: MapPin },
-  { href: "/painel/cortes", label: "Cortes de qualquer vídeo", icon: Clapperboard },
-] as const;
+/**
+ * Grupos retráteis do menu.
+ *
+ * `exato` existe porque a raiz do grupo também é um sub-item: sem ele, estar em
+ * "/painel/meus-avatares/criar" acenderia "Galeria de avatares" junto, já que a
+ * comparação normal é por começo do endereço.
+ */
+type SubItem = { href: string; label: string; icon: typeof Home; exato?: boolean };
+
+type Grupo = {
+  chave: string; // chave no localStorage (lembra aberto/fechado)
+  /** tela do grupo: acende o grupo quando a pessoa está nela e é pra onde o
+   *  ícone leva com a barra recolhida (aí os sub-itens não cabem na tela) */
+  raiz: string;
+  label: string;
+  icon: typeof Home;
+  itens: readonly SubItem[];
+};
+
+const GRUPOS: readonly Grupo[] = [
+  {
+    chave: "nav_personalize_aberto",
+    raiz: "/painel/meus-avatares",
+    label: "Personalize com IA",
+    icon: Palette,
+    itens: [
+      { href: "/painel/meus-avatares/criar", label: "Criar com IA", icon: Sparkles },
+      {
+        href: "/painel/meus-avatares",
+        label: "Galeria de avatares",
+        icon: UserRound,
+        exato: true,
+      },
+      { href: "/painel/meus-avatares/cenarios", label: "Meus cenários", icon: ImageIcon },
+    ],
+  },
+  {
+    chave: "nav_lab_aberto",
+    raiz: "/painel/lab",
+    label: "Viraliza Labs",
+    icon: FlaskConical,
+    itens: [
+      { href: "/painel/lab", label: "Criar criativo", icon: Compass, exato: true },
+      { href: "/painel/lab/livre", label: "Vídeo livre", icon: Video },
+      { href: "/painel/lab/imagens", label: "Minhas imagens", icon: Images },
+      { href: "/painel/lab/prompt", label: "Gerador de prompt", icon: PenLine },
+    ],
+  },
+  {
+    chave: "nav_ferramentas_aberto",
+    // era `/painel/ferramentas` (uma grade de cards que repetia estes atalhos).
+    // A tela foi apagada: com o submenu aqui, ela virou um clique a mais pro
+    // mesmo lugar. A raiz agora é a 1ª ferramenta, usada só na barra recolhida.
+    raiz: "/painel/novo",
+    label: "Ferramentas",
+    icon: Wrench,
+    itens: [
+      { href: "/painel/novo", label: "Editor automático", icon: Sparkles },
+      { href: "/painel/lote", label: "Aplicar marca em lote", icon: Stamp },
+      { href: "/painel/leads", label: "MapsLeads", icon: MapPin },
+      { href: "/painel/cortes", label: "Cortes de qualquer vídeo", icon: Clapperboard },
+      { href: "/painel/minerador", label: "Minerador", icon: Pickaxe },
+    ],
+  },
+];
 
 export const adminItems = [
   { href: "/admin", label: "Visão geral", icon: Gauge },
@@ -128,14 +189,32 @@ function subscribeVisto(callback: () => void) {
   };
 }
 
-/** Avisa o React quando o "Ferramentas aberto/fechado" muda (esta aba ou outra). */
-function subscribeFerramentas(callback: () => void) {
+/** Avisa o React quando algum grupo abre/fecha (esta aba ou outra). */
+function subscribeGrupos(callback: () => void) {
   window.addEventListener("storage", callback);
-  window.addEventListener("nav-ferramentas", callback);
+  window.addEventListener("nav-grupo", callback);
   return () => {
     window.removeEventListener("storage", callback);
-    window.removeEventListener("nav-ferramentas", callback);
+    window.removeEventListener("nav-grupo", callback);
   };
+}
+
+/**
+ * Aberto/fechado de um grupo, lido do localStorage como estado externo (padrão
+ * = aberto). Vai por `useSyncExternalStore` pra não cair no lint de
+ * setState-em-effect nem piscar entre servidor e navegador.
+ */
+function useGrupoAberto(chave: string) {
+  const aberto = useSyncExternalStore(
+    subscribeGrupos,
+    () => localStorage.getItem(chave) !== "0",
+    () => true,
+  );
+  function alternar() {
+    localStorage.setItem(chave, aberto ? "0" : "1");
+    window.dispatchEvent(new Event("nav-grupo"));
+  }
+  return { aberto, alternar };
 }
 
 /** false no servidor e na 1ª pintura; true depois de hidratar (evita piscar a bolinha). */
@@ -232,6 +311,88 @@ function Item({
   );
 }
 
+/**
+ * Um grupo retrátil. A setinha recolhe/expande os atalhos; o nome só abre e
+ * fecha também, EXCETO nos grupos `navegavel`, onde ele leva pra uma tela que
+ * não está entre os atalhos. Com a barra recolhida sobra só o ícone, que leva
+ * pra tela do grupo (os sub-itens não cabem numa coluna de ícones).
+ */
+function GrupoRetratil({
+  grupo,
+  isActive,
+  onNavigate,
+  compacto,
+}: {
+  grupo: Grupo;
+  isActive: (href: string, exato?: boolean) => boolean;
+  onNavigate?: () => void;
+  compacto: boolean;
+}) {
+  const { aberto, alternar } = useGrupoAberto(grupo.chave);
+
+  // o grupo acende quando a pessoa está em QUALQUER tela dele, senão com a
+  // lista recolhida ela não teria pista de onde está
+  const ativo =
+    isActive(grupo.raiz) || grupo.itens.some((i) => isActive(i.href, i.exato));
+
+  if (compacto) {
+    return (
+      <Item
+        href={grupo.raiz}
+        label={grupo.label}
+        Icon={grupo.icon}
+        active={ativo}
+        onNavigate={onNavigate}
+        compacto
+      />
+    );
+  }
+
+  const classeNome = cn(
+    "flex flex-1 items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors",
+    ativo
+      ? "bg-primary/12 text-primary"
+      : "text-muted-foreground hover:bg-accent hover:text-foreground",
+  );
+
+  return (
+    <>
+      <div className="flex items-center gap-1">
+        {/* o nome NÃO navega: só abre e fecha. A tela de cada grupo já é um dos
+            atalhos logo abaixo, então levar pra algum lugar aqui seria repetir */}
+        <button type="button" onClick={alternar} aria-expanded={aberto} className={classeNome}>
+          <grupo.icon className="size-4.5" />
+          {grupo.label}
+        </button>
+        <button
+          type="button"
+          onClick={alternar}
+          aria-label={aberto ? `Recolher ${grupo.label}` : `Expandir ${grupo.label}`}
+          aria-expanded={aberto}
+          className="grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        >
+          <ChevronDown className={cn("size-4 transition-transform", !aberto && "-rotate-90")} />
+        </button>
+      </div>
+      {aberto && (
+        <div className="mb-1 ml-3 flex flex-col gap-1 border-l border-border pl-2">
+          {grupo.itens.map(({ href, label, icon: Icon, exato }) => (
+            <Item
+              key={href}
+              href={href}
+              label={label}
+              Icon={Icon}
+              active={isActive(href, exato)}
+              onNavigate={onNavigate}
+              sub
+            />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
 export function NavLinks({
   onNavigate,
   isAdmin = false,
@@ -243,25 +404,12 @@ export function NavLinks({
   compacto?: boolean;
 }) {
   const pathname = usePathname();
-  const isActive = (href: string) =>
-    href === "/painel" || href === "/admin"
+  const isActive = (href: string, exato = false) =>
+    exato || href === "/painel" || href === "/admin"
       ? pathname === href
       : pathname.startsWith(href);
 
   const hidratado = useHidratado();
-
-  // "Ferramentas" retrátil: estado lido do localStorage (padrão = aberto). Segue o
-  // mesmo padrão do "virais_visto" pra não cair no lint de setState-em-effect.
-  const ferramentasAberto = useSyncExternalStore(
-    subscribeFerramentas,
-    () => localStorage.getItem("nav_ferramentas_aberto") !== "0",
-    () => true,
-  );
-  function toggleFerramentas() {
-    const abertoAgora = localStorage.getItem("nav_ferramentas_aberto") !== "0";
-    localStorage.setItem("nav_ferramentas_aberto", abertoAgora ? "0" : "1");
-    window.dispatchEvent(new Event("nav-ferramentas"));
-  }
 
   // "última visita" guardada no navegador (lida como estado externo).
   const visto = useSyncExternalStore(
@@ -329,63 +477,17 @@ export function NavLinks({
           />
         ))}
 
-        {/* Ferramentas: o nome abre a grade; a setinha recolhe/expande os atalhos.
-            Com a barra recolhida sobra só o ícone, que leva pra grade cheia. */}
-        {compacto ? (
-          <Item
-            href="/painel/ferramentas"
-            label="Ferramentas"
-            Icon={Wrench}
-            active={isActive("/painel/ferramentas")}
+        {/* Personalize com IA, Viraliza Labs e Ferramentas: a setinha (e o nome,
+            fora do Ferramentas) recolhe/expande os atalhos do grupo. */}
+        {GRUPOS.map((grupo) => (
+          <GrupoRetratil
+            key={grupo.chave}
+            grupo={grupo}
+            isActive={isActive}
             onNavigate={onNavigate}
-            compacto
+            compacto={compacto}
           />
-        ) : (
-        <div className="flex items-center gap-1">
-          <Link
-            href="/painel/ferramentas"
-            onClick={onNavigate}
-            className={cn(
-              "flex flex-1 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-              isActive("/painel/ferramentas")
-                ? "bg-primary/12 text-primary"
-                : "text-muted-foreground hover:bg-accent hover:text-foreground",
-            )}
-          >
-            <Wrench className="size-4.5" />
-            Ferramentas
-          </Link>
-          <button
-            type="button"
-            onClick={toggleFerramentas}
-            aria-label={ferramentasAberto ? "Recolher ferramentas" : "Expandir ferramentas"}
-            aria-expanded={ferramentasAberto}
-            className="grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          >
-            <ChevronDown
-              className={cn(
-                "size-4 transition-transform",
-                !ferramentasAberto && "-rotate-90",
-              )}
-            />
-          </button>
-        </div>
-        )}
-        {!compacto && ferramentasAberto && (
-          <div className="mb-1 ml-3 flex flex-col gap-1 border-l border-border pl-2">
-            {ferramentasSub.map(({ href, label, icon: Icon }) => (
-              <Item
-                key={href}
-                href={href}
-                label={label}
-                Icon={Icon}
-                active={isActive(href)}
-                onNavigate={onNavigate}
-                sub
-              />
-            ))}
-          </div>
-        )}
+        ))}
 
         {navFim.map(({ href, label, icon: Icon, novidade }) => (
           <Item

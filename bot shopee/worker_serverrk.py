@@ -110,9 +110,14 @@ def concluir_parte(job_id, parte, url, dur, leg="", tags="", thumb_url="", total
     return r.json()
 
 
-def concluir_finalizar(job_id, dur=0):
+def concluir_finalizar(job_id, dur=0, stems=None):
+    """Fecha o job. `stems` = URLs das faixas de áudio separadas desse vídeo; é o
+    que permite o botão "Reajustar áudio" refazer só o som depois."""
+    data = {"finalizar": "1", "duracao": str(int(dur or 0))}
+    if stems:
+        data["stems"] = json.dumps(stems)
     r = requests.post(f"{WEB_URL}/api/worker/concluir/{job_id}", headers=HEADERS,
-                      data={"finalizar": "1", "duracao": str(int(dur or 0))}, timeout=60)
+                      data=data, timeout=60)
     r.raise_for_status()
     return r.json()
 
@@ -383,10 +388,38 @@ def montar_pasta_fabrica(job):
         f"audio_original: {audio_original}",
         f"plataforma: {plataforma}",
     ]
+    # "É um produto? Não" e "Sem música" viajavam no pedido mas morriam aqui: a
+    # fábrica nunca soube e escrevia copy/legenda mesmo assim.
+    if opc.get("semCopy"):
+        linhas.append("sem_copy: 1")
+    if opc.get("semMusica"):
+        linhas.append("sem_musica: 1")
+    # volumes escolhidos na tela (0-100). Antes o controle não fazia nada
+    # (`auditoria.md` #23); o de música aceita o campo antigo como reserva.
+    vols = opc.get("volumes") or {}
+    vol_musica = vols.get("musica", opc.get("volumeMusica"))
+    for chave, valor in (("vol_musica", vol_musica),
+                         ("vol_original", vols.get("original")),
+                         ("vol_voz", vols.get("voz")),
+                         # velocidade da música (o render mantém o tom)
+                         ("vel_musica", opc.get("velocidadeMusica")),
+                         # cortar trechos sem fala mais longos que X segundos
+                         ("cortar_silencio", opc.get("cortarSilencio"))):
+        if valor is not None:
+            linhas.append(f"{chave}: {valor}")
     if cfg_musica:
         linhas.append(f"musica: {cfg_musica}")
     with open(os.path.join(prod_dir, "config.txt"), "w", encoding="utf-8") as f:
         f.write("\n".join(linhas) + "\n")
+
+    # MONTAGEM DO EDITOR: ordem, cortes, clipe principal e textos que a pessoa fez
+    # na tela. Só existe em job vindo do editor; sem esse arquivo a fábrica monta
+    # do jeito antigo (ela decidindo tudo).
+    if opc.get("roteiro"):
+        with open(os.path.join(prod_dir, "roteiro.json"), "w", encoding="utf-8") as f:
+            json.dump({"clipes": opc.get("roteiro") or [],
+                       "textos": opc.get("textos") or [],
+                       "volumes": opc.get("volumes") or {}}, f, ensure_ascii=False)
     return nome
 
 
@@ -437,6 +470,10 @@ def render_fabrica(job, work):
             thumb_url = subir_midia(thumb, "thumbs")
         concluir_parte(job_id, i, url, dur, leg=leg, tags=tags, thumb_url=thumb_url, total=total)
         log(f"   ✓ variante {i + 1}/{total} no ar: {url}")
+    # faixas de áudio separadas do render (som do vídeo, música e narração): vão
+    # pro SSD junto com o vídeo pra o "Reajustar áudio" poder refazer só o som
+    stems = _subir_stems(os.path.join(APP_DIR, "produtos", nome))
+
     # limpa a saída local (já está no SSD)
     for f in saidas + glob.glob(os.path.join(APP_DIR, "saida", nome + "*.txt")):
         try:
@@ -444,7 +481,82 @@ def render_fabrica(job, work):
         except OSError:
             pass
     shutil.rmtree(os.path.join(APP_DIR, "produtos", nome), ignore_errors=True)
-    return ult_dur
+    return ult_dur, stems
+
+
+def _subir_stems(prod_dir):
+    """Lê o stems.json que a fábrica gravou e sobe cada faixa pro SSD.
+    Retorna {orig, musica, voz, total, volumes} com as URLs, ou None."""
+    caminho = os.path.join(prod_dir, "stems.json")
+    if not os.path.exists(caminho):
+        return None
+    try:
+        with open(caminho, encoding="utf-8") as f:
+            dados = json.load(f)
+    except Exception:
+        return None
+    saida = {"total": dados.get("total") or 0, "volumes": dados.get("volumes") or {}}
+    achou = False
+    for chave in ("orig", "musica", "voz"):
+        local = dados.get(chave)
+        if local and os.path.exists(local):
+            try:
+                saida[chave] = subir_midia(local, "audios")
+                achou = True
+            except Exception as e:
+                log(f"   ! não consegui subir a faixa {chave}: {e}")
+    return saida if achou else None
+
+
+def render_remix(job, work):
+    """REAJUSTAR ÁUDIO: o vídeo já existe: aqui a gente só remistura as faixas
+    separadas nos volumes novos e copia a imagem como está (`-c:v copy`). Leva
+    segundos, não renderiza nada de novo e não chama API nenhuma."""
+    job_id = job["id"]
+    try:
+        opc = json.loads(job.get("opcoes") or "{}")
+    except Exception:
+        opc = {}
+    pedido = opc.get("remix") or {}
+    stems = opc.get("stems") or {}
+    vols = pedido.get("volumes") or {}
+    video_url = (pedido.get("video") or "").strip()
+    if not video_url:
+        raise RuntimeError("Reajuste de áudio sem o vídeo de origem.")
+
+    progresso(job_id, "Refazendo o áudio")
+    video = resolver_fonte(video_url, work)
+    locais = {}
+    for chave in ("orig", "musica", "voz"):
+        url = (stems.get(chave) or "").strip()
+        if url:
+            locais[chave] = resolver_fonte(url, work)
+
+    saida = os.path.join(work, "remix.mp4")
+    r = subprocess.run(
+        [sys.executable, "fabrica.py", "--remix", "--video", video,
+         "--orig", locais.get("orig", ""), "--musica", locais.get("musica", ""),
+         "--voz", locais.get("voz", ""),
+         "--vol-orig", str(vols.get("original", 100)),
+         "--vol-mus", str(vols.get("musica", 40)),
+         "--vol-voz", str(vols.get("voz", 100)),
+         "--dur", str(opc.get("stemsDur") or 0),
+         "--saida", saida],
+        cwd=APP_DIR, capture_output=True, text=True, errors="replace")
+    if not os.path.exists(saida) or os.path.getsize(saida) == 0:
+        cauda = ((r.stdout or "") + "\n" + (r.stderr or "")).strip()[-400:]
+        raise RuntimeError("Não consegui refazer o áudio. " + cauda)
+
+    dur = duracao(saida)
+    progresso(job_id, "Subindo")
+    url = subir_midia(saida, "gerados")
+    thumb_url = ""
+    thumb = os.path.join(work, "remix.jpg")
+    if gerar_thumb(saida, thumb):
+        thumb_url = subir_midia(thumb, "thumbs")
+    concluir_parte(job_id, 0, url, dur, thumb_url=thumb_url, total=1)
+    log(f"   ✓ áudio reajustado: {url}")
+    return dur, None
 
 
 def render_cortes(job, work):
@@ -520,11 +632,18 @@ def processar(job):
     shutil.rmtree(work, ignore_errors=True)
     os.makedirs(work, exist_ok=True)
     try:
-        fn = DISPATCH.get(tipo)
+        # pedido de "reajustar áudio" tem prioridade sobre o tipo: o vídeo já
+        # existe, é só remisturar as faixas separadas nos volumes novos
+        try:
+            opc = json.loads(job.get("opcoes") or "{}")
+        except Exception:
+            opc = {}
+        fn = render_remix if opc.get("remix") else DISPATCH.get(tipo)
         if fn is None:
             raise RuntimeError(f"Tipo de vídeo desconhecido: {tipo}")
-        dur = fn(job, work)
-        concluir_finalizar(job_id, dur or 0)
+        resultado = fn(job, work)
+        dur, stems = resultado if isinstance(resultado, tuple) else (resultado, None)
+        concluir_finalizar(job_id, dur or 0, stems)
         log(f"<< job {job_id} concluído")
     except Exception as e:
         msg = f"{e}"

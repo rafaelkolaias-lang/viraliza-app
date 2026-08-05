@@ -2,7 +2,22 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { X, Play, Download, Pencil, Type, Hash, ShoppingBag } from "lucide-react";
+import { useRouter } from "next/navigation";
+import {
+  X,
+  Play,
+  Download,
+  Pencil,
+  Type,
+  Hash,
+  ShoppingBag,
+  SlidersHorizontal,
+  Loader2,
+  Volume2,
+  Music,
+  Mic,
+} from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { CopyLinkButton } from "@/components/app/copy-link-button";
 import { midiaUrl, linkBaixar } from "@/lib/utils";
@@ -16,6 +31,116 @@ const SHOPEE_TAGS = 5;
 /** Primeiras N hashtags de uma string ("#a #b #c ..." -> "#a #b ..."). */
 function primeirasTags(hashtags: string, n: number) {
   return (hashtags.match(/#[^\s#]+/g) ?? []).slice(0, n).join(" ");
+}
+
+/**
+ * Reajustar áudio de um vídeo JÁ PRONTO: ouve, mexe no volume de cada coisa e
+ * manda refazer só a mistura. A imagem é reaproveitada como está, então leva
+ * segundos e NÃO gasta crédito nenhum (o vídeo já foi cobrado no render).
+ */
+function ReajustarAudio({
+  id,
+  inicial,
+  onPronto,
+}: {
+  id: string;
+  inicial?: { original: number; musica: number; voz: number };
+  onPronto: () => void;
+}) {
+  const router = useRouter();
+  const [aberto, setAberto] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  const [vol, setVol] = useState({
+    original: inicial?.original ?? 100,
+    musica: inicial?.musica ?? 20,
+    voz: inicial?.voz ?? 100,
+  });
+
+  async function enviar() {
+    setEnviando(true);
+    try {
+      const res = await fetch(`/api/jobs/${id}/remix`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(vol),
+      });
+      const data = (await res.json().catch(() => ({}))) as { erro?: string };
+      if (!res.ok) {
+        toast.error(data.erro ?? "Não consegui reajustar o áudio.");
+        return;
+      }
+      toast.success("Refazendo o áudio! Em alguns segundos o vídeo atualiza. 🎚️");
+      onPronto();
+      router.refresh();
+    } catch {
+      toast.error("Sem conexão com o servidor.");
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  // som do vídeo e narração aceitam amplificar até 150% (o render põe o limitador
+  // pra não estourar); a música é fundo e fica no teto de 100%
+  const barras = [
+    { chave: "original" as const, icon: Volume2, label: "Som do vídeo", max: 150 },
+    { chave: "musica" as const, icon: Music, label: "Música", max: 100 },
+    { chave: "voz" as const, icon: Mic, label: "Narração", max: 150 },
+  ];
+
+  return (
+    <div className="mt-4 rounded-xl border border-border bg-muted/20 p-3">
+      <button
+        type="button"
+        onClick={() => setAberto((v) => !v)}
+        className="flex w-full items-center gap-2 text-left text-sm font-medium"
+      >
+        <SlidersHorizontal className="size-4 text-primary" />
+        Reajustar áudio
+        <span className="ml-auto text-[11px] font-normal text-muted-foreground">
+          {aberto ? "fechar" : "de graça"}
+        </span>
+      </button>
+
+      {aberto && (
+        <div className="mt-3 space-y-3">
+          <p className="text-[11px] text-muted-foreground">
+            Ouça o vídeo aqui do lado e acerte o volume de cada coisa. A imagem é
+            reaproveitada: leva segundos e não gasta crédito.
+          </p>
+          {barras.map((b) => (
+            <div key={b.chave}>
+              <div className="flex items-center gap-3">
+                <b.icon className="size-4 shrink-0 text-primary" />
+                <input
+                  type="range"
+                  min={0}
+                  max={b.max}
+                  value={vol[b.chave]}
+                  onChange={(e) =>
+                    setVol((v) => ({ ...v, [b.chave]: Number(e.target.value) }))
+                  }
+                  className="h-1.5 flex-1 cursor-pointer accent-primary"
+                  aria-label={b.label}
+                />
+                <span className="w-9 text-right text-xs tabular-nums text-muted-foreground">
+                  {vol[b.chave]}%
+                </span>
+              </div>
+              <p className="mt-0.5 pl-7 text-[10px] text-muted-foreground">{b.label}</p>
+            </div>
+          ))}
+          <Button size="sm" className="w-full" disabled={enviando} onClick={enviar}>
+            {enviando ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <SlidersHorizontal className="size-4" />
+            )}
+            Refazer o áudio com esses volumes
+          </Button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 /** Modal de detalhes do vídeo: toca o vídeo + legenda/hashtags + versão Shopee. */
@@ -165,6 +290,15 @@ export function VideoDetalhesModal({
               </p>
               <CopyLinkButton link={hashtags} label="Copiar todas as hashtags" className="mt-2 w-full" />
             </div>
+          )}
+
+          {/* Reajustar áudio (só nos vídeos que guardaram as faixas separadas) */}
+          {video.audioAjustavel && (
+            <ReajustarAudio
+              id={video.id}
+              inicial={video.volumes}
+              onPronto={onFechar}
+            />
           )}
 
           {/* Ações */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowUp,
@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { DURACOES, ESTILOS_VIDEO, IDIOMAS_FALA, custoVideoAvatar } from "@/lib/avatar-modelo";
 import { normalizarImagem, ERRO_IMAGEM } from "@/lib/imagem-cliente";
+import { espiarPromptParaLivre, limparPromptParaLivre } from "@/lib/lab-handoff";
 
 type MeuAvatar = { id: string; nome: string; imagemUrl: string; origem?: string };
 type Midia = { src: string; nome?: string };
@@ -29,17 +30,17 @@ type Midia = { src: string; nome?: string };
 export function VideoLivre({
   meusAvatares = [],
   prontos = [],
-  textoInicial = "",
-  midiasIniciais = [],
 }: {
   meusAvatares?: MeuAvatar[];
   prontos?: { id: string; nome: string; src: string }[];
-  // pré-preenche o composer (ex: prompt vindo do Gerador de prompt)
-  textoInicial?: string;
-  midiasIniciais?: string[];
 }) {
-  const [midias, setMidias] = useState<Midia[]>(midiasIniciais.map((src) => ({ src })));
-  const [texto, setTexto] = useState(textoInicial);
+  // Quem chegou pelo "Usar no Vídeo livre" do Gerador de prompt já encontra o
+  // texto e as fotos escolhidas lá dentro do composer.
+  const [recado] = useState(espiarPromptParaLivre);
+  const [midias, setMidias] = useState<Midia[]>(
+    () => recado?.midias.map((src) => ({ src })) ?? [],
+  );
+  const [texto, setTexto] = useState(recado?.texto ?? "");
   const [duracao, setDuracao] = useState<number>(6);
   const [comFala, setComFala] = useState(true);
   const [idioma, setIdioma] = useState("pt"); // idioma da fala (pt padrão)
@@ -49,6 +50,10 @@ export function VideoLivre({
 
   const router = useRouter();
   const inputArquivo = useRef<HTMLInputElement>(null);
+
+  // O recado vale uma vez só: voltar depois pra esta tela não repõe o prompt
+  // antigo por cima do que a pessoa escreveu.
+  useEffect(limparPromptParaLivre, []);
 
   const maxMidias = duracao === 15 ? 1 : 3;
 

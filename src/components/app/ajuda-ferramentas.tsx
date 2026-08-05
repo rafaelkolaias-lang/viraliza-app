@@ -24,11 +24,15 @@ import {
   Texto,
   Titulinho,
 } from "@/components/app/ajuda-blocos";
+import { CREDITOS_FIXO } from "@/lib/precos";
 
 /**
  * Grupo "Outras ferramentas": o que existe fora da geração de vídeo por IA.
  * Lote e MapsLeads têm preço fixo (não usam IA); a biblioteca inteira depende
  * da assinatura estar em dia.
+ *
+ * Os preços NÃO são escritos na mão aqui: saem de `CREDITOS_FIXO`, senão mexer
+ * na tabela deixava a ajuda mentindo pro usuário.
  */
 export function AjudaFerramentas() {
   return (
@@ -62,7 +66,10 @@ export function AjudaFerramentas() {
 
         <div className="flex flex-wrap gap-3">
           <Selo Icone={Coins}>
-            Custa <strong className="text-foreground">50 créditos por vídeo</strong>{" "}
+            Custa{" "}
+            <strong className="text-foreground">
+              {CREDITOS_FIXO.lote} créditos por vídeo
+            </strong>{" "}
             carimbado
           </Selo>
           <Selo Icone={Film}>Cada vídeo vira um item separado em Meus vídeos</Selo>
@@ -102,7 +109,10 @@ export function AjudaFerramentas() {
 
         <div className="flex flex-wrap gap-3">
           <Selo Icone={Coins}>
-            Custa <strong className="text-foreground">50 créditos por busca</strong>
+            Custa{" "}
+            <strong className="text-foreground">
+              {CREDITOS_FIXO.leads} créditos por busca
+            </strong>
           </Selo>
           <Selo Icone={Search}>Busca que não acha ninguém não cobra nada</Selo>
         </div>

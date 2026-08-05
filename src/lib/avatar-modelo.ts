@@ -363,7 +363,7 @@ export function contarPalavras(texto: string) {
 
 // Custo fixo pra GERAR 1 avatar na plataforma (creditos = centavos). Subir uma
 // imagem pronta e gratis (sem IA). Client-safe pra UI mostrar antes de gerar.
-export const CUSTO_AVATAR = 40;
+export const CUSTO_AVATAR = 20;
 
 // Como o produto aparece na foto "avatar com produto" (image-to-image). O `en`
 // vira a instrucao pro gpt-image-1. Client-safe: a UI mostra o label em PT.

@@ -485,6 +485,69 @@ Responda SOMENTE JSON: {{"indices": [lista de números], "motivo": "curto"}}""")
     return list(imagens_paths)  # se falhar, usa todas
 
 
+def plano_broll(fala, apoios, dur_base):
+    """Escolhe EM QUE SEGUNDO cada clipe de apoio entra por cima do vídeo principal.
+
+    É o "coerente com a narrativa" do B-roll: a pessoa aparece falando e, no
+    momento em que ela cita o produto, a tela corta pro clipe do produto e volta.
+
+    fala:   [{ini, fim, texto}] da transcrição do clipe principal (whisper local).
+    apoios: [{i, tipo, nome, dur}] dos clipes que ainda NÃO têm momento fixo (os
+            que a pessoa arrastou na linha do tempo nem chegam aqui).
+    Retorna {indice_do_apoio: segundo}. Dicionário vazio = a fábrica distribui
+    em intervalos iguais sozinha (nunca é erro fatal)."""
+    if not _KEYS or not fala or not apoios:
+        return {}
+    linhas = "\n".join(
+        f"[{float(f.get('ini', 0)):.1f}s a {float(f.get('fim', 0)):.1f}s] {f.get('texto', '')}"
+        for f in fala[:120])
+    # a descrição escrita pela pessoa é a pista mais forte; sem ela sobra o nome
+    # do arquivo, que quase nunca diz o que tem na cena
+    lista = "\n".join(
+        f"- apoio {a.get('i')}: "
+        + (f"MOSTRA \"{a.get('descricao')}\"" if (a.get("descricao") or "").strip()
+           else f"{a.get('tipo', 'video')} sem descrição (arquivo \"{a.get('nome', '')}\")")
+        + f" - fica {a.get('dur', 3)}s na tela" for a in apoios)
+    pedido = f"""Você está editando um vídeo vertical de venda.
+
+O vídeo principal tem {dur_base:.1f} segundos e é a pessoa FALANDO na câmera. Esta é
+a transcrição do que ela fala, com o tempo de cada trecho:
+{linhas}
+
+Estes clipes de apoio mostram o produto e vão entrar POR CIMA, em tela cheia e
+mudos, cobrindo a imagem da pessoa enquanto a voz dela continua:
+{lista}
+
+Escolha em que SEGUNDO cada apoio deve entrar. Regras:
+- Entre exatamente quando a fala combinar com o que o apoio mostra (ex.: ela cita o
+  tecido -> entra o clipe que mostra o tecido). A descrição do apoio é a pista
+  principal: case ela com o trecho da fala que tem a ver.
+- Apoio SEM descrição: encaixe onde fizer mais sentido pelo ritmo, espalhando.
+- NUNCA no comecinho: os primeiros 2 segundos são o rosto dela, é o que segura a pessoa.
+- Não empilhe: deixe espaço entre um apoio e o outro, cada um tem a duração indicada.
+- Nenhum apoio pode passar de {dur_base:.1f} segundos.
+- Se a fala não der pista nenhuma, espalhe pelo meio do vídeo.
+
+Responda SOMENTE JSON:
+{{"momentos": [{{"apoio": 0, "entra": 4.5, "porque": "ela cita o tecido aqui"}}]}}"""
+    try:
+        d = _gen(pedido)
+    except Exception:
+        return {}
+    out = {}
+    for item in (d.get("momentos") or []):
+        if not isinstance(item, dict):
+            continue
+        try:
+            i = int(item.get("apoio"))
+            s = float(item.get("entra"))
+        except (TypeError, ValueError):
+            continue
+        if 0.0 <= s <= float(dur_base):
+            out[i] = s
+    return out
+
+
 if __name__ == "__main__":
     # teste rapido
     d = gerar_copy(
