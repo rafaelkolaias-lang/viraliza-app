@@ -10,6 +10,8 @@ import {
   Library,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BotaoAssinarMP } from "@/components/app/botao-assinar-mp";
+import { BotaoCancelarAssinatura } from "@/components/app/botao-cancelar-assinatura";
 import { BotaoRenovarIndisponivel } from "@/components/app/botao-renovar-indisponivel";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +23,18 @@ type Props = {
   membroDesde: string | null;
   renovadaEm: string | null;
   urlAssinatura: string | null;
+  /** public key do MP: presente = assinar/renovar no NOSSO modal (cartão) */
+  mpPublicKey?: string;
+  /** valor da mensalidade em reais (mostrado no modal) */
+  valorMensal?: number;
+  /** true = existe assinatura ativa no MP, então dá pra cancelar a renovação */
+  podeCancelar?: boolean;
+  /**
+   * true = a pessoa já tinha acesso ANTES do Mercado Pago (veio da Cakto ou é
+   * concessão permanente). Pra essas o botão de assinar some: se clicassem,
+   * passariam a pagar R$98,90/mês por cima do que já têm. "Quem já está, está."
+   */
+  acessoAntigo?: boolean;
 };
 
 // vantagens que a assinatura libera (a biblioteca + o brinde mensal)
@@ -29,7 +43,7 @@ const INCLUI = [
   "Vídeos virais atualizados",
   "Produtos Shopee e TikTok",
   "Área de membro e Minerador",
-  "2.000 créditos de brinde por mês",
+  "4.000 créditos de brinde por mês",
 ];
 
 export function AssinaturaPainel({
@@ -40,6 +54,10 @@ export function AssinaturaPainel({
   membroDesde,
   renovadaEm,
   urlAssinatura,
+  mpPublicKey,
+  valorMensal,
+  podeCancelar,
+  acessoAntigo,
 }: Props) {
   // perto de vencer = 7 dias ou menos (só quando tem data de vencimento)
   const vencendo = ativa && !permanente && diasRestantes !== null && diasRestantes <= 7;
@@ -153,6 +171,18 @@ export function AssinaturaPainel({
       </section>
 
       {/* Renovar / Assinar */}
+      {acessoAntigo ? (
+        // quem entrou antes do Mercado Pago não precisa (nem deve) assinar de
+        // novo: já paga pelo canal antigo ou tem acesso concedido
+        <section className="rounded-2xl border border-emerald-500/25 bg-emerald-500/5 p-5">
+          <h2 className="text-sm font-semibold text-emerald-400">Seu acesso está garantido</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Você entrou antes da mudança de plano, então continua exatamente como
+            está: nada muda pra você e não precisa fazer nada. Qualquer dúvida, é
+            só chamar a gente no chat.
+          </p>
+        </section>
+      ) : (
       <section className="rounded-2xl border border-border bg-card p-5">
         <h2 className="text-sm font-semibold">
           {ativa ? "Renovar assinatura" : "Reativar assinatura"}
@@ -163,7 +193,13 @@ export function AssinaturaPainel({
             : "Assine de novo para liberar a biblioteca e voltar a receber o crédito mensal."}
         </p>
         <div className="mt-4">
-          {urlAssinatura ? (
+          {mpPublicKey ? (
+            <BotaoAssinarMP
+              ativa={ativa}
+              publicKey={mpPublicKey}
+              valorReais={valorMensal ?? 98.9}
+            />
+          ) : urlAssinatura ? (
             <Button
               size="lg"
               className="h-11"
@@ -179,7 +215,23 @@ export function AssinaturaPainel({
             <BotaoRenovarIndisponivel ativa={ativa} />
           )}
         </div>
+
+        {/* cancelamento fácil: a LP e o modal prometem "sem falar com ninguém" */}
+        {podeCancelar && (
+          <div className="mt-3">
+            <BotaoCancelarAssinatura venceEm={venceEm} />
+          </div>
+        )}
       </section>
+      )}
+
+      <p className="text-center text-xs text-muted-foreground">
+        Cancelar vale para as próximas cobranças: o mês já pago continua até o
+        fim.{" "}
+        <a href="/reembolso" className="underline underline-offset-4 hover:text-foreground">
+          Ver a política de reembolso
+        </a>
+      </p>
     </div>
   );
 }

@@ -4,12 +4,15 @@ import { prisma } from "@/lib/prisma";
 import { quitarDivida } from "@/lib/creditos";
 
 /**
- * Níveis de conta (antifraude de reembolso): bronze -> prata -> ouro.
+ * Níveis de conta: bronze -> prata -> ouro.
  *
- * O golpe que isto trava: comprar crédito, queimar tudo em API dentro dos 7 dias
- * de garantia da Cakto/Kiwify e pedir reembolso (a plataforma não deixa recusar).
- * Contas novas (bronze) têm teto diário de vídeos e só recebem parte do crédito
- * comprado na hora - o resto libera no 8º dia, quando a garantia já expirou.
+ * REGRA DESDE 06/ago/2026: nível controla APENAS QUANTIDADE DE VÍDEO (teto por
+ * dia e quantos em produção ao mesmo tempo). Nada de segurar dinheiro.
+ *
+ * Antes existia uma quarentena de crédito comprado (parte na hora, resto no 8º
+ * dia) como antifraude de reembolso. Saiu junto com a entrada do Mercado Pago:
+ * quem paga recebe tudo na hora. Na virada não havia nenhum crédito retido,
+ * então ninguém perdeu nada.
  *
  * Subida é automática (tempo + dias de login + compras) com uma "análise interna"
  * invisível que ADIA a promoção de quem se comporta como golpista. O admin pode
@@ -23,9 +26,6 @@ export type ConfigNivel = {
   emoji: string;
   videosDia: number; // teto de vídeos criados por dia (fuso SP)
   simultaneos: number; // vídeos em produção ao mesmo tempo
-  franquiaCentavos: number; // parte da compra (na janela) que libera 100% na hora
-  pctAcimaFranquia: number; // fração liberada na hora acima da franquia
-  tetoLiberacaoJanela: number | null; // máx. liberado na janela de 8 dias (null = sem teto)
 };
 
 export const JANELA_GARANTIA_DIAS = 8;
@@ -38,27 +38,18 @@ export const NIVEIS: Record<Nivel, ConfigNivel> = {
     emoji: "🥉",
     videosDia: 5,
     simultaneos: 1,
-    franquiaCentavos: 2000, // até R$20 comprados na janela liberam integral
-    pctAcimaFranquia: 0.5,
-    tetoLiberacaoJanela: 5000, // libera no máx. R$50 dentro da janela de 8 dias
   },
   prata: {
     rotulo: "Prata",
     emoji: "🥈",
     videosDia: 12,
     simultaneos: 2,
-    franquiaCentavos: 2000,
-    pctAcimaFranquia: 0.5,
-    tetoLiberacaoJanela: 10000, // dobro do bronze
   },
   ouro: {
     rotulo: "Ouro",
     emoji: "🥇",
     videosDia: 50,
     simultaneos: 3,
-    franquiaCentavos: 0, // ouro não tem franquia: é 75% de tudo, sem teto
-    pctAcimaFranquia: 0.75,
-    tetoLiberacaoJanela: null,
   },
 };
 

@@ -32,7 +32,23 @@ export type ResultadoCompra = {
   dividaQuitada: number;
 };
 
-export async function creditarCompraComQuarentena(
+/**
+ * Credita uma compra de crédito. INTEGRAL, na hora.
+ *
+ * Até 06/ago/2026 isto passava por uma quarentena: contas novas recebiam só uma
+ * parte na hora e o resto no 8º dia, pra travar o golpe de comprar crédito,
+ * queimar tudo e pedir reembolso dentro da garantia. Com a entrada do Mercado
+ * Pago o modelo mudou: quem paga recebe tudo na hora, sem retenção. Não sobrou
+ * nenhum crédito preso na virada (a tabela estava zerada), então ninguém perdeu
+ * nada.
+ *
+ * Os NÍVEIS continuam existindo, mas agora só limitam QUANTIDADE DE VÍDEO por
+ * dia e simultâneos. Não seguram mais dinheiro.
+ *
+ * A assinatura da função e o retorno ficaram como estavam pra não espalhar
+ * mudança pelos chamadores; `presoCentavos` agora é sempre 0.
+ */
+export async function creditarCompra(
   userId: string,
   valorCentavos: number,
   opts: { descricao?: string; orderId?: string } = {},
@@ -40,69 +56,15 @@ export async function creditarCompraComQuarentena(
   const valor = Math.max(0, Math.round(valorCentavos));
   const u = await prisma.user.findUnique({
     where: { id: userId },
-    select: { nivel: true, role: true, dividaCentavos: true },
+    select: { dividaCentavos: true },
   });
   if (!u) throw new Error("Usuário não encontrado.");
 
-  const nivel = u.role === "admin" || u.role === "demo" ? "ouro" : nivelValido(u.nivel);
-  const cfg = NIVEIS[nivel];
-  const admin = u.role === "admin" || u.role === "demo";
-
-  let liberado = valor;
-  let preso = 0;
-
-  if (!admin) {
-    const janelaIni = new Date(Date.now() - JANELA_GARANTIA_DIAS * DIA_MS);
-    // quanto essa conta já COMPROU e quanto foi LIBERADO na janela (a transação
-    // "compra" guarda só a parte liberada; o preso fica nas CreditoLiberacao)
-    const [liberadoAgg, presoAgg] = await Promise.all([
-      prisma.creditoTransacao.aggregate({
-        where: { userId, tipo: "compra", valor: { gt: 0 }, criadoEm: { gte: janelaIni } },
-        _sum: { valor: true },
-      }),
-      prisma.creditoLiberacao.aggregate({
-        where: { userId, criadoEm: { gte: janelaIni } },
-        _sum: { valor: true },
-      }),
-    ]);
-    const liberadoJanela = liberadoAgg._sum.valor ?? 0;
-    const compradoJanela = liberadoJanela + (presoAgg._sum.valor ?? 0);
-
-    const franquiaRestante = Math.max(0, cfg.franquiaCentavos - compradoJanela);
-    const integral = Math.min(valor, franquiaRestante);
-    const acima = Math.floor((valor - integral) * cfg.pctAcimaFranquia);
-    let bruto = integral + acima;
-
-    if (cfg.tetoLiberacaoJanela !== null) {
-      bruto = Math.min(bruto, Math.max(0, cfg.tetoLiberacaoJanela - liberadoJanela));
-    }
-    liberado = bruto;
-    preso = valor - liberado;
-  }
-
-  if (preso > 0) {
-    await prisma.creditoLiberacao.create({
-      data: {
-        userId,
-        valor: preso,
-        liberaEm: new Date(Date.now() + JANELA_GARANTIA_DIAS * DIA_MS),
-        orderId: opts.orderId,
-        descricao: opts.descricao?.slice(0, 255),
-      },
-    });
-  }
-
-  // registra a compra mesmo com liberado = 0 (é o marcador de idempotência do
-  // pedido). O lancar já quita o saldo devedor de reembolso com qualquer entrada
-  // e devolve o saldo final líquido.
+  // o lancar já abate o saldo devedor de reembolso com qualquer entrada e
+  // devolve o saldo final líquido
   const dividaAntes = u.dividaCentavos;
-  const descricao =
-    (opts.descricao ?? "Compra de créditos") +
-    (preso > 0
-      ? ` (${preso.toLocaleString("pt-BR")} créditos liberam em ${JANELA_GARANTIA_DIAS} dias - garantia da compra)`
-      : "");
-  const saldoApos = await lancar(userId, liberado, "compra", {
-    descricao,
+  const saldoApos = await lancar(userId, valor, "compra", {
+    descricao: opts.descricao ?? "Compra de créditos",
     kiwifyOrderId: opts.orderId,
   });
 
@@ -115,12 +77,7 @@ export async function creditarCompraComQuarentena(
     dividaQuitada = dividaAntes - (depois?.dividaCentavos ?? 0);
   }
 
-  return {
-    liberadoCentavos: liberado,
-    presoCentavos: preso,
-    saldoApos,
-    dividaQuitada,
-  };
+  return { liberadoCentavos: valor, presoCentavos: 0, saldoApos, dividaQuitada };
 }
 
 /** Total de crédito comprado ainda PRESO na quarentena (pra mostrar na UI). */
@@ -203,7 +160,7 @@ export async function aplicarCreditosPendentes(userId: string, email: string) {
       });
       continue;
     }
-    await creditarCompraComQuarentena(userId, p.valorCentavos, {
+    await creditarCompra(userId, p.valorCentavos, {
       descricao: p.descricao ?? "Compra de créditos",
       orderId: p.kiwifyOrderId,
     });

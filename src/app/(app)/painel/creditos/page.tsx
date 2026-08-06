@@ -10,6 +10,7 @@ import {
   Crown,
   Receipt,
   Lock,
+  ShieldCheck,
 } from "lucide-react";
 import { requireUser } from "@/lib/dal";
 import { getCarteira, fmtCreditos, quitarDivida } from "@/lib/creditos";
@@ -19,6 +20,7 @@ import { PlanosCreditos } from "@/components/app/planos-creditos";
 import { AdminCreditosTeste } from "@/components/app/admin-creditos-teste";
 import { ModalCompraSucesso } from "@/components/app/modal-compra-sucesso";
 import { NivelCard } from "@/components/app/nivel-card";
+import { MeusReembolsos } from "@/components/app/meus-reembolsos";
 
 export const metadata: Metadata = { title: "Créditos" };
 export const dynamic = "force-dynamic";
@@ -38,18 +40,21 @@ export default async function CreditosPage({
     getResumoNivel(user.id),
   ]);
 
-  // links de checkout por plano (env, editável no EasyPanel sem mexer no código).
-  // Cakto (atual); cai pro link antigo da Kiwify se o da Cakto ainda não foi setado.
-  const linksCheckout: Partial<Record<number, string>> = {
-    10: process.env.CAKTO_CHECKOUT_10 || process.env.KIWIFY_CHECKOUT_10,
-    20: process.env.CAKTO_CHECKOUT_20 || process.env.KIWIFY_CHECKOUT_20,
-    50: process.env.CAKTO_CHECKOUT_50 || process.env.KIWIFY_CHECKOUT_50,
-    100: process.env.CAKTO_CHECKOUT_100 || process.env.KIWIFY_CHECKOUT_100,
-  };
+  // A venda é 100% pelo Mercado Pago desde 06/ago/2026. Os links da Cakto saíram
+  // daqui: ela continua existindo SÓ pra receber a renovação de quem já assinou
+  // por lá e pra alimentar o histórico de comissões dos afiliados.
+
+  // Mercado Pago ligado (MP_ACCESS_TOKEN + MP_PUBLIC_KEY no ambiente)? Então o
+  // checkout é o NOSSO modal (Pix + cartão na própria tela), e os links fixos
+  // acima ficam só de reserva. Desligar o env = voltar pra Cakto sem deploy.
+  const mpPublicKey =
+    process.env.MP_ACCESS_TOKEN && process.env.MP_PUBLIC_KEY
+      ? process.env.MP_PUBLIC_KEY
+      : undefined;
 
   return (
     <div className="space-y-7">
-      {/* modal de "pagamento aprovado" ao voltar do checkout da Cakto (?compra=sucesso) */}
+      {/* modal de "pagamento aprovado" ao voltar do checkout (?compra=sucesso) */}
       <Suspense fallback={null}>
         <ModalCompraSucesso saldoCentavos={carteira.saldoCentavos} />
       </Suspense>
@@ -103,15 +108,6 @@ export default async function CreditosPage({
                     créditos disponíveis
                   </span>
                 </p>
-                {resumoNivel.presoCentavos > 0 && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    🔒 {fmtCreditos(resumoNivel.presoCentavos)} em liberação
-                    {resumoNivel.proximaLiberacao &&
-                      ` - caem no saldo em ${new Date(
-                        resumoNivel.proximaLiberacao.em,
-                      ).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}`}
-                  </p>
-                )}
               </div>
             </div>
             {carteira.assinante && (
@@ -142,7 +138,21 @@ export default async function CreditosPage({
       )}
 
       {/* ===== PLANOS ===== */}
-      <PlanosCreditos email={user.email} links={linksCheckout} />
+      <PlanosCreditos email={user.email} mpPublicKey={mpPublicKey} />
+
+      {/* ===== REEMBOLSO ===== */}
+      {/* a lista só aparece quando existe compra na janela de 7 dias; o aviso da
+          política fica SEMPRE visível, senão quem ainda não comprou nunca
+          descobre a regra (e é justamente antes de comprar que ela importa) */}
+      <MeusReembolsos />
+
+      <p className="flex flex-wrap items-center justify-center gap-1 rounded-2xl border border-border bg-card px-4 py-3 text-center text-xs text-muted-foreground">
+        <ShieldCheck className="size-3.5 shrink-0 text-primary" />
+        Não gostou? Devolvemos o valor dos créditos que você não usou, em até 7 dias.
+        <Link href="/reembolso" className="underline underline-offset-4 hover:text-foreground">
+          Ver a política de reembolso
+        </Link>
+      </p>
 
       {/* ===== COMO FUNCIONA ===== */}
       <section className="rounded-2xl border border-border bg-card p-6">

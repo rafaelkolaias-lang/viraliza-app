@@ -229,3 +229,127 @@ export function htmlResetSenha(link: string) {
     </div>
   </div>`;
 }
+
+/**
+ * Avisa que a assinatura vence em poucos dias.
+ *
+ * Serve pros dois casos, e o texto muda conforme: quem tem renovação ligada
+ * recebe um lembrete tranquilo ("vai renovar sozinho, deixe o cartão em dia"),
+ * e quem cancelou recebe um aviso de que vai perder o acesso. Mandar o texto
+ * errado pro caso errado é o tipo de coisa que gera contestação de cobrança.
+ */
+export async function enviarAssinaturaVencendo(opts: {
+  para: string;
+  nome?: string | null;
+  dias: number;
+  venceEm: string; // já formatado em pt-BR
+  valorReais: number;
+  /** true = a cobrança automática segue ligada; false = a pessoa cancelou */
+  renovaSozinho: boolean;
+  /** true = pagou no Pix, então não existe cobrança automática: tem que renovar */
+  pix?: boolean;
+}): Promise<boolean> {
+  const primeiroNome = (opts.nome || "").trim().split(/\s+/)[0] || "";
+  const quando =
+    opts.dias <= 0 ? "hoje" : opts.dias === 1 ? "amanhã" : `em ${opts.dias} dias`;
+  return enviarEmail({
+    para: opts.para,
+    assunto: opts.renovaSozinho
+      ? `Sua assinatura do Viraliza renova ${quando}`
+      : opts.pix
+        ? `Hora de renovar seu Viraliza (vence ${quando})`
+        : `Seu acesso ao Viraliza acaba ${quando}`,
+    html: htmlAssinaturaVencendo({
+      nome: primeiroNome,
+      quando,
+      venceEm: opts.venceEm,
+      valor: opts.valorReais.toLocaleString("pt-BR", {
+        style: "currency",
+        currency: "BRL",
+      }),
+      renovaSozinho: opts.renovaSozinho,
+      pix: !!opts.pix,
+      assinaturaUrl: `${APP_URL}/painel/assinatura`,
+      whatsappUrl: `https://wa.me/55${WHATSAPP}`,
+    }),
+  });
+}
+
+/** Template do aviso de vencimento da assinatura. */
+export function htmlAssinaturaVencendo(p: {
+  nome: string;
+  quando: string;
+  venceEm: string;
+  valor: string;
+  renovaSozinho: boolean;
+  /** pagou no Pix: não existe cobrança automática, a renovação é na mão */
+  pix?: boolean;
+  assinaturaUrl: string;
+  whatsappUrl: string;
+}) {
+  const ola = p.nome ? `, ${p.nome}` : "";
+  const titulo = p.renovaSozinho
+    ? "Sua assinatura renova em breve"
+    : p.pix
+      ? "Hora de renovar seu acesso"
+      : "Seu acesso está acabando";
+  const cor = p.renovaSozinho ? "#22c55e" : "#f59e0b";
+  const chamada = p.renovaSozinho
+    ? "Ver minha assinatura"
+    : p.pix
+      ? "Renovar no Pix ou no cartão"
+      : "Reativar minha assinatura";
+  const corpo = p.renovaSozinho
+    ? `Sua assinatura do Viraliza renova <b style="color:#eafff3;">${p.quando}</b> (em ${p.venceEm}), no valor de <b style="color:#eafff3;">${p.valor}</b>.
+       Não precisa fazer nada: a cobrança acontece sozinha no seu cartão e seu acesso continua sem interrupção.
+       Só vale conferir se o cartão está em dia, porque cartão vencido é o motivo número um de assinatura cair.`
+    : p.pix
+      ? `Seu acesso ao Viraliza vai até <b style="color:#eafff3;">${p.venceEm}</b>, ou seja, acaba <b style="color:#eafff3;">${p.quando}</b>.
+       Como você pagou no Pix, não existe cobrança automática: ninguém tira nada da sua conta sem você mandar,
+       e por isso a renovação depende de você. São <b style="color:#eafff3;">${p.valor}</b> por mais um mês, com
+       4.000 créditos novos caindo na hora. Dá pra renovar no Pix de novo ou colocar um cartão, que aí renova sozinho.`
+      : `Seu acesso ao Viraliza vai até <b style="color:#eafff3;">${p.venceEm}</b>, ou seja, acaba <b style="color:#eafff3;">${p.quando}</b>.
+       Como a renovação está cancelada, depois dessa data a biblioteca e o brinde mensal de créditos param.
+       Seus créditos que já estão na conta continuam seus.`;
+  const nota = p.renovaSozinho
+    ? "Quer cancelar? Dá pra fazer em dois cliques no painel, sem multa e sem falar com ninguém."
+    : p.pix
+      ? "O QR do Pix aparece na hora no painel, e o acesso libera assim que o pagamento cai."
+      : "Mudou de ideia? É só reativar no painel que o acesso volta na hora.";
+
+  return `<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0a0d0b;">
+<span style="display:none;opacity:0;color:transparent;height:0;width:0;overflow:hidden">${titulo}: vence em ${p.venceEm}.</span>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0a0d0b;padding:28px 12px;">
+ <tr><td align="center">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#111815;border:1px solid #1e2a24;border-radius:18px;overflow:hidden;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+   <tr><td style="padding:34px 32px 10px;text-align:center;">
+     <div style="display:inline-block;width:64px;height:64px;line-height:64px;border-radius:999px;background:${cor};color:#04120a;font-size:32px;font-weight:800;">&#9200;</div>
+     <h1 style="margin:18px 0 4px;color:#eafff3;font-size:23px;">${titulo}</h1>
+     <p style="margin:0;color:#9fb4a8;font-size:14px;">Oi${ola}, passando pra te avisar com antecedência.</p>
+   </td></tr>
+   <tr><td style="padding:12px 32px 4px;color:#c2d1c9;font-size:15px;line-height:1.65;">
+     <p style="margin:14px 0;">${corpo}</p>
+   </td></tr>
+   <tr><td style="padding:8px 32px 6px;text-align:center;">
+     <a href="${p.assinaturaUrl}" style="display:block;background:${cor};color:#04120a;text-decoration:none;font-weight:800;font-size:16px;padding:15px 24px;border-radius:12px;">${chamada}</a>
+   </td></tr>
+   <tr><td style="padding:16px 32px 8px;">
+     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0e1512;border:1px solid #1e2a24;border-radius:14px;">
+      <tr><td style="padding:16px 18px;color:#c2d1c9;font-size:14px;">
+        ${nota}
+        <div style="margin-top:12px;">
+          <a href="${p.whatsappUrl}" style="display:inline-block;background:#25D366;color:#04120a;text-decoration:none;font-weight:800;font-size:14px;padding:11px 20px;border-radius:10px;">Falar no WhatsApp</a>
+        </div>
+      </td></tr>
+     </table>
+   </td></tr>
+   <tr><td style="padding:20px 32px 28px;text-align:center;color:#6f8177;font-size:12px;line-height:1.6;">
+     Viraliza &#183; sua fábrica de vídeos que vendem
+   </td></tr>
+  </table>
+ </td></tr>
+</table>
+</body></html>`;
+}

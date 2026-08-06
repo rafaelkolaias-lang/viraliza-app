@@ -13,6 +13,7 @@ export async function register() {
 
   const { verificarReembolsos, verificarReembolsosCakto } = await import("@/lib/reembolsos");
   const { aplicarLiberacoesVencidas } = await import("@/lib/liberacao-creditos");
+  const { avisarAssinaturasVencendo } = await import("@/lib/avisos-assinatura");
   const rodar = () => {
     verificarReembolsosCakto().catch((e) =>
       console.error("[reembolsos] varredura Cakto falhou", e),
@@ -23,6 +24,10 @@ export async function register() {
     // crédito comprado em quarentena cujo 8º dia chegou: cai no saldo
     aplicarLiberacoesVencidas().catch((e) =>
       console.error("[liberacao] varredura falhou", e),
+    );
+    // assinatura vencendo em 3 dias: manda o e-mail de aviso (1 por ciclo)
+    avisarAssinaturasVencendo().catch((e) =>
+      console.error("[assinatura] varredura de vencimento falhou", e),
     );
   };
 

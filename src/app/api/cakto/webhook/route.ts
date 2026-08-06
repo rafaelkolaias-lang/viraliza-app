@@ -11,13 +11,13 @@ import {
   webhookSecretValido,
 } from "@/lib/cakto";
 import {
-  CREDITO_MENSAL_CENTAVOS,
   DIAS_ASSINATURA,
+  creditoDaCobranca,
   estenderAssinatura,
   existeTransacaoOrder,
   lancar,
 } from "@/lib/creditos";
-import { creditarCompraComQuarentena } from "@/lib/liberacao-creditos";
+import { creditarCompra } from "@/lib/liberacao-creditos";
 import { enviarCompraMeta, enviarReembolsoMeta, lerRastreioSck } from "@/lib/meta-capi";
 import { aplicarReembolsoAceito, restaurarSuspensao } from "@/lib/reembolsos";
 import { enviarBoasVindas, enviarCreditosConfirmados } from "@/lib/email";
@@ -96,7 +96,18 @@ export async function POST(req: Request) {
     const jaTinhaAcesso = await prisma.acessoPago.findUnique({ where: { email } });
     await prisma.acessoPago.upsert({
       where: { email },
-      create: { email, kiwifyOrderId: orderId, produto: pedido.product?.name ?? null },
+      create: {
+        email,
+        kiwifyOrderId: orderId,
+        produto: pedido.product?.name ?? null,
+        // guarda o valor pago: é ele que define o crédito de entrada no cadastro
+        valorCentavos: pedido.payment?.charge_amount ?? null,
+        // oferta de pagamento único (R$ 158,90) = acesso vitalício. Fica gravado
+        // aqui porque a conta só nasce no cadastro, bem depois deste webhook.
+        vitalicio:
+          (pedido.product?.type || "").toLowerCase() !== "subscription" &&
+          creditoDaCobranca(pedido.payment?.charge_amount) > 0,
+      },
       update: {},
     });
     // se havia reembolso solicitado e o pedido voltou a "pago", devolve o congelado
@@ -139,41 +150,59 @@ export async function POST(req: Request) {
   const creditos = creditosDoPacote(pedido);
   // não é pacote de crédito -> pode ser a RENOVAÇÃO da assinatura (ou só liberou acesso)
   if (creditos <= 0) {
-    // ---- RENOVAÇÃO PAGA DO PLANO -> crédito mensal ----
-    // O plano de entrada é "subscription" na Cakto: cada cobrança recorrente chega
-    // como purchase_approved com um pedido NOVO. Se o usuário JÁ tem conta, é
-    // renovação (a 1ª cobrança acontece antes do cadastro; o crédito do 1º mês sai
-    // no primeiro acesso ao painel). Quem cancelou não gera cobrança e não ganha.
-    // Idempotente por pedido; à prova de forja (o pedido foi confirmado na API acima).
-    if (
-      pedidoEstaPago(pedido) &&
-      (pedido.product?.type || "").toLowerCase() === "subscription" &&
-      email
-    ) {
+    // ---- COMPRA DO PLANO (não é pacote de crédito) ----
+    // A Cakto NÃO é legado: é por onde os afiliados divulgam, e lá existem TRÊS
+    // ofertas vivas do mesmo produto - R$ 68,00/mês, R$ 98,90/mês (a principal) e
+    // R$ 158,90 pagamento único, que dá acesso vitalício. Todas entregam os mesmos
+    // 4.000 créditos (decisão do Lucas em 06/ago).
+    //
+    // Duas coisas se decidem aqui, e por critérios DIFERENTES:
+    //  - CRÉDITO: pelo valor pago (creditoDaCobranca). Oferta viva ganha 4.000; a
+    //    velha de R$ 24,90 ganha 0, que é a regra do Lucas de não dar crédito
+    //    mensal pra quem comprou antes do Mercado Pago.
+    //  - ACESSO: pelo tipo do produto. "subscription" estende 33 dias; pagamento
+    //    único da oferta viva é vitalício (assinaturaAte nulo = não vence).
+    //
+    // O acesso vale pros dois grupos: quem pagou o mês tem o mês, mesmo sem crédito.
+    // À prova de forja (o pedido foi confirmado na API da Cakto lá em cima).
+    const ehAssinatura = (pedido.product?.type || "").toLowerCase() === "subscription";
+    const credito = creditoDaCobranca(pedido.payment?.charge_amount);
+    const vitalicio = !ehAssinatura && credito > 0;
+
+    if (pedidoEstaPago(pedido) && email && (ehAssinatura || vitalicio)) {
       const user = await prisma.user.findUnique({
         where: { email },
         select: { id: true },
       });
       if (user) {
+        // Idempotência: a marca é UMA transação por pedido, mesmo quando o crédito
+        // é zero. Sem a marca do valor zero, um reenvio do mesmo webhook estenderia
+        // o acesso de novo e daria mais 33 dias de graça pra oferta velha.
         if (await existeTransacaoOrder(orderId, "bonus_assinatura")) {
           return NextResponse.json({ ok: true, jaProcessado: true });
         }
-        await lancar(user.id, CREDITO_MENSAL_CENTAVOS, "bonus_assinatura", {
-          descricao: "Crédito mensal da assinatura (renovação paga)",
+        await lancar(user.id, credito, "bonus_assinatura", {
+          descricao:
+            credito > 0
+              ? vitalicio
+                ? "Crédito da assinatura vitalícia"
+                : "Crédito mensal da assinatura (renovação paga)"
+              : "Renovação da oferta antiga (sem crédito mensal)",
           kiwifyOrderId: orderId,
         });
-        // estende o vencimento por mais um ciclo (a partir do maior entre hoje e o
-        // vencimento atual, então renovar adiantado não perde dias) e marca o mês
-        await estenderAssinatura(user.id, DIAS_ASSINATURA);
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { creditoMensalEm: new Date() },
-        });
-        return NextResponse.json({
-          ok: true,
-          renovacao: true,
-          creditado: CREDITO_MENSAL_CENTAVOS,
-        });
+
+        if (vitalicio) {
+          // acesso pra sempre: assinaturaAte nulo é como o painel lê "não vence"
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { assinante: true, assinaturaAte: null },
+          });
+        } else {
+          // estende a partir do maior entre hoje e o vencimento atual, então
+          // renovar adiantado não perde dias
+          await estenderAssinatura(user.id, DIAS_ASSINATURA);
+        }
+        return NextResponse.json({ ok: true, renovacao: true, creditado: credito, vitalicio });
       }
     }
     return NextResponse.json({ ok: true, ignorado: "não é pacote (acesso liberado)" });
@@ -191,7 +220,7 @@ export async function POST(req: Request) {
     if (user) {
       // passa pela QUARENTENA do nível da conta: bronze/prata só recebem parte
       // na hora, o resto libera no 8º dia (antifraude de reembolso)
-      const { saldoApos } = await creditarCompraComQuarentena(user.id, creditos, {
+      const { saldoApos } = await creditarCompra(user.id, creditos, {
         descricao: desc,
         orderId,
       });

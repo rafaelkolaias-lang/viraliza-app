@@ -28,6 +28,26 @@ model User {
   assinaturaAte   DateTime? // vencimento da assinatura
   creditoMensalEm DateTime? // última vez que recebeu o 1 min mensal
 
+  // id do preapproval no Mercado Pago. Sem ele NÃO existe como cancelar a
+  // recorrência (nem pelo painel, nem no suporte), e a gente promete
+  // cancelamento fácil na LP e no modal de assinatura.
+  mpAssinaturaId String?
+  // quando a pessoa cancelou a recorrência. Existe pra o aviso de vencimento
+  // saber QUAL texto mandar: com id = "renova sozinho, confira o cartão"; com
+  // data de cancelamento = "seu acesso acaba". Sem os dois a assinatura é da
+  // Cakto e a gente não sabe se renova, então não avisa (avisar errado faria a
+  // pessoa pagar duas vezes ou perder acesso achando que renovaria).
+  mpAssinaturaCanceladaEm DateTime?
+  // pra qual vencimento já mandamos o aviso de "faltam 3 dias". Guardamos a
+  // DATA (e não um booleano) porque a cada renovação o vencimento muda e o
+  // aviso precisa valer de novo no ciclo seguinte.
+  avisoVencimentoAte DateTime?
+  // assinatura paga no PIX. O Pix não tem cobrança automática (não existe
+  // recorrência de Pix no Mercado Pago), então o acesso vence e a pessoa renova na
+  // mão. Sem esta marca o aviso de vencimento trataria a conta como Cakto e ficaria
+  // calado, e a pessoa perderia o acesso sem ninguém avisar.
+  assinaturaPix Boolean @default(false)
+
   // Nível de conta (antifraude de reembolso): bronze -> prata -> ouro.
   // Limita vídeos/dia, simultâneos e a liberação de crédito comprado.
   nivel          String  @default("bronze") // "bronze" | "prata" | "ouro"
@@ -415,6 +435,18 @@ model AcessoPago {
   email         String   @id
   kiwifyOrderId String?
   produto       String?
+  // quanto a pessoa PAGOU nessa compra (centavos). É o que o cadastro usa pra
+  // saber qual crédito de entrada entregar: o plano de hoje (R$ 98,90) vale 4.000
+  // e a oferta velha de R$ 24,90 vale o brinde daquela época. Sem isso a única
+  // pista seria o gateway, e a Cakto vende o MESMO plano de hoje (é por onde os
+  // afiliados divulgam), então separar por gateway entregaria menos pra quem
+  // pagou igual. Nulo = linha antiga, tratada como plano atual.
+  valorCentavos Int?
+  // a compra foi a oferta VITALÍCIA (a de R$ 158,90 na Cakto, tipo "único"): o
+  // acesso à biblioteca não vence nunca. Precisa ficar guardado aqui porque quem
+  // cria a conta é o cadastro, muito depois do webhook, e é lá que se decide
+  // entre `assinaturaAte` nulo (pra sempre) e 33 dias.
+  vitalicio     Boolean  @default(false)
   criadoEm      DateTime @default(now())
 }
 

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Medal, Clock, AlertTriangle } from "lucide-react";
+import { Medal, AlertTriangle } from "lucide-react";
 import { fmtCreditos } from "@/lib/creditos";
 import type { ResumoNivel } from "@/lib/niveis";
 
@@ -42,12 +42,6 @@ export function NivelCard({ resumo }: { resumo: ResumoNivel }) {
     100,
     Math.round((resumo.videosHoje / Math.max(1, resumo.videosDia)) * 100),
   );
-  const dataLiberacao = resumo.proximaLiberacao
-    ? new Date(resumo.proximaLiberacao.em).toLocaleDateString("pt-BR", {
-        day: "2-digit",
-        month: "2-digit",
-      })
-    : null;
 
   return (
     <section className={`rounded-2xl border bg-card p-6 ${cor.card}`}>
@@ -117,39 +111,12 @@ export function NivelCard({ resumo }: { resumo: ResumoNivel }) {
           </p>
         </div>
 
-        {/* crédito em liberação */}
-        <div className="rounded-xl border border-border bg-background/50 p-4">
-          <p className="flex items-center gap-1.5 text-sm font-semibold">
-            <Clock className={`size-4 ${cor.icone}`} />
-            Crédito liberando
-          </p>
-          {resumo.presoCentavos > 0 ? (
-            <>
-              <p className="mt-1 text-lg font-bold">
-                {fmtCreditos(resumo.presoCentavos)}
-                <span className="text-sm font-medium text-muted-foreground">
-                  {" "}
-                  créditos
-                </span>
-              </p>
-              <p className="mt-2 text-xs text-muted-foreground">
-                Garantia da compra: {dataLiberacao ? `libera em ${dataLiberacao}` : "libera em breve"}{" "}
-                automaticamente.
-              </p>
-            </>
-          ) : (
-            <p className="mt-1 text-sm text-muted-foreground">
-              Nenhum crédito em espera - compras novas podem liberar em duas partes
-              (garantia da compra).
-            </p>
-          )}
-        </div>
       </div>
 
       <p className="mt-4 text-xs text-muted-foreground">
         Seu nível sobe sozinho com o uso: continue entrando e gerando que a conta
-        evolui pra {resumo.proximoNivel ? resumo.proximoNivel.rotulo : "além"} - com
-        mais vídeos por dia e crédito liberado na hora.{" "}
+        evolui pra {resumo.proximoNivel ? resumo.proximoNivel.rotulo : "além"}, com
+        mais vídeos por dia e mais vídeos ao mesmo tempo.{" "}
         <Link href="/painel/extrato" className="underline underline-offset-2">
           Ver extrato
         </Link>

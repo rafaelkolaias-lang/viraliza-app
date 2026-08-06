@@ -108,10 +108,11 @@ export function AjudaComecar() {
 
         <Texto>
           Quem entra pela assinatura ganha{" "}
-          <strong className="text-foreground">1.000 créditos</strong> de boas-vindas, e
-          mais <strong className="text-foreground">2.000 créditos por mês</strong>{" "}
-          enquanto a assinatura estiver em dia. Precisando de mais, dá pra comprar
-          pacote avulso na aba Créditos.
+          <strong className="text-foreground">4.000 créditos</strong> na hora, e mais{" "}
+          <strong className="text-foreground">4.000 créditos por mês</strong> a cada
+          renovação. Dá pra somar <strong className="text-foreground">+300</strong> na
+          tarefa do Instagram, e precisando de mais é só comprar pacote avulso na aba
+          Créditos.
         </Texto>
 
         <Titulinho>Quanto custa cada coisa</Titulinho>

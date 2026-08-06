@@ -23,7 +23,10 @@ export default async function AssinaturaPage() {
   const carteira = await getCarteira(user.id);
 
   const [conta, ultimaRenovacao] = await Promise.all([
-    prisma.user.findUnique({ where: { id: user.id }, select: { criadoEm: true } }),
+    prisma.user.findUnique({
+      where: { id: user.id },
+      select: { criadoEm: true, mpAssinaturaId: true },
+    }),
     // última entrada de crédito da assinatura = última renovação paga (ou o 1º mês)
     prisma.creditoTransacao.findFirst({
       where: { userId: user.id, tipo: "bonus_assinatura" },
@@ -39,12 +42,8 @@ export default async function AssinaturaPage() {
   const diasRestantes =
     venceMs !== null ? Math.ceil((venceMs - agora) / DIA_MS) : null;
 
-  // link de checkout da entrada/assinatura (env, editável no EasyPanel sem deploy).
-  const linkAssinatura = process.env.CAKTO_CHECKOUT_ASSINATURA || null;
-  const url =
-    linkAssinatura && user.email
-      ? `${linkAssinatura}${linkAssinatura.includes("?") ? "&" : "?"}email=${encodeURIComponent(user.email)}`
-      : linkAssinatura;
+  // assinatura nova é só pelo Mercado Pago: o link da Cakto saiu daqui. Ela
+  // segue viva só pra receber a renovação de quem já assinou por lá.
 
   return (
     <AssinaturaPainel
@@ -54,7 +53,20 @@ export default async function AssinaturaPage() {
       venceEm={carteira.assinaturaAte ? fmtData.format(carteira.assinaturaAte) : null}
       membroDesde={conta?.criadoEm ? fmtData.format(conta.criadoEm) : null}
       renovadaEm={ultimaRenovacao?.criadoEm ? fmtData.format(ultimaRenovacao.criadoEm) : null}
-      urlAssinatura={url}
+      urlAssinatura={null}
+      mpPublicKey={
+        // a public key tem que ser da MESMA aplicação do token de assinatura,
+        // senão o MP não acha o cartão tokenizado ("Card token service not found")
+        process.env.MP_ACCESS_TOKEN
+          ? process.env.MP_ASSINATURA_PUBLIC_KEY || process.env.MP_PUBLIC_KEY
+          : undefined
+      }
+      valorMensal={parseFloat(process.env.MP_ASSINATURA_REAIS || "98.90")}
+      podeCancelar={!!conta?.mpAssinaturaId}
+      // acesso ativo que NÃO nasceu no Mercado Pago = cliente antigo (Cakto ou
+      // concessão permanente). Não oferecemos assinatura pra ele: seria cobrar
+      // de novo por algo que ele já tem.
+      acessoAntigo={ativa && !conta?.mpAssinaturaId}
     />
   );
 }

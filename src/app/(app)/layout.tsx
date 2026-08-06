@@ -12,11 +12,7 @@ import {
 import { presoCentavos } from "@/lib/liberacao-creditos";
 import { avisosAtivosPara } from "@/lib/notificacoes";
 import { getStatusBonusIg } from "@/lib/bonus-instagram";
-import {
-  garantirCreditoMensal,
-  getCarteira,
-  totalEntradas,
-} from "@/lib/creditos";
+import { getCarteira, totalEntradas } from "@/lib/creditos";
 
 export default async function AppLayout({
   children,
@@ -28,7 +24,9 @@ export default async function AppLayout({
   // queda por inatividade 60d e recalcula o nível bronze/prata/ouro (1x/min).
   await tocarAtividadeENivel(user.id);
   await tocarPresenca(user.id); // marca presença (online/visto há X) - no máx 1x/min
-  await garantirCreditoMensal(user.id); // libera o crédito mensal de brinde do assinante
+  // Crédito NÃO nasce mais aqui. Abrir o painel não é pagar: todo crédito de
+  // assinatura vem de um pagamento aprovado (cadastro do plano novo ou renovação
+  // no webhook). Ver garantirCreditoMensal, removido em 06/ago/2026.
   const [carteira, entradas, avisos, bonusIg, nivel, preso, divida] = await Promise.all([
     getCarteira(user.id),
     totalEntradas(user.id),

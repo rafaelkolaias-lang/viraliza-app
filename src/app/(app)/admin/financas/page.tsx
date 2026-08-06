@@ -23,6 +23,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { StatCard } from "@/components/app/stat-card";
 import { GraficoVendas } from "@/components/app/grafico-vendas";
+import { AdminReembolsosMP } from "@/components/app/admin-reembolsos-mp";
 import { FinancasUsuarios } from "@/components/app/financas-usuarios";
 import { getPainelFinancas, PERIODOS_FINANCAS, DIAS_PADRAO } from "@/lib/financas";
 import { elevenSaldo } from "@/lib/diagnostico";
@@ -266,6 +267,11 @@ export default async function FinancasPage({
           (admin e demo não pagam créditos, então aparecem negativos por natureza).
         </p>
       </div>
+
+      {/* Reembolsos que os clientes pediram sozinhos (Mercado Pago) */}
+      <AdminReembolsosMP
+        desde={new Date(Date.now() - (dias > 0 ? dias : 3650) * 86_400_000)}
+      />
 
       {/* Vendas do período */}
       <div>

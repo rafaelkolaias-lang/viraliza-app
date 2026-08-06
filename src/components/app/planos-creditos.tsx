@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Sparkles, Zap, TrendingUp, Rocket, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CheckoutMP } from "@/components/app/checkout-mp";
 import { cn } from "@/lib/utils";
 
 type Plano = {
@@ -63,16 +64,28 @@ const COLUNAS: Record<number, string> = {
 export function PlanosCreditos({
   email,
   links,
+  mpPublicKey,
 }: {
   /** e-mail do usuário logado - vai no checkout como sugestão (o crédito casa pelo
    *  e-mail que a pessoa usar na compra, então ela deve pagar com o mesmo e-mail) */
   email?: string;
   /** link de checkout (Cakto) por valor do plano (10, 20, 50, 100) */
   links?: Partial<Record<number, string>>;
+  /** public key do Mercado Pago: presente = checkout NA NOSSA TELA (modal com
+   *  Pix e cartão), sem redirect. Ausente = links da Cakto. */
+  mpPublicKey?: string;
 }) {
   const [carregando, setCarregando] = useState<number | null>(null);
+  // pacote escolhido com o checkout aberto (null = modal fechado)
+  const [pagando, setPagando] = useState<number | null>(null);
 
   function comprar(valor: number) {
+    // Mercado Pago: abre o NOSSO checkout (Pix + cartão) sem sair da página
+    if (mpPublicKey) {
+      setPagando(valor);
+      return;
+    }
+
     const base = links?.[valor];
     if (!base) {
       // link ainda não configurado pra esse plano
@@ -95,6 +108,15 @@ export function PlanosCreditos({
   const planos = PLANOS.filter((p) => p.ativo !== false);
 
   return (
+    <>
+      {mpPublicKey && (
+        <CheckoutMP
+          aberto={pagando !== null}
+          valor={pagando ?? 0}
+          publicKey={mpPublicKey}
+          onFechar={() => setPagando(null)}
+        />
+      )}
     <div
       className={cn(
         "grid grid-cols-1 gap-4 sm:grid-cols-2",
@@ -168,5 +190,6 @@ export function PlanosCreditos({
         );
       })}
     </div>
+    </>
   );
 }

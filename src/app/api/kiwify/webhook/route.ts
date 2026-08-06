@@ -117,8 +117,8 @@ export async function POST(req: Request) {
 
     if (user) {
       // quarentena do nível da conta (antifraude de reembolso)
-      const { creditarCompraComQuarentena } = await import("@/lib/liberacao-creditos");
-      await creditarCompraComQuarentena(user.id, creditos, { descricao: desc, orderId });
+      const { creditarCompra } = await import("@/lib/liberacao-creditos");
+      await creditarCompra(user.id, creditos, { descricao: desc, orderId });
       return NextResponse.json({ ok: true, creditado: creditos, userId: user.id });
     }
     // comprou o pacote antes de ter conta: guarda pra aplicar no cadastro (mesmo e-mail)

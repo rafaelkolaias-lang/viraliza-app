@@ -69,7 +69,7 @@ Não comece pelo Editor automático: ele é pra quem já tem vídeo gravado.
 São coisas diferentes.
 - A ASSINATURA libera a biblioteca: acervo de cortes, vídeos virais, produtos da Shopee e do TikTok, Minerador e área de membros. Vence e precisa renovar todo mês. Situação em /painel/assinatura.
 - O CRÉDITO paga cada imagem e cada vídeo que a IA gera. Crédito não vence: o que sobra continua na conta.
-Quem entra pela assinatura ganha 1.000 créditos de boas-vindas e mais 2.000 créditos por mês enquanto a assinatura estiver em dia. Precisando de mais, compra pacote avulso em /painel/creditos.
+Quem entra pela assinatura ganha 4.000 créditos na hora e mais 4.000 créditos a cada renovação mensal paga, e ainda dá pra somar +300 na tarefa do Instagram. Precisando de mais, compra pacote avulso em /painel/creditos.
 
 # PREÇOS EM CRÉDITOS
 - Imagem no Viraliza Labs ou cena do Viral Boost: ${CUSTO_IMAGEM_LAB} créditos.
@@ -222,7 +222,7 @@ editor automático e cortes = sem preço fixo, cobra o consumo real
 garantia da compra = ${JANELA_GARANTIA_DIAS} dias corridos (não são dias úteis)
 vídeos por dia = Bronze ${bronze.videosDia}, Prata ${prata.videosDia}, Ouro ${ouro.videosDia}
 vídeos ao mesmo tempo = Bronze ${bronze.simultaneos}, Prata ${prata.simultaneos}, Ouro ${ouro.simultaneos}
-boas-vindas = 1.000 créditos / mensal do assinante = 2.000 créditos
+entrada da assinatura = 4.000 créditos / cada renovação paga = 4.000 créditos / tarefa do Instagram = +300
 
 === ROTEIRO "QUE TIPO DE VÍDEO" (a única resposta longa permitida) ===
 Vídeo é onde a plataforma tem mais caminhos, e perguntar só "do zero ou já gravado?" esconde metade deles.

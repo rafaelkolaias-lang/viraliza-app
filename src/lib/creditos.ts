@@ -7,11 +7,46 @@ import { prisma } from "@/lib/prisma";
  * O crédito é guardado SEMPRE em CENTAVOS de R$ (Int), pra não ter erro de float.
  */
 
-// Crédito mensal de brinde da assinatura. Oferta atual: 2.000 créditos = R$ 20,00/mês
-// (~20 a 30 vídeos), generoso de propósito pra atrair assinantes no lançamento.
+// Crédito da assinatura de R$ 98,90: 4.000 créditos (R$ 40,00) por PAGAMENTO
+// APROVADO, e só. Um na entrada, um em cada renovação, nunca dois no mesmo ciclo.
+// Fora isso a pessoa pode somar +300 na tarefa do Instagram (ver bonus_instagram).
+//
+// Vale só pro plano NOVO. Assinatura antiga (Cakto, R$ 24,90) não recebe crédito
+// mensal nenhum: mantém o acesso que comprou, mas o brinde recorrente acabou em
+// 06/ago/2026, porque dava R$ 20/mês pra sempre por uma compra única.
+//
 // ⚠️ VALOR PROVISÓRIO - calibrar com o preço real do Gemini/ElevenLabs + o worker
 //    (ver lembrete em reminder.md).
-export const CREDITO_MENSAL_CENTAVOS = 2000;
+export const CREDITO_MENSAL_CENTAVOS = 4000;
+
+/**
+ * Piso pra uma cobrança contar como "oferta de hoje".
+ *
+ * As ofertas VIVAS que os afiliados vendem na Cakto são R$ 68,00 (mensal),
+ * R$ 98,90 (mensal, a principal) e R$ 158,90 (único/vitalício). As mortas são
+ * R$ 24,90 e R$ 19,90. R$ 50,00 cai no meio do vão, com folga dos dois lados:
+ * dá pra criar promoção até R$ 50 sem mexer em código, e nenhuma cobrança da
+ * oferta velha passa por engano.
+ */
+export const PISO_OFERTA_CENTAVOS = Number(process.env.PISO_OFERTA_CENTAVOS || 5000);
+
+/**
+ * Quanto de crédito uma cobrança APROVADA vale.
+ *
+ * Quem decide não é o gateway, é o VALOR PAGO. A Cakto NÃO é legado: vende as
+ * mesmas ofertas de hoje e é por onde os afiliados divulgam, então separar por
+ * gateway puniria a venda do afiliado. E não é proporcional ao preço: decisão do
+ * Lucas em 06/ago é que TODA oferta viva entrega os mesmos 4.000, seja a de
+ * R$ 68 ou a de R$ 158,90. Só a oferta velha de R$ 24,90/19,90 fica fora, que é
+ * a outra regra dele ("quem pagou antes do Mercado Pago não ganha crédito
+ * mensal").
+ */
+export function creditoDaCobranca(centavosPagos: number | null | undefined): number {
+  // sem valor conhecido, assume oferta atual: hoje é o que todo mundo paga, e
+  // errar pra menos significa entregar menos do que a pessoa comprou
+  if (centavosPagos == null) return CREDITO_MENSAL_CENTAVOS;
+  return centavosPagos >= PISO_OFERTA_CENTAVOS ? CREDITO_MENSAL_CENTAVOS : 0;
+}
 
 // Quanto tempo cada pagamento (entrada + cada renovação paga) libera a biblioteca.
 // A assinatura NÃO é mais permanente: se a cobrança mensal não for repaga, ela vence
@@ -254,47 +289,17 @@ export async function listarExtrato(userId: string, limite = 50) {
   });
 }
 
-/**
- * Crédito do PRIMEIRO mês da assinatura, liberado UMA vez por usuário no primeiro
- * acesso ao painel (é "pago" pela compra de entrada, obrigatória pro cadastro).
- * As RENOVAÇÕES não passam mais por aqui: quem credita é o webhook da Cakto quando
- * a cobrança recorrente é aprovada de verdade. A regra antiga ("mudou o mês do
- * calendário = ganha de novo") dava crédito de graça todo mês pra sempre, e o
- * servidor em UTC ainda virava o mês às 21h de Brasília, liberando em dobro.
+/*
+ * REMOVIDO em 06/ago/2026: `garantirCreditoMensal`.
+ *
+ * Ela dava crédito no primeiro acesso ao PAINEL, e abrir o painel não é pagar.
+ * Enquanto existiu, foi o cano por onde saiu crédito de graça: conta antiga da
+ * Cakto entrava, abria a tela e ganhava 2.000 sem ter pago nada naquele mês.
+ *
+ * Agora existe UMA regra só: crédito de assinatura vem de PAGAMENTO APROVADO.
+ *  - entrada do plano novo: 4.000 no cadastro (`criarContaLiberada`);
+ *  - cada renovação paga: 4.000 no `processarPagamentoMP`.
+ * Quem pagou antes do Mercado Pago mantém o acesso que comprou, mas não recebe
+ * crédito mensal (decisão do Lucas, 06/ago: "todos que pagaram antes do Mercado
+ * Pago não ganham créditos mensalmente").
  */
-export async function garantirCreditoMensal(userId: string) {
-  const u = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { assinante: true, assinaturaAte: true, creditoMensalEm: true },
-  });
-  if (!u?.assinante) return;
-  if (u.assinaturaAte && u.assinaturaAte.getTime() < Date.now()) return; // vencida
-  if (u.creditoMensalEm) return; // já recebeu o do primeiro mês
-
-  await prisma.$transaction(async (tx) => {
-    const cur = await tx.user.findUnique({
-      where: { id: userId },
-      select: { saldoCentavos: true, creditoMensalEm: true },
-    });
-    // re-checa DENTRO da transação: duas abas no mesmo instante não creditam 2x
-    if (cur?.creditoMensalEm) return;
-    const saldoApos = (cur?.saldoCentavos ?? 0) + CREDITO_MENSAL_CENTAVOS;
-    await tx.user.update({
-      where: { id: userId },
-      data: { saldoCentavos: saldoApos, creditoMensalEm: new Date() },
-    });
-    await tx.creditoTransacao.create({
-      data: {
-        userId,
-        tipo: "bonus_assinatura",
-        valor: CREDITO_MENSAL_CENTAVOS,
-        saldoApos,
-        descricao: "Crédito do primeiro mês da assinatura",
-      },
-    });
-  });
-
-  // entrada de crédito = quita saldo devedor de reembolso primeiro (este fluxo
-  // não passa pelo lancar, então a quitação é chamada aqui)
-  await quitarDivida(userId);
-}
