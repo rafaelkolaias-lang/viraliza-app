@@ -27,6 +27,8 @@ type Compra = {
   devolveCentavos: number;
   comRedutor: boolean;
   diasRestantes: number;
+  ehAssinatura: boolean;
+  pagoCentavos: number;
 };
 
 const brl = (centavos: number) =>
@@ -121,6 +123,11 @@ export function MeusReembolsos() {
                   ? " último dia pra pedir"
                   : ` faltam ${c.diasRestantes} dias`}
               </p>
+              {c.ehAssinatura && (
+                <p className="mt-0.5 text-xs text-amber-400">
+                  Devolver encerra sua assinatura e a biblioteca na hora.
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-3">
               <span className="text-sm font-semibold text-foreground">

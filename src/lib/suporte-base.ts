@@ -87,17 +87,16 @@ Quem entra pela assinatura ganha 4.000 créditos na hora e mais 4.000 créditos 
 - Editor automático no modo "Nenhum" (sem IA, a pessoa junta os clipes e escreve o texto): ${CREDITOS_FIXO.editorManual} créditos fixos, porque não há consumo de IA pra medir.
 Se a geração falhar no meio, NADA é descontado: a plataforma só desconta depois que a imagem ou o vídeo existe de verdade.
 
-# COMPREI CRÉDITO E SÓ ENTROU UMA PARTE (é normal)
-Toda compra de pacote entra em duas partes: uma cai no saldo na hora e o resto fica reservado por ${JANELA_GARANTIA_DIAS} dias, que é o prazo de garantia da compra. Passados os ${JANELA_GARANTIA_DIAS} dias o restante cai sozinho, sem precisar pedir. A parte reservada aparece como "crédito liberando", com a data. Quanto libera na hora depende do nível da conta.
+# COMPREI CRÉDITO, QUANDO ENTRA?
+Na hora. Todo crédito comprado cai inteiro no saldo assim que o pagamento aprova. A antiga reserva de parte do valor por ${JANELA_GARANTIA_DIAS} dias acabou: quem paga recebe tudo de uma vez.
 
 # NÍVEIS DA CONTA
-Toda conta começa no Bronze e sobe sozinha com o uso. O nível define o limite diário de vídeos, quantos podem ser produzidos ao mesmo tempo e quanto do crédito comprado cai na hora.
-- ${bronze.emoji} Bronze: ${bronze.videosDia} vídeos por dia, ${bronze.simultaneos} de cada vez, metade do crédito na hora e o resto em ${JANELA_GARANTIA_DIAS} dias.
-- ${prata.emoji} Prata: ${prata.videosDia} vídeos por dia, ${prata.simultaneos} ao mesmo tempo, metade na hora com limite maior.
-- ${ouro.emoji} Ouro: ${ouro.videosDia} vídeos por dia, ${ouro.simultaneos} ao mesmo tempo, 75% do crédito na hora e sem teto.
-A subida é automática (tempo de casa, frequência de acesso e compras) e avisa no sininho. Pro Ouro também precisa estar com a assinatura em dia.
-O nível CAI quando: pede reembolso (volta pro Bronze), fica mais de 60 dias sem entrar (desce um nível) ou deixa a assinatura vencer (Ouro cai pro Prata).
-Bater o limite do dia não gasta crédito nenhum e o limite renova à meia-noite.
+É só uma MEDALHA pelo tanto de vídeo que a pessoa já gerou. NÃO limita nada: não existe teto por dia, nem limite de vídeos ao mesmo tempo, nem crédito segurado.
+- ${bronze.emoji} Bronze: onde toda conta começa.
+- ${prata.emoji} Prata: a partir de ${prata.videosMin} vídeos gerados.
+- ${ouro.emoji} Ouro: a partir de ${ouro.videosMin} vídeos gerados.
+Sobe sozinha e avisa no sininho. Só sobe: quem chegou no Ouro não perde a medalha.
+Se alguém disser que atingiu um limite do nível, está enganado ou viu tela antiga - o único bloqueio que existe é saldo devedor de reembolso.
 
 # SALDO PENDENTE DE REEMBOLSO
 Quem pediu reembolso depois de já ter gastado aqueles créditos fica com saldo pendente e a conta PARA de gerar vídeos até regularizar. Comprando crédito de novo o pendente é quitado automaticamente e a conta volta a funcionar.
@@ -156,9 +155,8 @@ Sugestões (/painel/sugestoes): pedido de melhoria ou relato de problema. Sugest
 
 # PROBLEMAS COMUNS
 - "Cliquei em gerar e travou": não travou, demora minutos mesmo. Pode fechar a aba, o resultado aparece sozinho.
-- "Já tenho um vídeo em produção": é o limite de simultâneos do nível (Bronze ${bronze.simultaneos}, Prata ${prata.simultaneos}, Ouro ${ouro.simultaneos}).
-- "Atingi os vídeos de hoje": limite diário do nível (Bronze ${bronze.videosDia}, Prata ${prata.videosDia}, Ouro ${ouro.videosDia}), renova à meia-noite e não gasta crédito.
-- "Não tenho créditos suficientes": confira o saldo em /painel/creditos, lembrando que parte pode estar reservada pela garantia de ${JANELA_GARANTIA_DIAS} dias. Enquanto isso dá pra usar o que é de graça.
+- "Não tenho créditos suficientes": confira o saldo em /painel/creditos. Não existe mais crédito reservado: o que foi comprado está todo lá.
+- "Minha conta está travada pra gerar": só acontece com saldo devedor de reembolso. Comprar crédito quita a dívida e libera na hora.
 - "Saí da tela e não sei se foi cobrado": o trabalho continua e o resultado entra na lista sozinho. Confira em /painel/extrato. Mandar de novo "na dúvida" é o que costuma cobrar duas vezes.
 - "O resultado saiu diferente do que eu queria": a IA cria algo novo a cada geração. Capriche na descrição usando o gerador de prompt, que sai por ${CUSTO_PROMPT_LAB} créditos e evita gastar bem mais numa imagem que não presta.
 - "Uma tela apareceu bloqueada": é a assinatura vencida, veja em /painel/assinatura.
@@ -220,8 +218,8 @@ marca em lote = 50 créditos por vídeo
 MapsLeads = 50 créditos por busca
 editor automático e cortes = sem preço fixo, cobra o consumo real
 garantia da compra = ${JANELA_GARANTIA_DIAS} dias corridos (não são dias úteis)
-vídeos por dia = Bronze ${bronze.videosDia}, Prata ${prata.videosDia}, Ouro ${ouro.videosDia}
-vídeos ao mesmo tempo = Bronze ${bronze.simultaneos}, Prata ${prata.simultaneos}, Ouro ${ouro.simultaneos}
+vídeos por dia = SEM LIMITE / vídeos ao mesmo tempo = SEM LIMITE
+níveis (só medalha, não limita nada) = Prata a partir de ${prata.videosMin} vídeos, Ouro a partir de ${ouro.videosMin}
 entrada da assinatura = 4.000 créditos / cada renovação paga = 4.000 créditos / tarefa do Instagram = +300
 
 === ROTEIRO "QUE TIPO DE VÍDEO" (a única resposta longa permitida) ===

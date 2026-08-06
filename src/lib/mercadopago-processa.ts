@@ -63,6 +63,16 @@ export async function processarPagamentoMP(p: PagamentoMP) {
 
   // ---- APROVADO ----
 
+  // Assinatura no cartão começa com uma cobrança de VALIDAÇÃO de R$ 0
+  // ("Recurring payment validation", operation_type card_validation): o MP só
+  // confere se o cartão aceita. Ela é aprovada de verdade e libera o cadastro,
+  // mas NÃO é a compra, então não pode definir valor nem nome de produto. Foi
+  // exatamente isso que fez uma conta nascer com 1.000 em vez de 4.000: o zero
+  // ficou gravado e o cadastro leu como oferta antiga.
+  const ehValidacaoCartao = p.valorCentavos <= 0;
+  const valorDaCompra = ehValidacaoCartao ? null : p.valorCentavos;
+  const nomeDoProduto = ehValidacaoCartao ? "Assinatura Viraliza" : (p.descricao ?? null);
+
   // e-mail pagante entra na allowlist de cadastro (mesma regra da Cakto)
   if (email) {
     // é a 1ª vez que este e-mail paga? define se manda as boas-vindas
@@ -72,12 +82,22 @@ export async function processarPagamentoMP(p: PagamentoMP) {
       create: {
         email,
         kiwifyOrderId: orderId,
-        produto: p.descricao ?? null,
+        produto: nomeDoProduto,
         // guarda o valor pago: é ele que define o crédito de entrada no cadastro
-        valorCentavos: p.valorCentavos,
+        valorCentavos: valorDaCompra,
       },
       update: {},
     });
+
+    // A linha pode ter nascido da validação de R$ 0, sem valor. Quando a cobrança
+    // de verdade chega, preenche. Só preenche o que está VAZIO: sobrescrever
+    // sempre faria uma compra de pacote depois apagar o valor da assinatura.
+    if (jaTinhaAcesso && valorDaCompra != null && jaTinhaAcesso.valorCentavos == null) {
+      await prisma.acessoPago.update({
+        where: { email },
+        data: { valorCentavos: valorDaCompra, kiwifyOrderId: orderId },
+      });
+    }
     await restaurarSuspensao(orderId);
 
     // Boas-vindas com o link do cadastro. Sem isto, quem compra pelo Mercado Pago
@@ -91,7 +111,7 @@ export async function processarPagamentoMP(p: PagamentoMP) {
       });
       if (!jaTemConta) {
         try {
-          await enviarBoasVindas({ para: email, nome: p.nome, produto: p.descricao });
+          await enviarBoasVindas({ para: email, nome: p.nome, produto: nomeDoProduto });
         } catch (e) {
           console.error("[mp] falha ao enviar boas-vindas", orderId, e);
         }
@@ -109,6 +129,9 @@ export async function processarPagamentoMP(p: PagamentoMP) {
     produto: p.descricao,
   });
 
+  // validação de cartão não é compra: não credita, não estende, não vira pacote
+  if (ehValidacaoCartao) return { ignorado: "validação de cartão (R$ 0)" };
+
   // ---- COBRANÇA DE ASSINATURA -> crédito mensal + 1 mês (regra da Cakto) ----
   if (pagamentoDeAssinatura(p)) {
     if (await existeTransacaoOrder(orderId, "bonus_assinatura")) {
@@ -118,6 +141,21 @@ export async function processarPagamentoMP(p: PagamentoMP) {
       (p.userId ? await prisma.user.findUnique({ where: { id: p.userId } }) : null) ??
       (email ? await prisma.user.findUnique({ where: { email } }) : null);
     if (!assinante) return { ignorado: "assinatura sem usuário" };
+
+    // O ciclo já foi entregue no cadastro? Acontece sempre que a pessoa se
+    // cadastra ANTES da primeira cobrança cair (que é o normal: ela paga, o
+    // cadastro libera na hora e a cobrança de verdade chega depois). O cadastro
+    // já deu os 4.000 e os 33 dias; creditar aqui de novo daria 8.000 e 66 dias
+    // por um pagamento só. Renovação legítima vem ~33 dias depois, bem fora
+    // desta janela.
+    const CICLO_MIN_MS = 25 * DIA_MS;
+    if (
+      assinante.creditoMensalEm &&
+      Date.now() - assinante.creditoMensalEm.getTime() < CICLO_MIN_MS
+    ) {
+      return { jaProcessado: true, motivo: "ciclo já entregue no cadastro" };
+    }
+
     await lancar(assinante.id, CREDITO_MENSAL_CENTAVOS, "bonus_assinatura", {
       descricao: "Crédito mensal da assinatura (renovação paga)",
       kiwifyOrderId: orderId,

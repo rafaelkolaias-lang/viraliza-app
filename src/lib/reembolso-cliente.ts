@@ -2,7 +2,11 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { debitarClamp, existeTransacaoOrder, lancar } from "@/lib/creditos";
-import { reembolsarPagamento } from "@/lib/mercadopago";
+import {
+  buscarPagamento,
+  cancelarAssinatura,
+  reembolsarPagamento,
+} from "@/lib/mercadopago";
 
 /**
  * Reembolso que o próprio cliente pede, sem passar pelo suporte.
@@ -17,9 +21,17 @@ import { reembolsarPagamento } from "@/lib/mercadopago";
  *   usou até 80%           -> proporcional ao que sobrou
  *   usou mais de 80%       -> proporcional ao que sobrou, MENOS 30%
  *
- * Só vale pra PACOTE DE CRÉDITO comprado pelo Mercado Pago, dentro de 7 dias.
- * Assinatura não entra: pra sair dela a pessoa cancela a renovação e usa até o
- * fim do mês que já pagou.
+ * VALE PRA PACOTE E PRA ASSINATURA, ambos pelo Mercado Pago e dentro de 7 dias.
+ * A assinatura entra porque compra online tem direito de arrependimento (CDC
+ * art. 49) e isso não se contrata contra; negar empurra a pessoa pra disputa no
+ * cartão, que custa o valor MAIS a taxa de chargeback. Passados os 7 dias a
+ * assinatura só se cancela, e o mês já pago vale até o fim.
+ *
+ * PACOTE E ASSINATURA CONTAM DIFERENTE. No pacote, 1 crédito = 1 centavo pago,
+ * então o que sobrou de crédito já É o valor a devolver. Na assinatura não:
+ * R$ 98,90 dão 4.000 créditos, então a fração não usada é medida em crédito e
+ * aplicada sobre o DINHEIRO. Sem isso, quem não usou nada receberia R$ 40 de
+ * volta em vez dos R$ 98,90 que pagou.
  */
 
 export const JANELA_REEMBOLSO_DIAS = 7;
@@ -42,6 +54,10 @@ export type CompraReembolsavel = {
   /** true = entrou o redutor de 30% (usou mais de 80%) */
   comRedutor: boolean;
   diasRestantes: number;
+  /** true = é a assinatura mensal (reembolsar também encerra o acesso) */
+  ehAssinatura: boolean;
+  /** quanto foi pago de verdade, em centavos */
+  pagoCentavos: number;
 };
 
 /**
@@ -72,14 +88,16 @@ export async function comprasReembolsaveis(userId: string): Promise<CompraReembo
     prisma.creditoTransacao.findMany({
       where: {
         userId,
-        tipo: "compra",
+        // "compra" = pacote de crédito; "bonus_assinatura" com pedido = a
+        // mensalidade paga (a de valor 0 é marcador de oferta antiga e cai fora)
+        tipo: { in: ["compra", "bonus_assinatura"] },
         valor: { gt: 0 },
         criadoEm: { gte: desde },
         // só as do Mercado Pago: reembolso de compra antiga é pela Cakto
         kiwifyOrderId: { startsWith: "mp-" },
       },
       orderBy: { criadoEm: "desc" },
-      select: { valor: true, criadoEm: true, descricao: true, kiwifyOrderId: true },
+      select: { tipo: true, valor: true, criadoEm: true, descricao: true, kiwifyOrderId: true },
     }),
     prisma.user.findUnique({ where: { id: userId }, select: { saldoCentavos: true } }),
   ]);
@@ -93,22 +111,47 @@ export async function comprasReembolsaveis(userId: string): Promise<CompraReembo
     // já reembolsada? (o estorno grava com o mesmo orderId)
     if (await existeTransacaoOrder(orderId, "estorno")) continue;
 
+    const ehAssinatura = c.tipo === "bonus_assinatura";
+    const paymentId = orderId.replace(/^mp-/, "");
     const calc = calcularDevolucao(c.valor, saldo);
+
+    // Quanto entrou de dinheiro. No pacote é o próprio número de créditos; na
+    // assinatura tem que vir do Mercado Pago, porque crédito e preço não são a
+    // mesma escala. Se a consulta falhar, a linha some da lista em vez de
+    // oferecer um valor chutado.
+    let pagoCentavos = c.valor;
+    if (ehAssinatura) {
+      try {
+        const pag = await buscarPagamento(paymentId);
+        if (!pag || pag.valorCentavos <= 0) continue;
+        pagoCentavos = pag.valorCentavos;
+      } catch {
+        continue;
+      }
+    }
+
+    // a fração não usada é medida em CRÉDITO e aplicada sobre o dinheiro pago
+    const devolveCentavos = ehAssinatura
+      ? Math.floor(pagoCentavos * (calc.devolveCentavos / Math.max(1, c.valor)))
+      : calc.devolveCentavos;
+
     const diasRestantes = Math.max(
       0,
       Math.ceil((c.criadoEm.getTime() + JANELA_REEMBOLSO_DIAS * DIA_MS - Date.now()) / DIA_MS),
     );
     out.push({
       orderId,
-      paymentId: orderId.replace(/^mp-/, ""),
-      descricao: c.descricao ?? "Pacote de créditos",
+      paymentId,
+      descricao: c.descricao ?? (ehAssinatura ? "Assinatura Viraliza" : "Pacote de créditos"),
       compradoEm: c.criadoEm,
       creditosComprados: c.valor,
       creditosNaoUsados: calc.naoUsados,
       fracaoUsada: calc.fracaoUsada,
-      devolveCentavos: calc.devolveCentavos,
+      devolveCentavos,
       comRedutor: calc.comRedutor,
       diasRestantes,
+      ehAssinatura,
+      pagoCentavos,
     });
   }
   return out;
@@ -166,6 +209,34 @@ export async function pedirReembolso(
     await lancar(userId, 0, "estorno", {
       descricao: `Reembolso pedido por você: ${compra.descricao}`,
       kiwifyOrderId: orderId,
+    });
+  }
+
+  // Assinatura devolvida = a pessoa desistiu do serviço: encerra o acesso e
+  // desliga a cobrança. Sem cancelar no MP ela receberia o dinheiro de volta e
+  // seria cobrada de novo no mês seguinte, que é o pior desfecho possível.
+  if (compra.ehAssinatura) {
+    const conta = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { mpAssinaturaId: true },
+    });
+    if (conta?.mpAssinaturaId) {
+      try {
+        await cancelarAssinatura(conta.mpAssinaturaId);
+      } catch (e) {
+        // o dinheiro já voltou; a recorrência a gente derruba no suporte
+        console.error("[reembolso] falha ao cancelar assinatura no MP", userId, e);
+      }
+    }
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        assinante: false,
+        assinaturaAte: null,
+        mpAssinaturaId: null,
+        assinaturaPix: false,
+        mpAssinaturaCanceladaEm: new Date(),
+      },
     });
   }
 

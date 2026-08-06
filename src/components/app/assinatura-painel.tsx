@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { BotaoAssinarMP } from "@/components/app/botao-assinar-mp";
 import { BotaoCancelarAssinatura } from "@/components/app/botao-cancelar-assinatura";
 import { BotaoRenovarIndisponivel } from "@/components/app/botao-renovar-indisponivel";
+import { MeusReembolsos } from "@/components/app/meus-reembolsos";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -224,6 +225,11 @@ export function AssinaturaPainel({
         )}
       </section>
       )}
+
+      {/* Pedir reembolso da MENSALIDADE (7 dias). Fica aqui, e não só na aba de
+          créditos, porque é aqui que a pessoa vem quando quer sair: se não achar,
+          ela contesta no cartão, que custa o valor mais a taxa de chargeback. */}
+      <MeusReembolsos />
 
       <p className="text-center text-xs text-muted-foreground">
         Cancelar vale para as próximas cobranças: o mês já pago continua até o

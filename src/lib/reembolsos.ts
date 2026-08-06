@@ -21,7 +21,6 @@ import {
   pedidoEstornado,
   statusReembolsoSolicitado as statusReembolsoSolicitadoCakto,
 } from "@/lib/cakto";
-import { rebaixarPorReembolso, restaurarNivel } from "@/lib/niveis";
 import { cancelarLiberacoesDoPedido } from "@/lib/liberacao-creditos";
 
 /**
@@ -76,8 +75,10 @@ export async function suspenderPorReembolso(email: string, orderId: string) {
   if (!user) return false;
   if (await existeTransacaoOrder(orderId, "suspensao_reembolso")) return false;
 
-  // pediu reembolso -> a conta cai pra bronze na hora (volta se cancelar o pedido)
-  const nivelAntes = await rebaixarPorReembolso(user.id);
+  // O nível NÃO cai mais por reembolso: virou contagem de vídeo gerado, e pedir
+  // dinheiro de volta não desfaz vídeo. Quem segura o antifraude aqui é o saldo
+  // devedor (dividaCentavos), que trava a geração até ser quitado.
+  const nivelAntes = "bronze";
 
   await prisma.$transaction(async (tx) => {
     const u = await tx.user.findUnique({
@@ -141,8 +142,6 @@ export async function restaurarSuspensao(orderId: string) {
       },
     });
   });
-  // devolve também o nível que a pessoa tinha antes de pedir o reembolso
-  await restaurarNivel(susp.userId, info.nivelAntes);
   console.log("[reembolsos] suspensão revertida", orderId);
   return true;
 }
@@ -230,10 +229,6 @@ export async function aplicarReembolsoAceito(sale: KiwifySale, orderId: string) 
       data: { assinante: false },
     });
   }
-
-  // reembolso aceito: a conta fica (ou volta a ficar) bronze - o restaurarSuspensao
-  // acima pode ter devolvido o nível antigo, e aqui a perda é definitiva.
-  await rebaixarPorReembolso(user.id);
 
   if (chargeback) {
     // contestação no cartão: bloqueia o login (derruba a sessão também)

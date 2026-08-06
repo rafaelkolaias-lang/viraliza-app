@@ -91,9 +91,9 @@ export async function POST(req: Request) {
     );
   }
 
-  // Trava por nível da conta: o lote inteiro conta no teto diário e nos simultâneos
-  // (cada vídeo do lote vira um job na fila).
-  const trava = await travaDeGeracao(user, fontes.length);
+  // Só sobrou a trava de saldo devedor de reembolso: nível não limita mais
+  // quantidade, então o tamanho do lote não muda nada aqui.
+  const trava = await travaDeGeracao(user);
   if (!trava.ok) {
     return NextResponse.json({ erro: trava.erro }, { status: trava.status });
   }

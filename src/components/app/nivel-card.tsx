@@ -4,9 +4,12 @@ import { fmtCreditos } from "@/lib/creditos";
 import type { ResumoNivel } from "@/lib/niveis";
 
 /**
- * Card do NÍVEL da conta (aba Créditos): badge bronze/prata/ouro, uso do teto
- * diário, crédito comprado ainda em quarentena e aviso de saldo devedor.
- * A "análise interna" não aparece aqui de propósito.
+ * Card do NÍVEL da conta (aba Créditos): a medalha bronze/prata/ouro, quantos
+ * vídeos a pessoa já fez e quanto falta pra próxima.
+ *
+ * Desde 06/ago/2026 nível NÃO limita nada (nem vídeos por dia, nem quantos ao
+ * mesmo tempo): é só reconhecimento de uso. Por isso o card não fala mais de
+ * teto nenhum, senão sugeriria um limite que não existe.
  *
  * Cada nível tem a própria cor (bronze = cobre, prata = cinza-claro, ouro =
  * dourado). Classes completas por nível: o Tailwind só gera o CSS de classe
@@ -38,10 +41,10 @@ const CORES: Record<
 
 export function NivelCard({ resumo }: { resumo: ResumoNivel }) {
   const cor = CORES[resumo.nivel] ?? CORES.bronze;
-  const pctDia = Math.min(
-    100,
-    Math.round((resumo.videosHoje / Math.max(1, resumo.videosDia)) * 100),
-  );
+  // progresso até a próxima medalha (Ouro fica cheio)
+  const pct = resumo.proximoNivel
+    ? Math.min(100, Math.round((resumo.videos / Math.max(1, resumo.proximoNivel.videosMin)) * 100))
+    : 100;
 
   return (
     <section className={`rounded-2xl border bg-card p-6 ${cor.card}`}>
@@ -72,51 +75,37 @@ export function NivelCard({ resumo }: { resumo: ResumoNivel }) {
         </div>
       )}
 
-      <div className="mt-4 grid gap-4 sm:grid-cols-3">
-        {/* vídeos de hoje */}
-        <div className="rounded-xl border border-border bg-background/50 p-4">
-          <p className="text-sm font-semibold">Vídeos hoje</p>
-          <p className="mt-1 text-lg font-bold">
-            {resumo.videosHoje}
-            <span className="text-sm font-medium text-muted-foreground">
-              {" "}
-              / {resumo.videosDia}
-            </span>
-          </p>
-          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
-            <div
-              className={`h-full rounded-full transition-all ${cor.barra}`}
-              style={{ width: `${pctDia}%` }}
-            />
+      <div className="mt-4 rounded-xl border border-border bg-background/50 p-4">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <p className="text-sm font-semibold">Vídeos gerados</p>
+            <p className="mt-1 text-2xl font-bold tabular-nums">
+              {resumo.videos.toLocaleString("pt-BR")}
+            </p>
           </div>
           {resumo.proximoNivel && (
-            <p className="mt-2 text-xs text-muted-foreground">
-              Contas {resumo.proximoNivel.rotulo} geram até {resumo.proximoNivel.videosDia}/dia.
+            <p className="text-right text-xs text-muted-foreground">
+              faltam{" "}
+              <b className="text-foreground">
+                {resumo.proximoNivel.faltam.toLocaleString("pt-BR")}
+              </b>{" "}
+              pro {resumo.proximoNivel.emoji} {resumo.proximoNivel.rotulo}
             </p>
           )}
         </div>
-
-        {/* simultâneos */}
-        <div className="rounded-xl border border-border bg-background/50 p-4">
-          <p className="text-sm font-semibold">Em produção ao mesmo tempo</p>
-          <p className="mt-1 text-lg font-bold">
-            {resumo.simultaneos}
-            <span className="text-sm font-medium text-muted-foreground">
-              {" "}
-              vídeo{resumo.simultaneos > 1 ? "s" : ""}
-            </span>
-          </p>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Seu nível define quantos vídeos podem renderizar juntos.
-          </p>
+        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
+          <div
+            className={`h-full rounded-full transition-all ${cor.barra}`}
+            style={{ width: `${pct}%` }}
+          />
         </div>
-
       </div>
 
       <p className="mt-4 text-xs text-muted-foreground">
-        Seu nível sobe sozinho com o uso: continue entrando e gerando que a conta
-        evolui pra {resumo.proximoNivel ? resumo.proximoNivel.rotulo : "além"}, com
-        mais vídeos por dia e mais vídeos ao mesmo tempo.{" "}
+        {resumo.proximoNivel
+          ? `A medalha sobe sozinha conforme você produz: ${resumo.proximoNivel.videosMin.toLocaleString("pt-BR")} vídeos te levam pro ${resumo.proximoNivel.rotulo}.`
+          : "Você chegou no topo: Ouro é pra quem passou de 200 vídeos."}{" "}
+        Ela não limita nada, é só o reconhecimento do seu uso.{" "}
         <Link href="/painel/extrato" className="underline underline-offset-2">
           Ver extrato
         </Link>

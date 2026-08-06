@@ -18,6 +18,11 @@ import {
   pedidoEstornado,
   type PedidoLista,
 } from "@/lib/cakto";
+import {
+  listarVendasMP,
+  mercadoPagoConfigurado,
+  type VendaMP,
+} from "@/lib/mercadopago";
 import { getPainelGastos, type PainelGastos } from "@/lib/gastos-api";
 import { getGastoAnuncios, type GastoAnuncios } from "@/lib/meta-ads";
 
@@ -65,7 +70,24 @@ function deKiwify(v: VendaLista): VendaNorm {
   };
 }
 
-/** Busca as vendas do período nos dois gateways (o que estiver configurado) e junta. */
+/** Uma venda do Mercado Pago no formato comum do painel. */
+function deMercadoPago(v: VendaMP): VendaNorm {
+  const PAGO = new Set(["approved", "authorized"]);
+  const ESTORNO = new Set(["refunded", "charged_back"]);
+  return {
+    created_at: v.criadoEm,
+    updated_at: v.atualizadoEm,
+    status: v.status,
+    pago: PAGO.has(v.status),
+    estornada: ESTORNO.has(v.status),
+    brutoCentavos: v.brutoCentavos,
+    liquidoCentavos: v.liquidoCentavos,
+    nome: v.nome,
+    email: v.email,
+  };
+}
+
+/** Busca as vendas do período em TODOS os gateways configurados e junta. */
 async function listarTodasVendas(inicioISO: string, fimISO: string): Promise<VendaNorm[]> {
   const out: VendaNorm[] = [];
   const erros: string[] = [];
@@ -85,6 +107,17 @@ async function listarTodasVendas(inicioISO: string, fimISO: string): Promise<Ven
     } catch (e) {
       console.error("[financas] falha ao listar vendas Kiwify", e);
       erros.push("Kiwify");
+    }
+  }
+  // Mercado Pago: é por onde entra toda venda nova desde 06/ago. Sem esta parte
+  // o painel mostrava faturamento só da Cakto e a assinatura nova não aparecia.
+  if (mercadoPagoConfigurado()) {
+    try {
+      const mp = await listarVendasMP(inicioISO, fimISO);
+      out.push(...mp.map(deMercadoPago));
+    } catch (e) {
+      console.error("[financas] falha ao listar vendas Mercado Pago", e);
+      erros.push("Mercado Pago");
     }
   }
   // se TODOS os gateways configurados falharam, propaga o erro
@@ -218,7 +251,7 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
 
   const desdeLabel = fmtDesde.format(new Date(DESDE_MS));
   const vazio: PainelFinancas = {
-    configurada: caktoConfigurada() || kiwifyConfigurada(),
+    configurada: caktoConfigurada() || kiwifyConfigurada() || mercadoPagoConfigurado(),
     desde: desdeLabel,
     dias: filtro,
     hoje: { vendas: 0, pagas: 0, receitaCentavos: 0, receitaLiquidaCentavos: 0 },
@@ -249,7 +282,7 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
     anuncios: { configurado: false, centavos: 0, moeda: null, erro: null, janela: null },
     lucroRealCentavos: 0,
   };
-  if (!caktoConfigurada() && !kiwifyConfigurada()) {
+  if (!caktoConfigurada() && !kiwifyConfigurada() && !mercadoPagoConfigurado()) {
     const [gastos, anuncios] = await Promise.all([gastosPromise, anunciosPromise]);
     return {
       ...vazio,

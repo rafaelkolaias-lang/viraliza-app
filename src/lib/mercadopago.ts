@@ -639,6 +639,99 @@ export async function buscarPagamento(paymentId: string): Promise<PagamentoMP | 
   };
 }
 
+// ---- Listagem pro painel de finanças ----
+
+/** Uma venda do MP no formato que o painel de finanças consome. */
+export type VendaMP = {
+  id: string;
+  status: string;
+  brutoCentavos: number;
+  liquidoCentavos: number;
+  criadoEm: string;
+  atualizadoEm: string;
+  nome: string;
+  email: string;
+  produto?: string;
+};
+
+/**
+ * Vendas do período no Mercado Pago, pro /admin/financas.
+ *
+ * Consulta as DUAS aplicações (checkout e assinaturas) porque cada uma só
+ * enxerga os próprios pagamentos - sem isso a mensalidade não apareceria no
+ * faturamento, que foi exatamente o buraco encontrado em 06/ago.
+ *
+ * Ignora a cobrança de validação de cartão (R$ 0): ela não é venda, e entraria
+ * no painel como um pedido fantasma.
+ */
+export async function listarVendasMP(inicioISO: string, fimISO: string): Promise<VendaMP[]> {
+  const tokens = [ACCESS_TOKEN, ASSINATURA_TOKEN].filter(
+    (t, i, a) => t && a.indexOf(t) === i,
+  );
+  const vistos = new Set<string>();
+  const out: VendaMP[] = [];
+
+  for (const token of tokens) {
+    let offset = 0;
+    // teto de 5 páginas por app: 1.000 vendas no período é folga suficiente e
+    // evita ficar preso num loop se a API devolver paginação estranha
+    for (let pagina = 0; pagina < 5; pagina++) {
+      const qs = new URLSearchParams({
+        sort: "date_created",
+        criteria: "desc",
+        range: "date_created",
+        begin_date: inicioISO,
+        end_date: fimISO,
+        limit: "200",
+        offset: String(offset),
+      });
+      const res = await fetch(`${API}/v1/payments/search?${qs}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(`MP listar vendas falhou: ${res.status} ${txt.slice(0, 200)}`);
+      }
+      const d = (await res.json()) as {
+        results?: Array<
+          PaymentApi & {
+            date_created?: string;
+            date_last_updated?: string;
+            operation_type?: string;
+          }
+        >;
+        paging?: { total?: number };
+      };
+      const linhas = d.results ?? [];
+      for (const p of linhas) {
+        const id = String(p.id ?? "");
+        if (!id || vistos.has(id)) continue;
+        vistos.add(id);
+        const bruto = Math.round((p.transaction_amount ?? 0) * 100);
+        if (bruto <= 0) continue; // validação de cartão, não é venda
+        const liquido = Math.round((p.transaction_details?.net_received_amount ?? 0) * 100);
+        out.push({
+          id,
+          status: (p.status || "").toLowerCase(),
+          brutoCentavos: bruto,
+          liquidoCentavos: liquido > 0 ? liquido : bruto,
+          criadoEm: p.date_created ?? "",
+          atualizadoEm: p.date_last_updated ?? p.date_created ?? "",
+          nome:
+            [p.payer?.first_name, p.payer?.last_name].filter(Boolean).join(" ").trim() ||
+            "Sem nome",
+          email: p.payer?.email?.trim().toLowerCase() ?? "",
+          produto: p.description,
+        });
+      }
+      offset += linhas.length;
+      if (linhas.length < 200 || offset >= (d.paging?.total ?? 0)) break;
+    }
+  }
+  return out;
+}
+
 /** É cobrança recorrente de assinatura? (renova o mês em vez de creditar pacote) */
 export function pagamentoDeAssinatura(p: PagamentoMP) {
   return p.operationType === "recurring_payment";
