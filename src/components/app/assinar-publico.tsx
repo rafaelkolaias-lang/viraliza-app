@@ -140,7 +140,7 @@ type Pix = { paymentId: string; qrCode?: string; qrCodeBase64?: string };
 
 export function AssinarPublico({ publicKey }: { publicKey: string }) {
   const [email, setEmail] = useState("");
-  const [etapa, setEtapa] = useState<"email" | "pagar" | "pronto">("email");
+  const [etapa, setEtapa] = useState<"email" | "pagar" | "aguardando" | "pronto">("email");
   const [metodo, setMetodo] = useState<"cartao" | "pix">("cartao");
   const [carregando, setCarregando] = useState(false);
   const [ocupado, setOcupado] = useState(false);
@@ -202,7 +202,9 @@ export function AssinarPublico({ publicKey }: { publicKey: string }) {
                 .then(async (res) => {
                   const d = (await res.json()) as { status?: string; erro?: string };
                   if (!res.ok) throw new Error(d.erro || "falhou");
-                  if (vivo) setEtapa("pronto");
+                  // autorizar o cartão não é ter pago: o MP ainda vai rodar a
+                  // cobrança de verdade. A tela espera ela cair.
+                  if (vivo) setEtapa("aguardando");
                 })
                 .catch((e: unknown) => {
                   toast.error("Não consegui concluir", {
@@ -263,6 +265,30 @@ export function AssinarPublico({ publicKey }: { publicKey: string }) {
     };
   }, [pix]);
 
+  // cartão autorizado: fica perguntando se a cobrança de verdade já caiu
+  useEffect(() => {
+    if (etapa !== "aguardando") return;
+    let vivo = true;
+    const t = setInterval(async () => {
+      try {
+        const res = await fetch(
+          `/api/publico/liberado?email=${encodeURIComponent(emailRef.current)}`,
+        );
+        const d = (await res.json()) as { liberado?: boolean };
+        if (vivo && d.liberado) {
+          clearInterval(t);
+          setEtapa("pronto");
+        }
+      } catch {
+        // rede oscilou: tenta de novo no próximo ciclo
+      }
+    }, 4000);
+    return () => {
+      vivo = false;
+      clearInterval(t);
+    };
+  }, [etapa]);
+
   async function gerarPix() {
     if (!nome.trim().includes(" ")) {
       toast.error("Escreva seu nome completo");
@@ -300,6 +326,27 @@ export function AssinarPublico({ publicKey }: { publicKey: string }) {
     } catch {
       toast.error("Não consegui copiar", { description: "Selecione o código na mão." });
     }
+  }
+
+  // ---------- esperando a cobrança cair ----------
+  if (etapa === "aguardando") {
+    return (
+      <div className="mx-auto w-full max-w-md px-5 py-16 text-center">
+        <span className="mx-auto grid size-16 place-items-center rounded-full bg-primary/15 text-primary">
+          <Loader2 className="size-9 animate-spin" />
+        </span>
+        <h1 className="mt-5 text-2xl font-bold tracking-tight">Cartão aprovado!</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Estamos confirmando o pagamento com o Mercado Pago. Costuma levar poucos
+          minutos, e esta tela vira sozinha quando terminar.
+        </p>
+        <p className="mt-4 rounded-xl border border-border bg-card p-4 text-xs text-muted-foreground">
+          Pode fechar esta página se quiser: assim que confirmar, mandamos o link
+          pra criar sua conta em{" "}
+          <b className="text-foreground">{emailLimpo}</b>.
+        </p>
+      </div>
+    );
   }
 
   // ---------- confirmação ----------

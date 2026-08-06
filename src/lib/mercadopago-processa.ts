@@ -63,15 +63,19 @@ export async function processarPagamentoMP(p: PagamentoMP) {
 
   // ---- APROVADO ----
 
-  // Assinatura no cartão começa com uma cobrança de VALIDAÇÃO de R$ 0
-  // ("Recurring payment validation", operation_type card_validation): o MP só
-  // confere se o cartão aceita. Ela é aprovada de verdade e libera o cadastro,
-  // mas NÃO é a compra, então não pode definir valor nem nome de produto. Foi
-  // exatamente isso que fez uma conta nascer com 1.000 em vez de 4.000: o zero
-  // ficou gravado e o cadastro leu como oferta antiga.
-  const ehValidacaoCartao = p.valorCentavos <= 0;
-  const valorDaCompra = ehValidacaoCartao ? null : p.valorCentavos;
-  const nomeDoProduto = ehValidacaoCartao ? "Assinatura Viraliza" : (p.descricao ?? null);
+  // VALIDAÇÃO DE CARTÃO NÃO É VENDA, E NÃO LIBERA NADA.
+  //
+  // Assinatura no cartão começa com uma cobrança de R$ 0 ("Recurring payment
+  // validation"): o MP só confere se o cartão aceita. Ela chega aqui aprovada,
+  // igualzinha a uma compra, e era isso que abria a plataforma antes de entrar
+  // um centavo - dava pra validar o cartão, se cadastrar, levar 4.000 créditos e
+  // cancelar antes da cobrança. Sai daqui sem allowlist, sem e-mail e sem
+  // crédito; quem libera é a cobrança de verdade, que chega minutos depois.
+  if (p.valorCentavos <= 0) {
+    return { ignorado: "validação de cartão (R$ 0), não libera acesso" };
+  }
+  const valorDaCompra = p.valorCentavos;
+  const nomeDoProduto = p.descricao ?? null;
 
   // e-mail pagante entra na allowlist de cadastro (mesma regra da Cakto)
   if (email) {
@@ -128,9 +132,6 @@ export async function processarPagamentoMP(p: PagamentoMP) {
     valorCentavos: p.liquidoCentavos,
     produto: p.descricao,
   });
-
-  // validação de cartão não é compra: não credita, não estende, não vira pacote
-  if (ehValidacaoCartao) return { ignorado: "validação de cartão (R$ 0)" };
 
   // ---- COBRANÇA DE ASSINATURA -> crédito mensal + 1 mês (regra da Cakto) ----
   if (pagamentoDeAssinatura(p)) {
