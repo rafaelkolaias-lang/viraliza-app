@@ -171,7 +171,14 @@ export async function POST(req: Request) {
       status: "renderizando",
       etapa: "A IA está gravando seu vídeo (3 a 5 min)",
       duracao: dur.segundos,
-      opcoes: JSON.stringify({ lab: true, entrada: { imagem: body.imagem ?? null, ...escolhas } }),
+      // o `prompt` fica gravado de propósito: quando um vídeo sai torto, sem ele
+      // a gente só consegue adivinhar o que foi pedido. Com ele dá pra ler
+      // exatamente o texto que o Grok recebeu naquele job.
+      opcoes: JSON.stringify({
+        lab: true,
+        entrada: { imagem: body.imagem ?? null, ...escolhas },
+        prompt,
+      }),
     },
   });
 

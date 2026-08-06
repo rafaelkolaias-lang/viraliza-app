@@ -100,11 +100,15 @@ export function montarPromptVideoLab(o: OpcoesVideoLab): string {
   // ---------- 2. o gesto tem tamanho, e o vídeo pode ser maior que ele ----------
   // Em 10s e 15s sobra tempo depois do gesto. Sem essa frase o modelo arrasta em
   // câmera lenta ou inventa um segundo gesto (que é de onde saía o braço extra).
-  if (dur.segundos > 6) {
+  // Quando tem fala, quem cuida do tempo que sobra é o bloco da fala, mais
+  // abaixo: repetir aqui só gastaria palavra.
+  if (dur.segundos > 6 && !comFala) {
     partes.push(
       semNinguem
         ? "Terminado o movimento, a câmera fica parada no enquadramento final."
-        : "Terminado o gesto, ela só permanece em cena, respirando e piscando.",
+        : o.pov
+          ? "Terminado o gesto, as mãos ficam paradas com o produto até o fim."
+          : "Terminado o gesto, ela só permanece em cena, respirando e piscando.",
     );
   }
 
@@ -135,14 +139,22 @@ export function montarPromptVideoLab(o: OpcoesVideoLab): string {
           } como quem recomenda pra uma amiga, com gancho no começo e chamada pra comprar no fim.`,
     );
 
-    // NÃO cite o segundo em que a fala deve acabar. Já erramos isso duas vezes:
-    // qualquer número vira META e o modelo estica a fala pra chegar nele, mesmo
-    // quando a frase é curta. O que segura a fala dentro do tempo é o orçamento
-    // de palavras (2,0 por segundo, em lab-video.ts), não um prazo no prompt.
-    // Aqui só dizemos o ritmo e que sobrar silêncio é o resultado certo.
+    // POR QUE A FALA SAÍA ARRASTADA, a explicação que faltava:
+    //
+    // O orçamento é de 2,0 palavras por segundo, mas fala natural em pt-BR corre
+    // a 2,5 ou 3. Então uma fala NO LIMITE já ocupa só uns dois terços do vídeo:
+    // 26 palavras num vídeo de 15s são ditas em uns 9 segundos, e sobram 6. O
+    // modelo detesta sobra e preenche do jeito dele, esticando as palavras.
+    //
+    // Citar o segundo em que a fala acaba não resolve (pior: vira META e ele
+    // estica de propósito pra chegar lá, já caímos nessa duas vezes). O que
+    // resolve é DAR EMPREGO PRO TEMPO QUE SOBRA: em vez de "sobra silêncio",
+    // o prompt diz o que acontece em cena durante esse silêncio.
     partes.push(
-      `Ritmo de conversa normal, sem esticar as palavras nem alongar as pausas. Ela termina de falar antes do fim do vídeo, com a última palavra inteira, e o tempo que sobrar ${
-        o.pov ? "segue sem fala" : "fica só no olhar pra câmera"
+      `Ritmo de conversa normal, sem esticar as palavras nem alongar as pausas. Depois da última palavra, dita por inteiro, o vídeo continua em silêncio até o fim, com ${
+        o.pov
+          ? "as mãos ainda no produto, no mesmo enquadramento"
+          : "ela em cena, olhando pra câmera, respirando e piscando"
       }.`,
     );
   }
