@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { classificarErro, elevenSaldo } from "@/lib/diagnostico";
 import { EstornarJob } from "@/components/app/estornar-job";
 import { ChavesGeracao } from "@/components/app/chaves-geracao";
+import { GrokWorkersControl } from "@/components/app/grok-workers-control";
 import { estadoGeracao } from "@/lib/configuracao";
 import { cn } from "@/lib/utils";
 
@@ -91,6 +92,8 @@ export default async function DiagnosticoPage() {
       </div>
 
       <ChavesGeracao imagemInicial={geracao.imagem} videoInicial={geracao.video} />
+
+      <GrokWorkersControl />
 
       {/* ---- Saldo ElevenLabs ---- */}
       <section className="space-y-3">
