@@ -200,11 +200,16 @@ export function AssinarPublico({ publicKey }: { publicKey: string }) {
                 body: JSON.stringify({ email: emailRef.current, cardTokenId: token }),
               })
                 .then(async (res) => {
-                  const d = (await res.json()) as { status?: string; erro?: string };
+                  const d = (await res.json()) as {
+                    status?: string;
+                    liberado?: boolean;
+                    erro?: string;
+                  };
                   if (!res.ok) throw new Error(d.erro || "falhou");
-                  // autorizar o cartão não é ter pago: o MP ainda vai rodar a
-                  // cobrança de verdade. A tela espera ela cair.
-                  if (vivo) setEtapa("aguardando");
+                  // assinatura autorizada = cartão aceito, cadastro liberado na
+                  // hora. Sem autorização (raro), cai na tela de espera, que
+                  // pergunta até o pagamento confirmar.
+                  if (vivo) setEtapa(d.liberado ? "pronto" : "aguardando");
                 })
                 .catch((e: unknown) => {
                   toast.error("Não consegui concluir", {
@@ -335,10 +340,10 @@ export function AssinarPublico({ publicKey }: { publicKey: string }) {
         <span className="mx-auto grid size-16 place-items-center rounded-full bg-primary/15 text-primary">
           <Loader2 className="size-9 animate-spin" />
         </span>
-        <h1 className="mt-5 text-2xl font-bold tracking-tight">Cartão aprovado!</h1>
+        <h1 className="mt-5 text-2xl font-bold tracking-tight">Quase lá!</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Estamos confirmando o pagamento com o Mercado Pago. Costuma levar poucos
-          minutos, e esta tela vira sozinha quando terminar.
+          Estamos confirmando seu pagamento com o Mercado Pago. Esta tela vira
+          sozinha assim que terminar.
         </p>
         <p className="mt-4 rounded-xl border border-border bg-card p-4 text-xs text-muted-foreground">
           Pode fechar esta página se quiser: assim que confirmar, mandamos o link

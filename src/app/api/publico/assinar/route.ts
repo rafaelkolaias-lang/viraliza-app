@@ -6,6 +6,7 @@ import {
   mercadoPagoConfigurado,
 } from "@/lib/mercadopago";
 import { PLANO_BASE_REAIS } from "@/lib/oferta-publica";
+import { enviarBoasVindas } from "@/lib/email";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -69,7 +70,44 @@ export async function POST(req: Request) {
         email,
         cardTokenId,
       });
-      return NextResponse.json({ ok: true, status: r.status });
+
+      // ASSINATURA AUTORIZADA JÁ LIBERA O CADASTRO.
+      //
+      // O Mercado Pago documenta que "a primeira parcela é cobrada até o período
+      // aproximado de UMA HORA após a assinatura". Esperar essa cobrança pra
+      // liberar deixaria a pessoa que acabou de pagar até uma hora sem conseguir
+      // criar a conta, achando que deu errado - e pedindo reembolso por isso.
+      //
+      // Autorizado quer dizer que o cartão foi aceito e o MP se comprometeu a
+      // cobrar, então libera aqui, com o valor do PLANO (não o R$ 0 da validação
+      // de cartão, que é o que quebrava o crédito de entrada). Quando a cobrança
+      // real cair, a guarda de ciclo do processarPagamentoMP impede pagar de novo.
+      if (r.status === "authorized") {
+        const jaTinha = await prisma.acessoPago.findUnique({ where: { email } });
+        await prisma.acessoPago.upsert({
+          where: { email },
+          create: {
+            email,
+            kiwifyOrderId: `mp-assin-${r.assinaturaId}`,
+            produto: "Assinatura Viraliza",
+            valorCentavos: Math.round(PLANO_BASE_REAIS * 100),
+          },
+          update: {},
+        });
+        if (!jaTinha) {
+          try {
+            await enviarBoasVindas({ para: email, produto: "Assinatura Viraliza" });
+          } catch (e) {
+            console.error("[mp] falha ao enviar boas-vindas da assinatura", email, e);
+          }
+        }
+      }
+
+      return NextResponse.json({
+        ok: true,
+        status: r.status,
+        liberado: r.status === "authorized",
+      });
     }
 
     const { url } = await criarAssinatura({

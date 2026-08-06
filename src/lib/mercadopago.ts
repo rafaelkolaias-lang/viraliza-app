@@ -405,6 +405,7 @@ export async function criarAssinatura(opts: {
       currency_id: "BRL",
     },
     back_url: opts.voltarPara || `${APP_URL}/painel/assinatura?pagamento=feito`,
+    notification_url: `${APP_URL}/api/mercadopago/webhook`,
     status: "pending",
   };
   const res = await fetch(`${API}/preapproval`, {
@@ -450,6 +451,10 @@ export async function criarAssinaturaCartao(opts: {
       currency_id: "BRL",
     },
     back_url: `${APP_URL}/painel/assinatura`,
+    // URL definida na criação tem prioridade sobre a do painel (regra do MP).
+    // Sem ela a assinatura dependia de alguém ter configurado o webhook na
+    // aplicação de Assinaturas, e a cobrança mensal passaria despercebida.
+    notification_url: `${APP_URL}/api/mercadopago/webhook`,
     status: "authorized",
   };
   const res = await fetch(`${API}/preapproval`, {
