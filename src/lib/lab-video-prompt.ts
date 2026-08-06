@@ -135,13 +135,13 @@ export function montarPromptVideoLab(o: OpcoesVideoLab): string {
           } como quem recomenda pra uma amiga, com gancho no começo e chamada pra comprar no fim.`,
     );
 
-    // O ritmo vem ANTES do prazo de propósito: quando o prazo vinha primeiro, o
-    // modelo lia o segundo limite como META e esticava a fala pra preencher.
+    // NÃO cite o segundo em que a fala deve acabar. Já erramos isso duas vezes:
+    // qualquer número vira META e o modelo estica a fala pra chegar nele, mesmo
+    // quando a frase é curta. O que segura a fala dentro do tempo é o orçamento
+    // de palavras (2,0 por segundo, em lab-video.ts), não um prazo no prompt.
+    // Aqui só dizemos o ritmo e que sobrar silêncio é o resultado certo.
     partes.push(
-      `Ritmo de conversa normal, a fala fecha por volta do segundo ${Math.max(
-        2,
-        dur.segundos - 1,
-      )} com a última palavra inteira, e o resto do vídeo ${
+      `Ritmo de conversa normal, sem esticar as palavras nem alongar as pausas. Ela termina de falar antes do fim do vídeo, com a última palavra inteira, e o tempo que sobrar ${
         o.pov ? "segue sem fala" : "fica só no olhar pra câmera"
       }.`,
     );
