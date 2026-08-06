@@ -320,11 +320,15 @@ export const APRESENTACOES: Apresentacao[] = [
   },
 ];
 
-// Duração do clipe (o Grok gera vídeos curtos). A fala precisa caber no tempo:
-// ~2,5 palavras por segundo é um ritmo natural de fala em português. Se na prática
-// o Grok falar mais rápido/devagar, é só ajustar PALAVRAS_POR_SEG aqui num lugar só.
+// Duração do clipe (o Grok gera vídeos curtos). A fala precisa caber no tempo.
+//
+// Era 2,5 e ATROPELAVA: 38 palavras num vídeo de 15s não cabem, e a última
+// palavra saía pela metade. Baixado pra 2,0, que é o mesmo número do Lab e o
+// único validado em vídeo de verdade (30 palavras em 15s e 19 em 10s saíram
+// inteiras). Fala de UGC tem pausa, ênfase e respiração, e o modelo ainda
+// precisa de cerca de 1 segundo de folga no fim pra fechar a frase.
 export const DURACOES = [6, 10, 15] as const;
-export const PALAVRAS_POR_SEG = 2.5;
+export const PALAVRAS_POR_SEG = 2.0;
 
 // obs de cada duração, pra pessoa entender pra que serve cada uma.
 export const DURACAO_NOTA: Record<number, string> = {

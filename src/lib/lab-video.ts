@@ -19,9 +19,13 @@ export type DuracaoLab = {
   custo: number; // créditos (centavos), cobrados só quando o vídeo fica pronto
 };
 
-// palavras que cabem por segundo de fala natural em pt-BR (medido nos vídeos que
-// já saíram: ~2,3 palavras/s dá um ritmo bom, sem atropelar)
-const PALAVRAS_POR_SEG = 2.3;
+// Palavras que cabem por segundo de fala natural em pt-BR.
+//
+// Era 2,3 e ATROPELAVA: uma fala de 19 palavras em 10s (dentro do limite antigo
+// de 23) saía com o fim engolido. Fala de UGC tem pausa, ênfase e respiração, e
+// o modelo ainda precisa de uma folga no fim pra fechar a frase. A 2,0 sobra
+// cerca de 1 segundo de margem, que é o que faz a última palavra sair inteira.
+const PALAVRAS_POR_SEG = 2.0;
 
 export function limitePalavras(segundos: number): number {
   return Math.round(segundos * PALAVRAS_POR_SEG);

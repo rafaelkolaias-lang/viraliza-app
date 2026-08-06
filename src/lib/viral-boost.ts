@@ -466,9 +466,18 @@ export function duracaoBoost(qtdImagens: number): 10 | 15 {
   return qtdImagens <= 1 ? 15 : 10;
 }
 
-/** Orçamento de fala (~2,3 palavras por segundo): 15s = 34 palavras, 10s = 23. */
+/**
+ * Orçamento de fala: 2,0 palavras por segundo, então 15s = 30 palavras e
+ * 10s = 20.
+ *
+ * Era 2,3 (34 e 23) e ATROPELAVA: a última palavra saía pela metade. O número
+ * novo é o mesmo do Lab, e é o único que foi validado em vídeo de verdade
+ * (30 palavras em 15s e 19 em 10s saíram inteiras). Fala de UGC tem pausa,
+ * ênfase e respiração, e o modelo ainda precisa de cerca de 1 segundo de folga
+ * no fim pra fechar a frase.
+ */
 export function limitePalavras(duracao: 10 | 15): number {
-  return duracao === 15 ? 34 : 23;
+  return duracao === 15 ? 30 : 20;
 }
 
 export function contarPalavras(texto: string) {

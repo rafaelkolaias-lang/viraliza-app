@@ -88,7 +88,9 @@ export function LabMovimentos({
   escolhido: string | null;
   onEscolher: (chave: string | null) => void;
 }) {
-  const categorias = useMemo(() => categoriasDaCena(cena), [cena]);
+  // as categorias saem da MESMA lista que os cards: sem isso a barra oferece
+  // uma aba que abre vazia quando o estilo filtra tudo daquela categoria
+  const categorias = useMemo(() => categoriasDaCena(cena, estilo), [cena, estilo]);
   const lista = useMemo(() => movimentosParaEstilo(estilo, cena), [estilo, cena]);
   // abre já na categoria que combina com o estilo escolhido (POV abre em POV,
   // espelho abre em espelho); nas outras, começa na primeira disponível
