@@ -1,0 +1,72 @@
+name: Compila e publica a imagem
+
+# POR QUE ISSO EXISTE
+#
+# Antes o EasyPanel compilava o app DENTRO do servidor de produção. Só que a
+# máquina tem 2 núcleos e roda ~14 containers (app, banco, Chatwoot, n8n,
+# Evolution API...). Um "next build" toma os dois núcleos por vários minutos, e
+# nesse tempo o site parava de responder: usuário relatou não conseguir acessar
+# o viraliza.app.br durante os deploys.
+#
+# Agora quem compila é a máquina do GitHub. O servidor só BAIXA a imagem pronta
+# e troca o container, o que leva segundos e quase não usa CPU.
+
+on:
+  push:
+    branches: [v3]
+  # permite disparar na mão pela aba Actions
+  workflow_dispatch:
+
+jobs:
+  imagem:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Baixa o código
+        uses: actions/checkout@v4
+
+      - name: Prepara o buildx (cache de camadas)
+        uses: docker/setup-buildx-action@v3
+
+      - name: Entra no registro de imagens do GitHub
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          # token que o próprio GitHub injeta na execução: não é segredo nosso
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Monta o nome da imagem
+        # o ghcr.io só aceita minúsculas, e o repositório tem maiúscula no nome
+        run: |
+          echo "IMAGEM=ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
+      - name: Compila e publica
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          # :v3 é a tag móvel que o EasyPanel acompanha; a do commit fica de
+          # histórico e serve pra voltar atrás se um deploy sair ruim
+          tags: |
+            ${{ env.IMAGEM }}:v3
+            ${{ env.IMAGEM }}:${{ github.sha }}
+          build-args: |
+            NEXT_PUBLIC_MEDIA_BASE=https://media.univershoop.com
+          # cache entre execuções: o 1º build é o lento, os próximos reaproveitam
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Resumo
+        run: |
+          {
+            echo "### Imagem publicada"
+            echo ""
+            echo '- `${{ env.IMAGEM }}:v3`'
+            echo '- `${{ env.IMAGEM }}:${{ github.sha }}`'
+            echo ""
+            echo "Agora é só disparar o deploy no EasyPanel: ele baixa essa imagem e troca o container."
+          } >> "$GITHUB_STEP_SUMMARY"

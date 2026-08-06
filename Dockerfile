@@ -20,6 +20,12 @@ RUN npx prisma generate
 ENV NEXT_TELEMETRY_DISABLED=1
 # URL fake só pra o build não reclamar (o banco real vem do volume em runtime)
 ENV DATABASE_URL="file:/tmp/build.db"
+# Variável NEXT_PUBLIC_ é COLADA no código na hora de compilar, não lida em
+# runtime. Quando o build acontecia no servidor, ela vinha do ambiente do
+# EasyPanel; agora que compila no GitHub, precisa entrar como build-arg. O
+# padrão abaixo é o mesmo valor que o código já usa como fallback.
+ARG NEXT_PUBLIC_MEDIA_BASE=https://media.univershoop.com
+ENV NEXT_PUBLIC_MEDIA_BASE=$NEXT_PUBLIC_MEDIA_BASE
 RUN npm run build
 
 # ---- runtime ----
