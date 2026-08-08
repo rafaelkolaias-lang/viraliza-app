@@ -149,6 +149,36 @@ export function LabImagem({
     }
   }
 
+  /**
+   * Pergunta o andamento até a imagem sair. Cada pergunta é uma requisição
+   * curtinha: é isso que evita o "Load failed", que era a conexão longa da
+   * versão antiga morrendo no celular enquanto o pedido esperava na fila.
+   *
+   * Rede caiu no meio? Não desiste: o pedido continua vivo no servidor, então
+   * só tenta de novo na próxima volta.
+   */
+  async function acompanhar(pedidoId: string) {
+    const limite = Date.now() + 10 * 60_000; // 10 min: fila cheia ainda é normal
+    let seguidasComFalha = 0;
+    while (Date.now() < limite) {
+      await new Promise((r) => setTimeout(r, 4_000));
+      try {
+        const r = await fetch(`/api/lab/imagem/${pedidoId}`, { cache: "no-store" });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d?.erro ?? "Não consegui gerar a imagem.");
+        seguidasComFalha = 0;
+        if (d.status === "pronto" && d.imagemUrl) return d.imagemUrl as string;
+      } catch (e) {
+        // erro do SERVIDOR (o pedido morreu de verdade) sobe na hora; falha de
+        // REDE é só a internet piscando, então insiste um pouco antes de desistir
+        const rede = e instanceof TypeError;
+        if (!rede) throw e;
+        if (++seguidasComFalha >= 15) throw new Error("Sua conexão caiu. A imagem pode ter ficado pronta, confira em Minhas imagens.");
+      }
+    }
+    throw new Error("A imagem está demorando mais que o normal. Confira em Minhas imagens em instantes.");
+  }
+
   async function gerar() {
     setGerando(true);
     setErro(null);
@@ -175,7 +205,9 @@ export function LabImagem({
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d?.erro ?? "Não consegui gerar a imagem.");
-      onGerou(d.imagemUrl as string);
+      // o POST agora só põe na fila; a imagem chega perguntando o andamento
+      const url = d.imagemUrl ?? (await acompanhar(d.pedidoId as string));
+      onGerou(url as string);
       toast.success("Imagem pronta!");
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Não consegui gerar a imagem.";
@@ -201,11 +233,12 @@ export function LabImagem({
     if (imagem) setGerando(false);
   }, [imagem]);
 
-  // REENCONTRAR um pedido antigo: a geração é um POST longo que morre se esta
-  // tela desmontar (trocar de aba, voltar um passo). O servidor termina e salva
-  // em "Minhas imagens" do mesmo jeito — então, enquanto estivermos esperando um
-  // pedido dessa sessão, vigiamos a galeria e puxamos a imagem quando ela chegar.
-  // Sem isso, a pessoa via "Gerando..." pra sempre e clicava (e pagava) de novo.
+  // REENCONTRAR um pedido antigo: esta tela desmonta quando a pessoa troca de
+  // aba ou volta um passo, e aí ninguém está acompanhando aquele pedido. Ele não
+  // se perde: o robô termina, e a própria galeria fecha o pedido quando é lida
+  // (reconciliarPedidosImagem). Então, enquanto esperamos um pedido dessa
+  // sessão, vigiamos a galeria e puxamos a imagem quando ela chegar. Sem isso, a
+  // pessoa via "Gerando..." pra sempre e clicava (e pagava) de novo.
   useEffect(() => {
     if (!jaPediu || imagem || !pedidoEm) return;
     const t = setInterval(async () => {

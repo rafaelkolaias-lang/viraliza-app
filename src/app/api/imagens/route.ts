@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { minhasImagens } from "@/lib/galeria-servidor";
+import { reconciliarPedidosImagem } from "@/lib/lab-pedido-imagem";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,6 +12,9 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ erro: "Faça login." }, { status: 401 });
+  // resgata a imagem de quem saiu da tela no meio da fila: ela ficou pronta no
+  // robô e é aqui, na galeria, que a pessoa vem procurar por ela
+  await reconciliarPedidosImagem(user).catch(() => {});
   return NextResponse.json({ ok: true, imagens: await minhasImagens(user.id) });
 }
 

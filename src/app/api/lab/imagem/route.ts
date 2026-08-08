@@ -4,23 +4,31 @@ import { AVISO_PAUSADO, CHAVES, podeGerar } from "@/lib/configuracao";
 import { montarPromptImagemLab } from "@/lib/lab-prompt";
 import { estiloPorChave, variacaoPovPorChave } from "@/lib/estilos-camera";
 import { baixarImagemEntrada, dataUrlParaEntrada } from "@/lib/imagem-entrada";
-import { gerarImagemGrok } from "@/lib/imagem-robot";
-import { getCarteira, debitarClamp } from "@/lib/creditos";
-import { registrarGrokImagem } from "@/lib/gastos-api";
+import { dispararImagemGrok } from "@/lib/imagem-robot";
+import { getCarteira } from "@/lib/creditos";
 import { CUSTO_IMAGEM_LAB } from "@/lib/lab-custos";
-import { salvarNaGaleria } from "@/lib/galeria-servidor";
+import { abrirPedidoImagem } from "@/lib/galeria-servidor";
 import { cenarioDoUsuario } from "@/lib/cenarios-usuario";
 import { midiaCenario } from "@/lib/lab-midia";
 
 export const runtime = "nodejs";
-export const maxDuration = 800;
+// só enfileira e responde, então não precisa mais dos 13 minutos de antes; a
+// folga aqui é pro upload das fotos de entrada, não pra geração
+export const maxDuration = 120;
 
 /**
- * Gera a IMAGEM do Viraliza Lab (avatar + produto na cena escolhida).
+ * Enfileira a IMAGEM do Viraliza Lab (avatar + produto na cena escolhida) e
+ * responde NA HORA com o `pedidoId`. Quem acompanha o andamento é o
+ * GET /api/lab/imagem/[pedidoId].
+ *
+ * Por que assíncrono: só um robô atende a fila de imagem, então a espera passa
+ * de um minuto com facilidade. A versão antiga segurava a conexão do navegador
+ * até a imagem sair, e o celular derrubava a requisição parada, o que a pessoa
+ * via como "Load failed" (e clicava em gerar de novo).
  *
  * Motor: robô do Grok no serverrk (só ele; o gpt-image ficou de fora por custo e
- * por bloquear roupa comum na moderação). Qual conta do Grok usa vem do
- * imagem-robot.ts (env GROK_CONTA_IMAGEM). Só cobra depois que a imagem existe.
+ * por bloquear roupa comum na moderação). Só cobra depois que a imagem existe,
+ * e quem cobra é a rota de andamento, uma vez só.
  *
  * O resultado entra sozinho em "Minhas imagens" com o contexto da cena, pra
  * pessoa nunca perder o que já pagou. Salvar como INFLUENCIADOR continua sendo
@@ -137,7 +145,7 @@ export async function POST(req: Request) {
   // o prompt manda usar EXATAMENTE aquele ambiente (foto > descrição escrita).
   let cenarioFoto: { base64: string; mime: string } | null = null;
   if (cenario.startsWith("meu:")) {
-    // cenário PRÓPRIO: a foto que a pessoa subiu (obrigatória — sem ela não gera)
+    // cenário PRÓPRIO: a foto que a pessoa subiu (obrigatória, sem ela não gera)
     const meu = await cenarioDoUsuario(user.id, cenario.slice(4));
     if (!meu) {
       return NextResponse.json({ erro: "Esse cenário não existe mais." }, { status: 400 });
@@ -197,13 +205,16 @@ export async function POST(req: Request) {
 
   // Motor: robô do Grok (decisão do Lucas: só Grok aqui, sem cair no gpt-image,
   // que além de custar tem moderação sensível demais com roupa).
-  const noGrok = await gerarImagemGrok({
+  //
+  // Só ENFILEIRA e responde. Esperar aqui era o bug do "Load failed": com um
+  // robô só atendendo a fila, a espera passa de um minuto fácil, e o celular
+  // (ainda mais em rede móvel) derruba a requisição parada muito antes disso.
+  const jobId = await dispararImagemGrok({
     prompt,
     imagens: entradas.map((i) => ({ base64: i.base64, mime: i.mime })),
   });
-  const url = noGrok?.imagemUrl ?? null;
 
-  if (!url) {
+  if (!jobId) {
     return NextResponse.json(
       {
         erro: "Não consegui gerar a imagem agora. Tente de novo em instantes (não descontamos créditos).",
@@ -212,23 +223,14 @@ export async function POST(req: Request) {
     );
   }
 
-  if (!isAdmin) {
-    await debitarClamp(user.id, CUSTO_IMAGEM_LAB, "debito_geracao", {
-      descricao: `Imagem do Lab (${estilo.label})`,
-    }).catch(() => {});
-  }
-
-  // contabilidade do dono (aba Finanças): imagem saiu do robô do Grok
-  await registrarGrokImagem(user.id, "lab-imagem").catch(() => {});
-
-  // Toda imagem gerada entra em "Minhas imagens" com as escolhas que a criaram:
-  // é isso que deixa o card virar "Novo vídeo" sem refazer a imagem. Virar
-  // INFLUENCIADOR continua sendo escolha dela (botão "Salvar como influenciador").
-  const imagemId = await salvarNaGaleria({
+  // O pedido nasce em "Minhas imagens" já com as escolhas que o criaram (é isso
+  // que deixa o card virar "Novo vídeo" depois), mas com a URL vazia até ficar
+  // pronto, então ele não aparece na galeria enquanto está na fila.
+  const pedidoId = await abrirPedidoImagem({
     userId: user.id,
     origem: "lab",
     titulo: body.produtoNome || `Imagem do Lab (${estilo.label})`,
-    imagemUrl: url,
+    jobId,
     contexto: {
       estilo: estilo.chave,
       variacao: variacao?.chave ?? null,
@@ -245,10 +247,17 @@ export async function POST(req: Request) {
     },
   });
 
+  if (!pedidoId) {
+    return NextResponse.json(
+      { erro: "Não consegui abrir o pedido da imagem. Tente de novo em instantes." },
+      { status: 500 },
+    );
+  }
+
   return NextResponse.json({
     ok: true,
-    imagemUrl: url,
-    imagemId,
+    pedidoId,
+    status: "gerando",
     motor: "grok",
     custo: isAdmin ? 0 : CUSTO_IMAGEM_LAB,
     // o prompt cru é só pra depuração do admin (demo não vê)

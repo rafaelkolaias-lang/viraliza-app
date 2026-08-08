@@ -30,6 +30,9 @@ export type ContextoImagem = {
   avatarId?: string;
   avatarNome?: string;
   avatarImagem?: string;
+  /** job no robô do Grok enquanto a imagem ainda está sendo gerada (pedido em
+   *  andamento). Some da vida útil do card assim que a imagem fica pronta. */
+  jobId?: string;
 };
 
 export type ImagemDaGaleria = {
