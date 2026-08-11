@@ -42,8 +42,12 @@ export default async function AssinaturaPage() {
   const diasRestantes =
     venceMs !== null ? Math.ceil((venceMs - agora) / DIA_MS) : null;
 
-  // assinatura nova é só pelo Mercado Pago: o link da Cakto saiu daqui. Ela
-  // segue viva só pra receber a renovação de quem já assinou por lá.
+  // Qual checkout a assinatura usa é decidido por ENV, sem deploy:
+  // CAKTO_CHECKOUT_ASSINATURA preenchido manda pra Cakto, que é onde a LP e o
+  // bot do WhatsApp vendem; vazio cai no Mercado Pago. A Cakto TEM prioridade
+  // porque, quando as duas estão ligadas, o preço anunciado lá fora é o dela e
+  // ver outro valor aqui dentro faria a pessoa desistir.
+  const urlCakto = (process.env.CAKTO_CHECKOUT_ASSINATURA || "").trim() || null;
 
   return (
     <AssinaturaPainel
@@ -53,11 +57,11 @@ export default async function AssinaturaPage() {
       venceEm={carteira.assinaturaAte ? fmtData.format(carteira.assinaturaAte) : null}
       membroDesde={conta?.criadoEm ? fmtData.format(conta.criadoEm) : null}
       renovadaEm={ultimaRenovacao?.criadoEm ? fmtData.format(ultimaRenovacao.criadoEm) : null}
-      urlAssinatura={null}
+      urlAssinatura={urlCakto}
       mpPublicKey={
         // a public key tem que ser da MESMA aplicação do token de assinatura,
         // senão o MP não acha o cartão tokenizado ("Card token service not found")
-        process.env.MP_ACCESS_TOKEN
+        !urlCakto && process.env.MP_ACCESS_TOKEN
           ? process.env.MP_ASSINATURA_PUBLIC_KEY || process.env.MP_PUBLIC_KEY
           : undefined
       }
