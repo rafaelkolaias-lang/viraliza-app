@@ -22,13 +22,20 @@ export const CREDITO_MENSAL_CENTAVOS = 4000;
 /**
  * Piso pra uma cobrança contar como "oferta de hoje".
  *
- * As ofertas VIVAS que os afiliados vendem na Cakto são R$ 68,00 (mensal),
- * R$ 98,90 (mensal, a principal) e R$ 158,90 (único/vitalício). As mortas são
- * R$ 24,90 e R$ 19,90. R$ 50,00 cai no meio do vão, com folga dos dois lados:
- * dá pra criar promoção até R$ 50 sem mexer em código, e nenhuma cobrança da
- * oferta velha passa por engano.
+ * ⚠️ SEMPRE que o preço da oferta baixar, CONFERIR ESTE PISO. Uma oferta abaixo
+ * dele é vendida normalmente e a pessoa não recebe crédito nenhum, porque o
+ * `creditoDaCobranca` devolve 0. Foi o que quase aconteceu em 08/ago/2026, ao
+ * baixar a oferta principal pra R$ 39,90 com o piso ainda em R$ 50.
+ *
+ * E o valor comparado NÃO é o preço da oferta: é o `amount` da Cakto, que vem
+ * com R$ 0,99 de taxa somados (R$ 39,90 chega aqui como 4089).
+ *
+ * Ofertas VIVAS na Cakto: R$ 39,90 (a principal de hoje), R$ 68,00 e R$ 98,90
+ * mensais, e R$ 158,90 único/vitalício. As MORTAS são R$ 24,90 (chega como
+ * 2589) e R$ 19,90 (2089). R$ 30,00 cai no vão entre as duas faixas, com folga
+ * dos dois lados.
  */
-export const PISO_OFERTA_CENTAVOS = Number(process.env.PISO_OFERTA_CENTAVOS || 5000);
+export const PISO_OFERTA_CENTAVOS = Number(process.env.PISO_OFERTA_CENTAVOS || 3000);
 
 /**
  * Quanto de crédito uma cobrança APROVADA vale.
