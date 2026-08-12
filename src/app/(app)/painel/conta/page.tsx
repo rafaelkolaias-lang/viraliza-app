@@ -97,7 +97,7 @@ export default async function ContaPage() {
                 {NIVEIS[nivel].emoji} {NIVEIS[nivel].rotulo}
               </p>
               <p className="text-xs text-muted-foreground">
-                até {NIVEIS[nivel].videosDia} vídeos/dia
+                sobe sozinho com o uso
               </p>
             </div>
           )}

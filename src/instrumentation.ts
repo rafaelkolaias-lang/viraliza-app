@@ -13,6 +13,7 @@ export async function register() {
 
   const { verificarReembolsos, verificarReembolsosCakto } = await import("@/lib/reembolsos");
   const { aplicarLiberacoesVencidas } = await import("@/lib/liberacao-creditos");
+  const { limparEntradasVencidas, encerrarPreparandoPresos } = await import("@/lib/jobs");
   const rodar = () => {
     verificarReembolsosCakto().catch((e) =>
       console.error("[reembolsos] varredura Cakto falhou", e),
@@ -21,8 +22,18 @@ export async function register() {
       console.error("[reembolsos] varredura Kiwify falhou", e),
     );
     // crédito comprado em quarentena cujo 8º dia chegou: cai no saldo
+    // (legado: compra nova entra 100% na hora desde a reforma dos níveis)
     aplicarLiberacoesVencidas().catch((e) =>
       console.error("[liberacao] varredura falhou", e),
+    );
+    // mídias de entrada retidas 24h pro reuso (tarefa 21): apaga as vencidas
+    limparEntradasVencidas().catch((e) =>
+      console.error("[uploads] limpeza de entradas falhou", e),
+    );
+    // job que ficou esperando um navegador que não voltou (11/08/2026): vira
+    // erro pra não ocupar vaga de simultâneo pra sempre
+    encerrarPreparandoPresos().catch((e) =>
+      console.error("[jobs] encerramento de preparando presos falhou", e),
     );
   };
 

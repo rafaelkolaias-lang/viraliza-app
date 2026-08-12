@@ -89,7 +89,10 @@ export async function excluirUsuario(id: string): Promise<UsuarioState> {
     }
   }
 
-  // os jobs somem por cascata (onDelete: Cascade no schema)
+  // os jobs somem por cascata (onDelete: Cascade no schema). As TRANSAÇÕES de
+  // crédito ficam de propósito (auditoria #14, onDelete: SetNull): o histórico
+  // financeiro - compras, débitos, estornos - é trilha de auditoria das vendas
+  // e some junto era encolher os totais do painel sem aviso.
   await prisma.user.delete({ where: { id } });
 
   revalidarAdmin();

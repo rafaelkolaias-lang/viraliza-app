@@ -4,16 +4,19 @@ import { prisma } from "@/lib/prisma";
 import { quitarDivida } from "@/lib/creditos";
 
 /**
- * Níveis de conta (antifraude de reembolso): bronze -> prata -> ouro.
+ * Níveis de conta (bronze -> prata -> ouro) - RESTRIÇÕES DESATIVADAS (08/2026).
  *
- * O golpe que isto trava: comprar crédito, queimar tudo em API dentro dos 7 dias
- * de garantia da Cakto/Kiwify e pedir reembolso (a plataforma não deixa recusar).
- * Contas novas (bronze) têm teto diário de vídeos e só recebem parte do crédito
- * comprado na hora - o resto libera no 8º dia, quando a garantia já expirou.
+ * O que sobrou do sistema antigo: o selo do nível (badge, cosmético) e o motor
+ * de subida/queda automática, que segue rodando pra alimentar o futuro sistema
+ * de gamificação (ver gamificacao-proposta.md na raiz). O que foi DESLIGADO:
+ * - teto diário de vídeos por nível (não existe mais limite diário);
+ * - liberação gradual de crédito comprado (tudo cai 100% na hora, ver
+ *   liberacao-creditos.ts);
+ * - simultâneos por nível: virou o limite universal SIMULTANEOS_UNIVERSAL,
+ *   igual pra toda conta.
  *
- * Subida é automática (tempo + dias de login + compras) com uma "análise interna"
- * invisível que ADIA a promoção de quem se comporta como golpista. O admin pode
- * fixar o nível na mão (nivelManual) ou marcar a conta como suspeita (bronze travado).
+ * O admin ainda pode fixar o nível na mão (nivelManual) ou marcar a conta como
+ * suspeita (bronze travado) - hoje isso é só etiqueta, sem efeito de limite.
  */
 
 export type Nivel = "bronze" | "prata" | "ouro";
@@ -21,45 +24,19 @@ export type Nivel = "bronze" | "prata" | "ouro";
 export type ConfigNivel = {
   rotulo: string;
   emoji: string;
-  videosDia: number; // teto de vídeos criados por dia (fuso SP)
-  simultaneos: number; // vídeos em produção ao mesmo tempo
-  franquiaCentavos: number; // parte da compra (na janela) que libera 100% na hora
-  pctAcimaFranquia: number; // fração liberada na hora acima da franquia
-  tetoLiberacaoJanela: number | null; // máx. liberado na janela de 8 dias (null = sem teto)
 };
+
+/** Vídeos em produção ao mesmo tempo - igual pra TODAS as contas. */
+export const SIMULTANEOS_UNIVERSAL = 5;
 
 export const JANELA_GARANTIA_DIAS = 8;
 const DIA_MS = 86_400_000;
 const INATIVIDADE_MS = 60 * DIA_MS; // 60+ dias sem logar = cai um nível ao voltar
 
 export const NIVEIS: Record<Nivel, ConfigNivel> = {
-  bronze: {
-    rotulo: "Bronze",
-    emoji: "🥉",
-    videosDia: 5,
-    simultaneos: 1,
-    franquiaCentavos: 2000, // até R$20 comprados na janela liberam integral
-    pctAcimaFranquia: 0.5,
-    tetoLiberacaoJanela: 5000, // libera no máx. R$50 dentro da janela de 8 dias
-  },
-  prata: {
-    rotulo: "Prata",
-    emoji: "🥈",
-    videosDia: 12,
-    simultaneos: 2,
-    franquiaCentavos: 2000,
-    pctAcimaFranquia: 0.5,
-    tetoLiberacaoJanela: 10000, // dobro do bronze
-  },
-  ouro: {
-    rotulo: "Ouro",
-    emoji: "🥇",
-    videosDia: 50,
-    simultaneos: 3,
-    franquiaCentavos: 0, // ouro não tem franquia: é 75% de tudo, sem teto
-    pctAcimaFranquia: 0.75,
-    tetoLiberacaoJanela: null,
-  },
+  bronze: { rotulo: "Bronze", emoji: "🥉" },
+  prata: { rotulo: "Prata", emoji: "🥈" },
+  ouro: { rotulo: "Ouro", emoji: "🥇" },
 };
 
 const ORDEM: Nivel[] = ["bronze", "prata", "ouro"];
@@ -90,10 +67,12 @@ export function inicioDoDiaBrasilia(): Date {
 }
 
 // ---------------------------------------------------------------------------
-// Trava de geração: dívida + teto diário + simultâneos, pelo nível da conta
+// Trava de geração: dívida + simultâneos (limite universal, sem teto diário)
 // ---------------------------------------------------------------------------
 
-const EM_PRODUCAO = ["na_fila", "renderizando", "processando"];
+// "preparando" entra aqui de propósito: o job já existe, já tem a mídia no
+// servidor e já vai virar vídeo, então ele ocupa vaga como qualquer outro.
+const EM_PRODUCAO = ["preparando", "na_fila", "renderizando", "processando"];
 
 export type ResultadoTrava =
   | { ok: true }
@@ -102,7 +81,9 @@ export type ResultadoTrava =
 /**
  * Pode criar `quantos` vídeos agora? Chamar em TODO endpoint que cria Job de
  * vídeo (editor, cortes, lote, lab, boost, avatar). Admin e demo passam direto
- * (demo tem regras próprias em cada rota).
+ * (demo tem regras próprias em cada rota). O único limite de volume é o de
+ * vídeos simultâneos em produção (SIMULTANEOS_UNIVERSAL), igual pra todo mundo;
+ * o teto diário por nível foi desativado na reforma dos níveis.
  */
 export async function travaDeGeracao(
   user: { id: string; role: string },
@@ -112,7 +93,7 @@ export async function travaDeGeracao(
 
   const u = await prisma.user.findUnique({
     where: { id: user.id },
-    select: { nivel: true, dividaCentavos: true },
+    select: { dividaCentavos: true },
   });
   if (!u) return { ok: false, status: 401, erro: "Faça login." };
 
@@ -127,45 +108,23 @@ export async function travaDeGeracao(
     };
   }
 
-  const nivel = nivelValido(u.nivel);
-  const cfg = NIVEIS[nivel];
-
-  // simultâneos: quantos jobs dele já estão na fila/renderizando agora
+  // simultâneos: quantos jobs dele já estão na fila/renderizando agora.
+  // "marca" fica de fora (auditoria #25): carimbar logo não usa IA nem a cota
+  // do motor, então o lote não ocupa vaga nem tranca as outras ferramentas -
+  // quem chama pra job de marca passa `quantos = 0` (mantém só a trava de dívida).
   const rodando = await prisma.job.count({
-    where: { userId: user.id, status: { in: EM_PRODUCAO } },
+    where: { userId: user.id, status: { in: EM_PRODUCAO }, tipo: { not: "marca" } },
   });
-  if (rodando + quantos > cfg.simultaneos) {
-    const livres = Math.max(0, cfg.simultaneos - rodando);
+  if (rodando + quantos > SIMULTANEOS_UNIVERSAL) {
+    const livres = Math.max(0, SIMULTANEOS_UNIVERSAL - rodando);
     return {
       ok: false,
       status: 429,
       erro:
-        cfg.simultaneos === 1
-          ? "Você já tem um vídeo em produção. Espere terminar pra gerar o próximo."
-          : `Seu nível ${cfg.rotulo} permite ${cfg.simultaneos} vídeos em produção ao mesmo tempo` +
-            (quantos > 1 ? ` (dá pra mandar ${livres} agora)` : "") +
-            ". Espere terminarem pra gerar mais.",
-    };
-  }
-
-  // teto diário: jobs criados hoje (SP), sem contar rascunho e erro
-  const hoje = await prisma.job.count({
-    where: {
-      userId: user.id,
-      criadoEm: { gte: inicioDoDiaBrasilia() },
-      status: { notIn: ["recebendo", "erro"] },
-    },
-  });
-  if (hoje + quantos > cfg.videosDia) {
-    const proximo = nivel === "bronze" ? NIVEIS.prata : nivel === "prata" ? NIVEIS.ouro : null;
-    return {
-      ok: false,
-      status: 429,
-      erro:
-        `Você atingiu seus ${cfg.videosDia} vídeos de hoje.` +
-        (proximo
-          ? ` Contas ${proximo.rotulo} geram até ${proximo.videosDia}/dia - continue usando a plataforma pra subir de nível.`
-          : " Amanhã o limite renova."),
+        `Você já tem ${rodando} vídeo${rodando > 1 ? "s" : ""} em produção. O limite é de ` +
+        `${SIMULTANEOS_UNIVERSAL} vídeos ao mesmo tempo por conta` +
+        (quantos > 1 && livres > 0 ? ` (dá pra mandar ${livres} agora)` : "") +
+        ". Espere algum terminar pra gerar mais.",
     };
   }
 
@@ -301,12 +260,17 @@ export async function recalcularNivel(userId: string) {
 
 /** Bronze -> Prata: 8 dias da 1ª compra + 5/8 dias de login + análise interna. */
 async function tentarPromoverPrata(u: { id: string; criadoEm: Date }) {
-  // reembolso em análise ou recente (30 dias) segura a promoção
+  // reembolso em análise ou recente (30 dias) segura a promoção.
+  // `kiwifyOrderId` preenchido = veio do gateway (auditoria #11): a devolução de
+  // cortesia (vídeo com defeito / estorno manual do admin) também grava tipo
+  // "estorno", mas com jobId e SEM pedido - cliente bem atendido não pode ser
+  // tratado como quem pediu reembolso de verdade.
   if (await suspensoAgora(u.id)) return;
   const reembolsoRecente = await prisma.creditoTransacao.findFirst({
     where: {
       userId: u.id,
       tipo: { in: ["suspensao_reembolso", "estorno"] },
+      kiwifyOrderId: { not: null },
       criadoEm: { gte: new Date(Date.now() - 30 * DIA_MS) },
     },
     select: { id: true },
@@ -346,9 +310,12 @@ async function tentarPromoverOuro(u: {
   if (!assinaturaAtiva(u)) return;
   if (await suspensoAgora(u.id)) return;
 
-  // nunca teve reembolso aceito (estorno com perda de verdade)
+  // nunca teve reembolso aceito (estorno com perda de verdade). Só conta estorno
+  // COM pedido do gateway (auditoria #11): a devolução de cortesia de um vídeo
+  // com defeito também é tipo "estorno" (com jobId, sem pedido) e não pode
+  // barrar o Ouro pra sempre.
   const estorno = await prisma.creditoTransacao.findFirst({
-    where: { userId: u.id, tipo: "estorno" },
+    where: { userId: u.id, tipo: "estorno", kiwifyOrderId: { not: null } },
     select: { id: true },
   });
   if (estorno) return;
@@ -420,7 +387,9 @@ async function atrasoAnaliseInterna(u: { id: string; criadoEm: Date }): Promise<
     if (zerou) flags++;
   }
 
-  // 3) bateu no teto diário (5 vídeos) em 4+ dos primeiros 7 dias
+  // 3) volume alto de vídeos (5+/dia, o antigo teto do bronze) em 4+ dos
+  // primeiros 7 dias - o teto não existe mais, mas o padrão segue sendo pista
+  const VOLUME_DIA_SUSPEITO = 5;
   const jobs7d = await prisma.job.findMany({
     where: {
       userId: u.id,
@@ -435,7 +404,7 @@ async function atrasoAnaliseInterna(u: { id: string; criadoEm: Date }): Promise<
     porDia.set(d, (porDia.get(d) ?? 0) + 1);
   }
   let diasNoTeto = 0;
-  for (const n of porDia.values()) if (n >= NIVEIS.bronze.videosDia) diasNoTeto++;
+  for (const n of porDia.values()) if (n >= VOLUME_DIA_SUSPEITO) diasNoTeto++;
   if (diasNoTeto >= 4) flags++;
 
   return flags;
@@ -450,10 +419,8 @@ async function notificarPromocao(userId: string, nivel: Nivel) {
         tipo: "admin",
         titulo: `Sua conta subiu pro nível ${cfg.rotulo} ${cfg.emoji}`,
         mensagem:
-          `Agora você gera até ${cfg.videosDia} vídeos por dia` +
-          (nivel === "ouro"
-            ? " e seus créditos comprados liberam quase todos na hora."
-            : " e mais crédito comprado libera na hora."),
+          "O nível reconhece o tempo de casa e o uso da plataforma. " +
+          "Em breve ele vai destravar vantagens e recompensas por aqui.",
         link: "/painel/creditos",
       },
     });
@@ -512,20 +479,17 @@ export async function setNivelAdmin(
 }
 
 // ---------------------------------------------------------------------------
-// Resumo pro front (aba Créditos): nível, limites, uso de hoje e crédito preso
+// Resumo pro front (aba Créditos): nível, limite universal e crédito preso
 // ---------------------------------------------------------------------------
 
 export type ResumoNivel = {
   nivel: Nivel;
   rotulo: string;
   emoji: string;
-  videosDia: number;
-  videosHoje: number;
-  simultaneos: number;
-  presoCentavos: number; // crédito comprado ainda em quarentena
+  simultaneos: number; // hoje é sempre SIMULTANEOS_UNIVERSAL
+  presoCentavos: number; // crédito da regra antiga ainda em quarentena (legado)
   proximaLiberacao: { valorCentavos: number; em: string } | null; // em = ISO
   dividaCentavos: number;
-  proximoNivel: { rotulo: string; videosDia: number } | null;
 };
 
 /** Nível pra exibir no menu lateral (null = não mostra: admin/demo). Query leve. */
@@ -558,14 +522,7 @@ export async function getResumoNivel(userId: string): Promise<ResumoNivel> {
   const nivel = u?.role === "admin" || u?.role === "demo" ? "ouro" : nivelValido(u?.nivel);
   const cfg = NIVEIS[nivel];
 
-  const [videosHoje, preso, proxima] = await Promise.all([
-    prisma.job.count({
-      where: {
-        userId,
-        criadoEm: { gte: inicioDoDiaBrasilia() },
-        status: { notIn: ["recebendo", "erro"] },
-      },
-    }),
+  const [preso, proxima] = await Promise.all([
     prisma.creditoLiberacao.aggregate({
       where: { userId, aplicado: false, cancelado: false },
       _sum: { valor: true },
@@ -581,19 +538,11 @@ export async function getResumoNivel(userId: string): Promise<ResumoNivel> {
     nivel,
     rotulo: cfg.rotulo,
     emoji: cfg.emoji,
-    videosDia: cfg.videosDia,
-    videosHoje,
-    simultaneos: cfg.simultaneos,
+    simultaneos: SIMULTANEOS_UNIVERSAL,
     presoCentavos: preso._sum.valor ?? 0,
     proximaLiberacao: proxima
       ? { valorCentavos: proxima.valor, em: proxima.liberaEm.toISOString() }
       : null,
     dividaCentavos: u?.dividaCentavos ?? 0,
-    proximoNivel:
-      nivel === "bronze"
-        ? { rotulo: NIVEIS.prata.rotulo, videosDia: NIVEIS.prata.videosDia }
-        : nivel === "prata"
-          ? { rotulo: NIVEIS.ouro.rotulo, videosDia: NIVEIS.ouro.videosDia }
-          : null,
   };
 }

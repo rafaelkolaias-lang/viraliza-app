@@ -17,7 +17,6 @@ import {
   Aviso,
   Cartao,
   Passo,
-  Problema,
   Secao,
   Selo,
   Tabela,
@@ -101,15 +100,15 @@ export function AjudaComecar() {
             .
           </Cartao>
           <Cartao Icone={Coins} titulo="O crédito paga a produção">
-            É o que paga cada imagem e cada vídeo que a IA gera pra você. Crédito não
-            vence: o que sobrar continua na conta.
+            É o que paga cada imagem e cada vídeo que a IA gera pra você. Cada pacote
+            comprado vale 90 dias, e o gasto sai sempre do pacote mais antigo
+            primeiro.
           </Cartao>
         </div>
 
         <Texto>
-          Quem entra pela assinatura ganha{" "}
-          <strong className="text-foreground">1.000 créditos</strong> de boas-vindas, e
-          mais <strong className="text-foreground">2.000 créditos por mês</strong>{" "}
+          Quem assina ganha{" "}
+          <strong className="text-foreground">3.000 créditos por mês</strong>{" "}
           enquanto a assinatura estiver em dia. Precisando de mais, dá pra comprar
           pacote avulso na aba Créditos.
         </Texto>
@@ -119,28 +118,34 @@ export function AjudaComecar() {
           colunas={["O que você faz", "Créditos"]}
           linhas={[
             ["Imagem no Viraliza Labs ou cena do Viral Boost", "20"],
-            ["Vídeo de 6 segundos", "30"],
-            ["Vídeo de 10 segundos", "50"],
-            ["Vídeo de 15 segundos", "75"],
-            ["Vídeo com influenciador falando (6s / 10s / 15s)", "40 / 50 / 50"],
+            ["Vídeo de 6 segundos", "50"],
+            ["Vídeo de 10 segundos", "70"],
+            ["Vídeo de 15 segundos", "95"],
+            ["Vídeo com influenciador falando (6s / 10s / 15s)", "50 / 70 / 95"],
             ["Criar um influenciador com IA", "20"],
             ["Enviar a imagem de um influenciador pronto", "0 (de graça)"],
             ["Textos escritos pela IA (cena, fala, ficha, roteiro)", "0 (de graça)"],
             ["Gerador de prompt (a IA lê suas fotos)", String(CUSTO_PROMPT_LAB)],
             ["Editor automático e Cortes (usando IA)", "Pelo uso real"],
             ["Editor automático no modo sem IA", String(CREDITOS_FIXO.editorManual)],
+            ["Criar um Corte", String(CREDITOS_FIXO.editorManual)],
+            [
+              "Editor: a IA descrever uma cena de apoio (opcional)",
+              String(CREDITOS_FIXO.analiseCena),
+            ],
             ["Marca em lote (por vídeo carimbado)", String(CREDITOS_FIXO.lote)],
             ["MapsLeads (por busca)", String(CREDITOS_FIXO.leads)],
           ]}
         />
         <Texto>
           Vídeo com influenciador <strong className="text-foreground">sem fala</strong>{" "}
-          custa 10 créditos a menos. No Editor automático e no Cortes usando IA não tem
-          preço fixo: a cobrança sai pelo que a inteligência artificial realmente
-          consumiu naquele vídeo, e aparece detalhada no extrato. Já o que{" "}
-          <strong className="text-foreground">não usa IA</strong> (a marca em lote, o
-          MapsLeads e o editor no modo sem IA) tem valor fechado, que é só o custo de
-          processamento.
+          custa o mesmo que o falado: o motor é o mesmo e o que conta é a duração em
+          segundos do vídeo gerado, com ou sem voz. No Editor automático e no Cortes
+          usando IA não tem preço fixo: a cobrança sai pelo que a inteligência
+          artificial realmente consumiu naquele vídeo, e aparece detalhada no extrato.
+          Já o que <strong className="text-foreground">não usa IA</strong> (a marca em
+          lote, o MapsLeads e o editor no modo sem IA) tem valor fechado, que é só o
+          custo de processamento.
         </Texto>
 
         <Aviso tom="dica" titulo="Deu erro? Não foi cobrado">
@@ -154,28 +159,22 @@ export function AjudaComecar() {
           e fale com a gente.
         </Aviso>
 
-        <Titulinho>Comprei crédito e só entrou uma parte</Titulinho>
+        <Titulinho>O crédito comprado cai inteiro na hora</Titulinho>
         <Texto>
-          Isso é normal e está certo. Toda compra de pacote entra em duas partes: uma
-          cai no saldo na hora e o resto fica reservado por{" "}
-          <strong className="text-foreground">8 dias</strong>, que é o prazo de garantia
-          da compra. Passados os 8 dias, o restante cai sozinho no seu saldo, sem você
-          precisar pedir nada.
+          Assim que o pagamento é confirmado, <strong className="text-foreground">100%
+          do crédito</strong> entra no seu saldo, de uma vez. Não existe mais a regra
+          antiga que segurava parte da compra por alguns dias de garantia.
         </Texto>
         <div className="flex flex-wrap gap-3">
           <Selo Icone={Wallet}>
-            A parte que já entrou aparece no <strong className="text-foreground">saldo</strong>
+            Pagou, caiu: o valor inteiro aparece no{" "}
+            <strong className="text-foreground">saldo</strong>
           </Selo>
           <Selo Icone={Clock}>
-            A parte reservada aparece como{" "}
-            <strong className="text-foreground">crédito liberando</strong>, com a data
+            Compra antiga com <strong className="text-foreground">crédito liberando</strong>?
+            O resto cai sozinho na data mostrada
           </Selo>
         </div>
-        <Texto>
-          Quanto libera na hora depende do nível da sua conta (é o próximo assunto).
-          Contas mais antigas liberam mais na hora, e a conta Ouro libera quase tudo na
-          hora.
-        </Texto>
 
         <Aviso tom="atencao" titulo="Saldo pendente de reembolso">
           Se você pediu reembolso de uma compra depois de já ter gastado aqueles
@@ -208,57 +207,35 @@ export function AjudaComecar() {
       <Secao
         id="niveis"
         titulo="Níveis da conta"
-        subtitulo="Bronze, Prata e Ouro. O nível define quantos vídeos você faz por dia."
+        subtitulo="Bronze, Prata e Ouro hoje são reconhecimento: não limitam mais nada."
       >
         <Texto>
           Toda conta começa no <strong className="text-foreground">Bronze</strong> e vai
-          subindo sozinha conforme você usa a plataforma. Quanto mais alto o nível,
-          maior o limite diário, mais vídeos podem ser produzidos ao mesmo tempo e mais
-          crédito comprado cai no saldo na hora.
+          subindo sozinha conforme você usa a plataforma, com aviso no sininho quando
+          acontece. O nível <strong className="text-foreground">não limita mais
+          nada</strong>: não existe limite diário de vídeos e o crédito comprado cai
+          inteiro na hora, em qualquer nível. Em breve os níveis vão fazer parte de um
+          sistema de recompensas da plataforma.
         </Texto>
 
-        <Tabela
-          colunas={["Nível", "Vídeos por dia", "Ao mesmo tempo", "Crédito comprado"]}
-          linhas={[
-            ["🥉 Bronze", "5", "1 vídeo", "Metade na hora, resto em 8 dias"],
-            ["🥈 Prata", "12", "2 vídeos", "Metade na hora, com limite maior"],
-            ["🥇 Ouro", "50", "3 vídeos", "75% na hora, sem limite"],
-          ]}
-        />
-
-        <Titulinho>Como subir de nível</Titulinho>
+        <Titulinho>A única regra de processamento</Titulinho>
         <Texto>
-          Não tem botão nem pedido: é automático. Conta que tem mais tempo de casa, que
-          entra com frequência e que continua comprando sobe sozinha, e você recebe um
-          aviso no sininho quando isso acontece. Pro nível Ouro também é preciso estar
-          com a assinatura em dia.
+          Cada conta pode ter até{" "}
+          <strong className="text-foreground">5 vídeos em produção ao mesmo
+          tempo</strong>. É uma regra única da plataforma, igual pra todo mundo, e serve
+          só pra fila de renderização andar pra todos. Chegou em 5, é esperar algum
+          terminar pra mandar o próximo - esperar não gasta crédito nenhum.
         </Texto>
-
-        <Titulinho>O que faz o nível cair</Titulinho>
-        <div className="space-y-3">
-          <Problema pergunta="Pedir reembolso de uma compra">
-            A conta volta pro Bronze. Se o reembolso for cancelado, o nível volta ao que
-            era antes.
-          </Problema>
-          <Problema pergunta="Ficar muito tempo sem entrar">
-            Passando de 60 dias sem acessar, a conta desce um nível quando você voltar.
-            Depois ela sobe de novo com o uso.
-          </Problema>
-          <Problema pergunta="Deixar a assinatura vencer">
-            Quem está no Ouro cai pro Prata enquanto a assinatura estiver vencida. Seus
-            créditos continuam valendo do mesmo jeito.
-          </Problema>
-        </div>
 
         <div className="flex flex-wrap gap-3">
           <Selo Icone={Gauge}>
-            O quanto você já usou hoje aparece no card{" "}
-            <strong className="text-foreground">Nível da conta</strong>
+            Sem limite diário: gere quantos vídeos quiser no dia
           </Selo>
           <Selo Icone={ShieldCheck}>
-            Bater o limite do dia não gasta crédito nenhum
+            Até <strong className="text-foreground">5 vídeos</strong> em produção ao
+            mesmo tempo por conta
           </Selo>
-          <Selo Icone={Medal}>O limite renova todo dia à meia-noite</Selo>
+          <Selo Icone={Medal}>O nível sobe sozinho com o uso</Selo>
         </div>
 
         <Atalho href="/painel/creditos">Ver o nível da minha conta</Atalho>

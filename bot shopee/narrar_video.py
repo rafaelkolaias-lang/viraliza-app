@@ -105,8 +105,21 @@ PRODUTO = sys.argv[1] if len(sys.argv) > 1 else "brazil"
 # estoura, a gente pula sozinho pra próxima — e grava qual está valendo, porque o
 # worker abre um Python novo a cada job (senão começaria sempre pela chave morta).
 def _carregar_keys():
+    # BYO (auditoria #21): a chave do PRÓPRIO usuário chega do worker em
+    # ELEVEN_USER_KEY e entra NA FRENTE da lista - a narração dele gasta a cota
+    # DELE (antes o worker mandava a chave e ninguém aqui lia: narrava com as
+    # chaves da casa do mesmo jeito). As da casa ficam de reserva se a dele
+    # falhar, e o consumo da chave própria não conta no gasto do dono
+    # (ver _tts_uma_chave).
+    keys = []
+    propria = (os.getenv("ELEVEN_USER_KEY") or "").strip()
+    if propria:
+        keys.append(propria)
     raw = os.getenv("ELEVENLABS_API_KEYS", "") or ""
-    keys = [k.strip() for k in raw.split(",") if k.strip()]
+    for k in raw.split(","):
+        k = k.strip()
+        if k and k not in keys:
+            keys.append(k)
     # aceita também ELEVENLABS_API_KEY / _2 / _3 / _4 (sem duplicar)
     for nome in ("ELEVENLABS_API_KEY", "ELEVENLABS_API_KEY_2",
                  "ELEVENLABS_API_KEY_3", "ELEVENLABS_API_KEY_4"):
@@ -292,7 +305,11 @@ def gerar_voz_com_tempos(texto, mp3_path):
 
     # ordena: FREE primeiro (economiza a paga), depois maior saldo. A paga fica de
     # fallback -> resolve vozes library que as free recusam (402).
-    ordenadas = sorted(infos, key=lambda i: (i["paga"], -i["saldo"]))
+    # BYO (auditoria #21): a chave do PRÓPRIO usuário fura a fila e tenta sempre
+    # PRIMEIRO - a ordem por tier/saldo vale só entre as chaves da casa, que
+    # ficam de reserva caso a dele falhe/não tenha cota.
+    user_key = (os.getenv("ELEVEN_USER_KEY") or "").strip()
+    ordenadas = sorted(infos, key=lambda i: (i["key"] != user_key, i["paga"], -i["saldo"]))
 
     # ---- caminho comum: alguma chave tem cota pro texto inteiro -> tenta com fallback
     candidatas = [i for i in ordenadas if _com_margem(i["saldo"]) >= n]

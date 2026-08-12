@@ -11,6 +11,7 @@ import {
 } from "@/lib/kiwify";
 import {
   caktoConfigurada,
+  ehPacoteDeCredito,
   listarPedidos,
   valorPedido,
   valorLiquido as liquidoCakto,
@@ -35,9 +36,17 @@ type VendaNorm = {
   liquidoCentavos: number;
   nome: string;
   email: string;
+  produtoNome: string;
+  /** true = pacote de crédito; false = assinatura (entrada/renovação e afins) */
+  ehCredito: boolean;
 };
 
+// O nome de pacote é o MESMO padrão nos dois gateways ("Editor automatico N",
+// regex idêntica em cakto.ts e kiwify.ts), então o ehPacoteDeCredito do cakto
+// classifica os dois. Tudo que não é pacote entra como assinatura (plano de
+// entrada e renovações mensais).
 function deCakto(p: PedidoLista): VendaNorm {
+  const produtoNome = p.product?.name || "";
   return {
     created_at: p.created_at,
     updated_at: p.updated_at,
@@ -48,10 +57,13 @@ function deCakto(p: PedidoLista): VendaNorm {
     liquidoCentavos: liquidoCakto(p),
     nome: p.customer?.name || p.customer?.full_name || "Sem nome",
     email: p.customer?.email || "",
+    produtoNome,
+    ehCredito: ehPacoteDeCredito(produtoNome),
   };
 }
 
 function deKiwify(v: VendaLista): VendaNorm {
+  const produtoNome = v.product?.name || "";
   return {
     created_at: v.created_at,
     updated_at: v.updated_at,
@@ -62,6 +74,8 @@ function deKiwify(v: VendaLista): VendaNorm {
     liquidoCentavos: liquidoKiwify(v),
     nome: v.customer?.name || v.customer?.full_name || "Sem nome",
     email: v.customer?.email || "",
+    produtoNome,
+    ehCredito: ehPacoteDeCredito(produtoNome),
   };
 }
 
@@ -146,6 +160,13 @@ export type DiaVenda = {
   receitaLiquidaCentavos: number; // LÍQUIDO recebido (após taxa) - linha verde
   reembolsos: number;
   reembolsoCentavos: number; // perdido em reembolso/chargeback (linha vermelha)
+  // detalhamento por tipo de venda (assinatura x pacote de crédito)
+  vendasAssinatura: number;
+  receitaAssinaturaCentavos: number;
+  receitaLiquidaAssinaturaCentavos: number;
+  vendasCredito: number;
+  receitaCreditoCentavos: number;
+  receitaLiquidaCreditoCentavos: number;
 };
 
 export type VendaLinha = {
@@ -156,6 +177,8 @@ export type VendaLinha = {
   pago: boolean;
   valorCentavos: number; // bruto (o que o cliente pagou)
   valorLiquidoCentavos: number; // LÍQUIDO (o que você recebe)
+  produtoNome: string;
+  ehCredito: boolean; // true = pacote de crédito; false = assinatura
 };
 
 export type PainelFinancas = {
@@ -182,6 +205,13 @@ export type PainelFinancas = {
     clientes: number; // e-mails distintos que pagaram
     ticketCentavos: number; // ticket médio bruto
     ticketLiquidoCentavos: number; // ticket médio LÍQUIDO
+    // acumulados do período por tipo de venda (assinatura x crédito)
+    vendasPagasAssinatura: number;
+    receitaAssinaturaCentavos: number;
+    receitaLiquidaAssinaturaCentavos: number;
+    vendasPagasCredito: number;
+    receitaCreditoCentavos: number;
+    receitaLiquidaCreditoCentavos: number;
   };
   grafico: DiaVenda[];
   vendasPeriodo: VendaLinha[]; // lista de vendas DO PERÍODO filtrado (mais recentes primeiro)
@@ -235,6 +265,12 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
       clientes: 0,
       ticketCentavos: 0,
       ticketLiquidoCentavos: 0,
+      vendasPagasAssinatura: 0,
+      receitaAssinaturaCentavos: 0,
+      receitaLiquidaAssinaturaCentavos: 0,
+      vendasPagasCredito: 0,
+      receitaCreditoCentavos: 0,
+      receitaLiquidaCreditoCentavos: 0,
     },
     grafico: [],
     vendasPeriodo: [],
@@ -287,6 +323,12 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
       receitaLiquidaCentavos: number;
       reembolsos: number;
       reembolsoCentavos: number;
+      vendasAssinatura: number;
+      receitaAssinaturaCentavos: number;
+      receitaLiquidaAssinaturaCentavos: number;
+      vendasCredito: number;
+      receitaCreditoCentavos: number;
+      receitaLiquidaCreditoCentavos: number;
     }
   >();
   for (let i = 0; i < nDias; i++) {
@@ -297,6 +339,12 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
       receitaLiquidaCentavos: 0,
       reembolsos: 0,
       reembolsoCentavos: 0,
+      vendasAssinatura: 0,
+      receitaAssinaturaCentavos: 0,
+      receitaLiquidaAssinaturaCentavos: 0,
+      vendasCredito: 0,
+      receitaCreditoCentavos: 0,
+      receitaLiquidaCreditoCentavos: 0,
     });
   }
 
@@ -308,6 +356,12 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
   let periodoReembolsos = 0;
   let periodoReembolsoCentavos = 0;
   let periodoReembolsoLiquido = 0;
+  let periodoPagasAssinatura = 0;
+  let periodoReceitaAssinatura = 0;
+  let periodoLiquidoAssinatura = 0;
+  let periodoPagasCredito = 0;
+  let periodoReceitaCredito = 0;
+  let periodoLiquidoCredito = 0;
   const vendasPeriodo: (VendaLinha & { ts: number })[] = [];
   const hoje = { vendas: 0, pagas: 0, receitaCentavos: 0, receitaLiquidaCentavos: 0 };
 
@@ -333,6 +387,22 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
       periodoReceita += bruto;
       periodoLiquido += v.liquidoCentavos;
       periodoPagas++;
+      // detalhamento por tipo: pacote de crédito x assinatura (entrada/renovação)
+      if (v.ehCredito) {
+        b.vendasCredito++;
+        b.receitaCreditoCentavos += bruto;
+        b.receitaLiquidaCreditoCentavos += v.liquidoCentavos;
+        periodoPagasCredito++;
+        periodoReceitaCredito += bruto;
+        periodoLiquidoCredito += v.liquidoCentavos;
+      } else {
+        b.vendasAssinatura++;
+        b.receitaAssinaturaCentavos += bruto;
+        b.receitaLiquidaAssinaturaCentavos += v.liquidoCentavos;
+        periodoPagasAssinatura++;
+        periodoReceitaAssinatura += bruto;
+        periodoLiquidoAssinatura += v.liquidoCentavos;
+      }
       const email = v.email.toLowerCase();
       if (email) clientesPagos.add(email);
     }
@@ -371,6 +441,8 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
         pago,
         valorCentavos: bruto,
         valorLiquidoCentavos: v.liquidoCentavos,
+        produtoNome: v.produtoNome,
+        ehCredito: v.ehCredito,
         ts: criado.getTime(),
       });
     }
@@ -386,6 +458,12 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
     receitaLiquidaCentavos: v.receitaLiquidaCentavos,
     reembolsos: v.reembolsos,
     reembolsoCentavos: v.reembolsoCentavos,
+    vendasAssinatura: v.vendasAssinatura,
+    receitaAssinaturaCentavos: v.receitaAssinaturaCentavos,
+    receitaLiquidaAssinaturaCentavos: v.receitaLiquidaAssinaturaCentavos,
+    vendasCredito: v.vendasCredito,
+    receitaCreditoCentavos: v.receitaCreditoCentavos,
+    receitaLiquidaCreditoCentavos: v.receitaLiquidaCreditoCentavos,
   }));
 
   const [gastos, anuncios] = await Promise.all([gastosPromise, anunciosPromise]);
@@ -409,6 +487,12 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
       clientes: clientesPagos.size,
       ticketCentavos: periodoPagas > 0 ? Math.round(periodoReceita / periodoPagas) : 0,
       ticketLiquidoCentavos: periodoPagas > 0 ? Math.round(periodoLiquido / periodoPagas) : 0,
+      vendasPagasAssinatura: periodoPagasAssinatura,
+      receitaAssinaturaCentavos: periodoReceitaAssinatura,
+      receitaLiquidaAssinaturaCentavos: periodoLiquidoAssinatura,
+      vendasPagasCredito: periodoPagasCredito,
+      receitaCreditoCentavos: periodoReceitaCredito,
+      receitaLiquidaCreditoCentavos: periodoLiquidoCredito,
     },
     gastos,
     anuncios,
@@ -417,8 +501,28 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
     // teto de 100 linhas pra tabela não explodir no "Tudo"
     vendasPeriodo: vendasPeriodo
       .slice(0, 100)
-      .map(({ nome, email, quando, status, pago, valorCentavos, valorLiquidoCentavos }) => ({
-        nome, email, quando, status, pago, valorCentavos, valorLiquidoCentavos,
-      })),
+      .map(
+        ({
+          nome,
+          email,
+          quando,
+          status,
+          pago,
+          valorCentavos,
+          valorLiquidoCentavos,
+          produtoNome,
+          ehCredito,
+        }) => ({
+          nome,
+          email,
+          quando,
+          status,
+          pago,
+          valorCentavos,
+          valorLiquidoCentavos,
+          produtoNome,
+          ehCredito,
+        }),
+      ),
   };
 }

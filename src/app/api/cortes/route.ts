@@ -52,8 +52,8 @@ export async function POST(req: Request) {
     );
   }
 
-  // Trava por nível da conta (bronze/prata/ouro): dívida de reembolso, teto
-  // diário e simultâneos. Demo já foi tratado acima (1 geração no total).
+  // Trava de geração: dívida de reembolso + limite universal de simultâneos.
+  // Demo já foi tratado acima (1 geração no total).
   if (!ehDemo) {
     const trava = await travaDeGeracao(user);
     if (!trava.ok) {

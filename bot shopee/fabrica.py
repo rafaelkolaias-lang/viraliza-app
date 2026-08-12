@@ -49,6 +49,10 @@ MARGEM_TOPO = 640         # (legado) legenda na parte superior
 MARGEM_CIMA = 230         # posição "cima": perto do topo (abaixo da área segura)
 MARGEM_BAIXO = 300        # posição "baixo": perto do rodapé (acima da UI do app)
 CONTORNO = 5
+# Quanto o texto ESCRITO PELA PESSOA se afasta quando cai na mesma faixa da
+# legenda queimada. ~2 linhas de legenda (FT_LEGENDA=76 + contorno), que é o
+# tanto que a legenda ocupa quando quebra: menos que isso ainda encostava.
+DESVIO_TEXTO = 170
 
 
 def _aln_margin(pos):
@@ -789,8 +793,198 @@ def build_voz(prod_dir, nome, cfg, copy, sufixo="", var_idx=0, n_var=1, imagens=
 
 # Regras de tamanho do Editor (as MESMAS de src/lib/montagem.ts; mudou lá, mude aqui)
 MAX_MONTAGEM = 120.0      # o Editor não faz vídeo maior que 2 minutos
-SEG_POR_APOIO = 10.0      # cabe 1 cena de apoio a cada 10s do clipe principal
-APOIO_MIN, APOIO_MAX = 0.8, 6.0   # quanto tempo um clipe de apoio fica na tela
+SEG_POR_APOIO = 5.0       # cabe 1 cena de apoio a cada 5s do principal (era 10; dono dobrou em 06/08/2026)
+APOIO_MIN, APOIO_MAX = 2.0, 4.0   # quanto tempo um clipe de apoio fica na tela (tarefa 31: era 0.8 a 6)
+# FOTO de apoio: ela é parada, então cansa se passar de 3s; o piso de 1s existe
+# pra ela não virar um flash. Vídeo de apoio continua indo até APOIO_MAX.
+IMAGEM_MIN, IMAGEM_MAX = 1.0, 3.0
+# Piso do tamanho MANUAL (painel da etapa 5 do Editor, 11/08/2026): quando a
+# pessoa redimensionou a cena na régua, o `dura` dela MANDA e os limites acima
+# não valem - só não desce de meio segundo, que a transição de 0,3s por lado
+# engoliria inteiro. Mesmo número do DURA_MANUAL_MIN de src/lib/montagem.ts.
+DURA_MANUAL_MIN = 0.5
+
+# ---------------------------------------------------------------------------
+# EDIÇÃO AVANÇADA (05/08/2026) - o que separa "clipes colados" de vídeo editado.
+# Tudo vem ligado; a tela do Editor manda essas chaves em `opcoes.edicao` e o
+# worker escreve no config como ed_kenburns / ed_transicoes / ed_som_apoio /
+# ed_trecho. Job antigo (sem as chaves) recebe a edição completa.
+# ---------------------------------------------------------------------------
+# Esmaecido de entrada e de saída da cena de apoio. Curto de propósito: acima de
+# ~0,4s deixa de parecer edição e começa a parecer atraso.
+TRANSICAO = 0.3
+# Zoom lento na foto (Ken Burns): ela sai de 1,0 e chega nesse tamanho no fim.
+KB_ZOOM = 1.12
+# Som da cena de apoio: ela entrava MUDA. Agora entra baixinho e abaixa mais
+# ainda enquanto a pessoa está falando na base (ducking automático).
+VOL_APOIO, VOL_APOIO_FALANDO = 0.40, 0.10
+# Quanto o momento de um apoio pode ser puxado pra encostar numa borda de fala.
+# É o "corte no tempo certo": em vez de entrar no meio de uma palavra, a cena
+# entra na virada da frase, que é onde o corte não incomoda.
+IMA_RITMO = 0.8
+
+
+def _edicao(cfg):
+    """Lê as chaves de edição avançada do config.
+
+    Chave ausente vale o PADRÃO, e o padrão é o mesmo do `EDICAO_PADRAO` em
+    `src/lib/montagem.ts`: tudo ligado, menos o som do apoio. Ele é o único que
+    mexe no que se OUVE, e o barulho de fundo da cena de apoio quase sempre
+    atrapalha a fala do clipe principal (decidido pelo dono em 06/08/2026).
+    Mudou o padrão de um lado, mude do outro."""
+    def _liga(chave, padrao=True):
+        v = str(cfg.get(chave, "")).strip().lower()
+        if not v:
+            return padrao
+        return v not in ("0", "nao", "não", "no", "false", "off")
+    return {
+        "kenburns": _liga("ed_kenburns"),
+        "transicoes": _liga("ed_transicoes"),
+        "som_apoio": _liga("ed_som_apoio", padrao=False),
+        "trecho": _liga("ed_trecho"),
+    }
+
+
+def _dura_manual(a):
+    """A pessoa escolheu o tamanho desta cena no painel da etapa 5? (é o que
+    troca o piso: cena manual vale a partir de DURA_MANUAL_MIN)."""
+    try:
+        return float(a.get("dura") or 0) > 0
+    except (TypeError, ValueError):
+        return False
+
+
+def _dur_apoio(a):
+    """Quanto tempo essa cena de apoio fica NA TELA (não é o tamanho do arquivo).
+    Mesma conta do `duracaoApoio` em `src/lib/montagem.ts`.
+
+    TAMANHO MANUAL (dono, 11/08/2026): com `dura` no roteiro (as alças do painel
+    da etapa 5), o número da pessoa MANDA e os limites automáticos não valem. O
+    vídeo só não segura na tela mais material do que o corte tem; foto é parada
+    e fica o quanto pedirem."""
+    try:
+        d = float(a.get("out", 0)) - float(a.get("in", 0))
+    except (TypeError, ValueError):
+        d = 0.0
+    if _dura_manual(a):
+        dm = float(a["dura"])
+        if a.get("tipo") == "image":
+            return max(DURA_MANUAL_MIN, dm)
+        return max(DURA_MANUAL_MIN, min(dm, d if d > 0 else dm))
+    if a.get("tipo") == "image":
+        return max(IMAGEM_MIN, min(IMAGEM_MAX, d if d > 0 else IMAGEM_MAX))
+    return max(APOIO_MIN, min(APOIO_MAX, d if d > 0 else 3.0))
+
+
+def _inicio_apoio(a, usar_trecho=True):
+    """De que segundo DO ARQUIVO sai o pedaço que vai pra tela.
+
+    Um apoio de 30 segundos não entra inteiro: entram uns poucos segundos dele. O
+    `trecho` (escolhido pela IA olhando os quadros, na etapa de aprovação) diz
+    QUAL pedaço desses 30 vale a pena mostrar. Sem ele, sai do começo do corte,
+    como sempre foi."""
+    try:
+        ini = float(a.get("in", 0) or 0)
+    except (TypeError, ValueError):
+        ini = 0.0
+    if not usar_trecho or a.get("trecho") is None:
+        return ini
+    try:
+        t = float(a["trecho"])
+    except (TypeError, ValueError):
+        return ini
+    try:
+        fim = float(a.get("out", ini))
+    except (TypeError, ValueError):
+        fim = ini
+    # não pode começar tão no fim do corte que a cena não caiba
+    return max(ini, min(t, max(ini, fim - _dur_apoio(a))))
+
+
+# ---------------------------------------------------------------------------
+# CORTE PRECISO (tarefa 31): a voz saía levemente fora da legenda porque o corte
+# dos pedaços confiava só no -ss de entrada do ffmpeg, e o salto do demuxer +
+# o aquecimento do decodificador (keyframe, priming do AAC) deslocam o começo
+# real do pedaço em dezenas de ms. Agora o -ss continua existindo (é ele que
+# evita decodificar o arquivo inteiro), mas mira SEEK_FOLGA segundos ANTES do
+# alvo, e o pedaço exato sai do trim/atrim DENTRO do filtro, já com o
+# decodificador aquecido. Obs.: pôr o -ss depois do -i não existe no CLI do
+# ffmpeg (opção depois de um -i vale pro PRÓXIMO arquivo), por isso a precisão
+# vem do trim e não da ordem dos argumentos.
+# ---------------------------------------------------------------------------
+SEEK_FOLGA = 2.0
+
+
+def _seek_previo(ss):
+    """Onde o -ss de entrada deve mirar. Devolve (inicio_do_input, sobra), em que
+    `sobra` é quanto falta do início do input até o ponto exato do corte."""
+    alvo = max(0.0, float(ss or 0))
+    pre = max(0.0, alvo - SEEK_FOLGA)
+    return pre, alvo - pre
+
+
+def _trim_v(corte):
+    """Elo de corte exato do vídeo dentro do filtro ('' quando não há corte).
+    `corte` = (offset dentro do input, duração)."""
+    if not corte:
+        return ""
+    off, dur = corte
+    return (f"trim=start={off:.3f}:end={off + dur:.3f},"
+            f"setpts=PTS-STARTPTS,")
+
+
+def _sobra(alpha):
+    """O que preenche a sobra quando a mídia não é 9:16 (o `pad` do ffmpeg).
+
+    `alpha=True` deixa essa sobra TRANSPARENTE, e aí o que aparece nas laterais
+    (ou em cima e embaixo) é o vídeo de baixo em vez de faixa preta. Usado só no
+    caminho de SOBREPOSIÇÃO: no corte seco não há nada por baixo, então a sobra
+    transparente sai preta do mesmo jeito e não vale mudar o que já funciona.
+
+    Pegadinha medida no ffmpeg: `color=black@0` sozinho NÃO basta. O `pad` só
+    guarda transparência se o quadro JÁ tiver canal alfa quando chega nele, e a
+    conversão do projeto vinha depois. Por isso o `format=yuva420p` também é
+    posto na frente da cadeia (ver `_alfa_antes`)."""
+    return ":color=black@0" if alpha else ""
+
+
+def _alfa_antes(alpha):
+    """Liga o canal alfa ANTES do scale/pad (ver `_sobra`)."""
+    return "format=yuva420p," if alpha else ""
+
+
+def _norm_img_kb(i, dur, alpha=False):
+    """Foto de apoio COM zoom lento (Ken Burns), pra ela não ficar parada na tela.
+
+    O `zoompan` treme quando trabalha em cima de imagem no tamanho final, então a
+    foto é ampliada pro dobro do palco ANTES e o zoom acontece nessa cópia grande.
+    Com `d=1` cada quadro que entra vira um quadro que sai, e o `on` (número do
+    quadro de saída) é o que faz o zoom crescer parelho até o fim da cena.
+
+    A foto ENCOSTA nas bordas de cima e de baixo (tarefa 31): a altura vira o
+    palco inteiro (`scale=-2:{H*2}` mantém a proporção), o excesso de largura é
+    cortado e, se faltar largura, o `pad` preenche as laterais.
+
+    `alpha=True`: a sobra lateral fica transparente (foto estreita deixa o vídeo
+    de baixo aparecer em vez de faixa preta)."""
+    quadros = max(1, int(round(max(0.2, dur) * FPS)))
+    passo = (KB_ZOOM - 1.0) / quadros
+    return (f"[{i}:v]{_pre_crop()}{_alfa_antes(alpha)}"
+            f"scale=-2:{H * 2},crop='min(iw,{W * 2})':{H * 2},"
+            f"pad={W * 2}:{H * 2}:(ow-iw)/2:(oh-ih)/2{_sobra(alpha)},setsar=1,"
+            f"zoompan=z='min(1+{passo:.6f}*on,{KB_ZOOM})':d=1:"
+            f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={W}x{H}:fps={FPS},setsar=1")
+
+
+def _norm_img(i, alpha=False):
+    """Foto de apoio SEM Ken Burns: parada, mas ENCOSTANDO nas bordas de cima e
+    de baixo (tarefa 31). A altura vira a do palco mantendo a proporção
+    (`scale=-2:{H}`); se a foto ficar mais larga que a tela o `crop` corta o
+    excesso pelos lados, e se ficar mais estreita o `pad` preenche as laterais
+    (transparente no caminho de sobreposição, com `alpha=True`)."""
+    return (f"[{i}:v]{_pre_crop()}{_alfa_antes(alpha)}"
+            f"scale=-2:{H},crop='min(iw,{W})':{H},"
+            f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2{_sobra(alpha)},setsar=1,fps={FPS}")
 _AN = {"cima": 8, "meio": 5, "baixo": 2}   # alinhamento ASS por posição
 
 
@@ -815,17 +1009,28 @@ def contexto_cenas(roteiro):
     Faz o papel que o "cérebro editor" (`plano_edicao`) fazia: ele não roda na
     montagem do editor, porque quem escolheu ordem e cenas foi a pessoa.
 
-    O clipe principal não entra: ele não tem descrição de propósito (a narração é
-    a fala dele, e é a transcrição que conta essa parte da história)."""
-    linhas = []
+    O clipe PRINCIPAL entra só quando a pessoa descreveu o que aparece nele
+    (06/08/2026). Antes ele ficava sempre de fora, com o argumento de que a
+    transcrição já conta essa parte; só que a transcrição diz o que é FALADO, não
+    o que está na TELA. Quem escreve "eu mostrando o tênis branco na câmera" dá
+    à copy uma informação que a fala não tem. Sem descrição, nada muda: a saída
+    fica idêntica à de antes."""
+    linhas, base = [], []
     for c in (roteiro.get("clipes") or []):
-        if c.get("papel") == "principal":
-            continue
         d = str(c.get("descricao") or "").strip()
         if not d:
             continue
+        if c.get("papel") == "principal":
+            base.append(d)
+            continue
         linhas.append(f"{len(linhas) + 1}) {d}")
-    return "; ".join(linhas)[:1500]
+    partes = []
+    if base:
+        partes.append("O VÍDEO PRINCIPAL (a pessoa falando na câmera) MOSTRA: "
+                      + "; ".join(base))
+    if linhas:
+        partes.append("; ".join(linhas))
+    return "\n".join(partes)[:1500]
 
 
 def _caminho_clipe(prod_dir, c):
@@ -840,9 +1045,14 @@ def _caminho_clipe(prod_dir, c):
 # O que a pessoa escreveu continua mandando; isto só entra quando ela deixou o
 # campo em branco, senão a cena entraria em qualquer ponto da fala.
 # ---------------------------------------------------------------------------
-# Começo, meio e fim do trecho CORTADO: é a comparação entre os três que revela o
-# movimento. Um print só do meio não separa "mão abrindo a caixa" de "caixa parada".
-QUADROS_CENA = (0.15, 0.5, 0.85)
+# Cinco pontos do trecho CORTADO (eram três, até 05/08/2026): é a comparação
+# entre eles que revela o movimento, e um print só do meio não separa "mão
+# abrindo a caixa" de "caixa parada". Passaram de 3 pra 5 porque agora a IA não
+# só descreve como aponta QUAL pedaço do clipe vai pra tela, e com três pontos
+# ela só conseguia responder começo/meio/fim.
+# Mudou aqui? Mude o `QUADROS_ANALISE`/`MARCAS_ANALISE` de `src/lib/montagem.ts`
+# e refaça a conta do `CREDITOS_FIXO.analiseCena` em `src/lib/precos.ts`.
+QUADROS_CENA = (0.1, 0.3, 0.5, 0.7, 0.9)
 LARGURA_QUADRO = 512        # o bastante pra IA enxergar, e segura o custo da chamada
 MAX_CENAS_DESCRITAS = 12    # teto de segurança (2 min de base = no máximo 12 apoios)
 
@@ -881,28 +1091,45 @@ def _quadros_da_cena(path, tipo, ini, fim):
     return saida
 
 
-def completar_descricoes(prod_dir, roteiro, com_copy):
-    """Descreve com a IA as cenas de apoio que a pessoa deixou SEM descrição.
+def completar_descricoes(prod_dir, roteiro, com_copy, usar_trecho=True):
+    """Descreve com a IA as cenas de apoio que chegaram SEM descrição.
+
+    Desde 05/08/2026 o normal é NÃO cair aqui: a tela do Editor tem uma etapa de
+    aprovação em que a pessoa manda a IA olhar as cenas e lê o que ela entendeu
+    antes de gerar, e a frase vem pronta no roteiro. Isto aqui é a rede de
+    segurança de quem gerou sem passar por lá (e dos jobs montados por fora).
 
     A descrição escrita à mão sempre manda: só chega aqui quem está em branco.
     O que sai daqui alimenta as duas coisas que a descrição alimentava: o encaixe
     do apoio no momento certo da fala (`plano_broll`) e o `contexto_cenas` da copy.
 
-    `com_copy` diz se a copy da IA vai rodar neste job. Quando ela NÃO roda, a
-    cena que a pessoa já arrastou pra um segundo fixo nem precisa ser olhada: o
-    momento dela já está decidido e ninguém mais usaria a frase.
+    `com_copy` diz se a copy da IA vai rodar neste job. Cuidado com ele: não é
+    "o job tem copy", é "a IA vai ESCREVER a copy". Com a fala escrita pela
+    pessoa ("Eu escrevo" na etapa 1) o `gerar_copy` nem é chamado, então o
+    contexto visual não é lido por ninguém.
+
+    Sem copy da IA, a frase só tem UM leitor possível: o `plano_broll`, que
+    encaixa o apoio no momento certo da fala. E ele só existe quando há clipe
+    principal (sem base o vídeo é sequencial, `_montar_sequencial`, e ali a
+    descrição não é usada em lugar nenhum) e só para a cena que ainda não tem
+    momento fixo. Fora dessas duas portas, descrever é pagar visão de IA pra
+    escrever uma frase que ninguém vai ler (12/08/2026: era o que acontecia na
+    narração com a fala escrita pela pessoa, todo vídeo).
 
     A frase é gravada no próprio roteiro (é de lá que o `build_montagem` lê).
     Devolve quantas cenas foram descritas; sem chave de IA, sem quadro ou com a
     chamada falhando, devolve 0 e o render segue exatamente como seguia antes."""
+    clipes = roteiro.get("clipes") or []
+    # há base? é o mesmo critério do `build_montagem` pra escolher a montagem
+    tem_base = any(c.get("papel") == "principal" for c in clipes)
     alvos = []
-    for c in (roteiro.get("clipes") or []):
+    for c in clipes:
         if c.get("papel") == "principal":
             continue          # o principal não descreve cena: quem conta é a fala dele
         if str(c.get("descricao") or "").strip():
             continue          # a pessoa escreveu: o que ela disse vale
-        if not com_copy and c.get("entra") is not None:
-            continue          # já tem momento fixo e não há copy pra escrever
+        if not com_copy and not (tem_base and c.get("entra") is None):
+            continue          # ninguém leria essa frase: nem a copy, nem o encaixe
         alvos.append(c)
         if len(alvos) >= MAX_CENAS_DESCRITAS:
             break
@@ -925,21 +1152,55 @@ def completar_descricoes(prod_dir, roteiro, com_copy):
         return 0
 
     try:
-        frases = gemini_copy.descrever_cenas(cenas)
+        vistas = gemini_copy.descrever_cenas(cenas)
     except Exception:
         return 0
     feitas = 0
-    for i, frase in frases.items():
-        if 0 <= i < len(alvos) and frase:
-            alvos[i]["descricao"] = frase
-            feitas += 1
+    for i, dado in vistas.items():
+        if not (0 <= i < len(alvos)) or not isinstance(dado, dict):
+            continue
+        frase = dado.get("mostra")
+        if not frase:
+            continue
+        c = alvos[i]
+        c["descricao"] = frase
+        # a IA também aponta em que ponto do clipe está o pedaço forte: é o que
+        # impede um apoio de 30s de entrar sempre pelo começo
+        if usar_trecho and c.get("tipo") != "image" and c.get("trecho") is None:
+            try:
+                ini, fim = float(c.get("in", 0)), float(c.get("out", 0))
+                espaco = max(0.0, fim - ini - _dur_apoio(c))
+                if espaco > 0.2:
+                    c["trecho"] = round(ini + espaco * float(dado.get("melhor", 0)), 2)
+            except (TypeError, ValueError):
+                pass
+        feitas += 1
     return feitas
 
 
-def _norm_v(i):
-    """Normaliza um vídeo/imagem pro palco 9:16 (mesmo enquadramento do resto)."""
-    return (f"[{i}:v]{_pre_crop()}scale={W}:{H}:force_original_aspect_ratio=decrease,"
-            f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={FPS}")
+def _norm_v(i, alpha=False, corte=None):
+    """Normaliza um vídeo/imagem pro palco 9:16 (mesmo enquadramento do resto).
+
+    `alpha=True`: a sobra fica transparente em vez de preta (ver `_sobra`).
+    `corte=(offset, dur)`: corte EXATO dentro do input (ver SEEK_FOLGA)."""
+    return (f"[{i}:v]{_trim_v(corte)}{_pre_crop()}{_alfa_antes(alpha)}"
+            f"scale={W}:{H}:force_original_aspect_ratio=decrease,"
+            f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2{_sobra(alpha)},setsar=1,fps={FPS}")
+
+
+def _norm_v_secundario(i, corte=None):
+    """Vídeo de APOIO em tela cheia (tarefa 31): preenche o palco 9:16 inteiro.
+
+    Em vez de caber dentro do palco e ganhar sobra (faixa preta ou transparente),
+    o vídeo de apoio é AMPLIADO até cobrir o palco
+    (`force_original_aspect_ratio=increase`) e o excesso é cortado pelo centro
+    (`crop`). Vídeo horizontal ou quadrado passa a ocupar a tela vertical
+    inteira, sem faixa nenhuma.
+
+    `corte=(offset, dur)`: corte EXATO dentro do input (ver SEEK_FOLGA)."""
+    return (f"[{i}:v]{_trim_v(corte)}{_pre_crop()}"
+            f"scale={W}:{H}:force_original_aspect_ratio=increase,"
+            f"crop={W}:{H},setsar=1,fps={FPS}")
 
 
 def _esc_ass(txt):
@@ -949,9 +1210,191 @@ def _esc_ass(txt):
             .replace("\r", "").replace("\n", "\\N"))
 
 
-def _estilo_manual(chave):
+# ---------------------------------------------------------------- estilo da legenda
+# Quantos caracteres cabem numa linha de legenda sem encostar nas bordas: o palco
+# tem 1080px, sobram 940 depois das margens de 70, e a fonte de 76px gasta ~38px
+# por caractere. Duas linhas é o teto: a terceira já tapa metade da tela.
+LEG_CHARS_LINHA = 24
+LEG_LINHAS = 2
+# Palavra por palavra: piscar palavra de 0,05s cansa a vista, então cada uma fica
+# no mínimo esse tempo na tela (sem passar por cima da seguinte).
+PALAVRA_MIN = 0.22
+
+
+def _duas_linhas(texto):
+    """Quebra o texto em ATÉ duas linhas, sem cortar palavra no meio.
+
+    Devolve `None` quando não cabe: aí quem chamou parte a frase em pedaços
+    cronometrados em vez de deixar o texto vazar pelas laterais."""
+    palavras = str(texto).split()
+    if not palavras:
+        return None
+    linhas, atual = [], ""
+    for p in palavras:
+        cand = f"{atual} {p}".strip()
+        if len(cand) <= LEG_CHARS_LINHA or not atual:
+            atual = cand
+        else:
+            linhas.append(atual)
+            atual = p
+            if len(linhas) == LEG_LINHAS:
+                return None      # sobrou palavra depois da 2ª linha
+    linhas.append(atual)
+    # separador é a quebra de verdade, NÃO o "\N" do ASS: quem escreve o arquivo
+    # passa o texto pelo `_esc_ass`, que troca contrabarra por barra (o "\N" sairia
+    # como "/N" na tela) e converte a quebra de linha no "\N" certo.
+    return "\n".join(linhas) if len(linhas) <= LEG_LINHAS else None
+
+
+def _blocos_legenda(texto, ini, fim):
+    """Frase inteira em até duas linhas por vez (estilo clássico).
+
+    Frase que não cabe em duas linhas é partida em pedaços, e o tempo dela é
+    dividido entre eles na proporção do tamanho de cada um: assim a legenda
+    acompanha a fala em vez de trocar tudo de uma vez no fim."""
+    texto = " ".join(str(texto).split())
+    if not texto:
+        return []
+    pronto = _duas_linhas(texto)
+    if pronto:
+        return [(pronto, ini, fim)]
+
+    # não coube: junta palavra por palavra até encher as duas linhas e recomeça
+    pedacos, atual = [], ""
+    for p in texto.split():
+        cand = f"{atual} {p}".strip()
+        if _duas_linhas(cand) or not atual:
+            atual = cand
+        else:
+            pedacos.append(atual)
+            atual = p
+    if atual:
+        pedacos.append(atual)
+
+    total = sum(len(p) for p in pedacos) or 1
+    dur = max(0.3, fim - ini)
+    saida, cursor = [], ini
+    for i, p in enumerate(pedacos):
+        fatia = dur * len(p) / total
+        termina = fim if i == len(pedacos) - 1 else min(fim, cursor + fatia)
+        saida.append((_duas_linhas(p) or p, cursor, max(cursor + 0.2, termina)))
+        cursor = termina
+    return saida
+
+
+# O gancho é chamada curta, não parágrafo: mesmo teto de ~6 palavras que a copy
+# da IA segue nas legendas de tela (ver REGRAS DE FORMATO no `gemini_copy.py`).
+GANCHO_MAX_PALAVRAS = 6
+
+
+def _gancho_em_frase(blocos):
+    """Junta os primeiros blocos num só, pra o GANCHO ser uma FRASE.
+
+    A primeira legenda do vídeo é desenhada em CAIXA PRETA com letras amarelas
+    (estilo `Gancho`), pra parar o scroll nos primeiros segundos. Com a legenda
+    palavra por palavra, cada bloco é UMA palavra, então esse destaque caía numa
+    palavra solta: uma caixa preta enorme com "eu" dentro, que não diz nada e
+    fica esquisito (dono, 12/08/2026). Agora a caixa segura a primeira frase
+    inteira, e o palavra-por-palavra começa depois dela.
+
+    Junta até o fim da primeira frase (ponto, exclamação ou interrogação) ou até
+    `GANCHO_MAX_PALAVRAS`, o que vier primeiro. Só mexe nos blocos do começo: o
+    resto da legenda sai palavra por palavra, exatamente como antes."""
+    if len(blocos) < 2:
+        return blocos
+    fim_k = 0
+    for k, (txt, _i, _f) in enumerate(blocos[:GANCHO_MAX_PALAVRAS]):
+        fim_k = k
+        if str(txt).rstrip('"\')')[-1:] in (".", "!", "?"):
+            break
+    if fim_k < 1:
+        return blocos      # a 1ª palavra já fechava a frase: não há o que juntar
+    juntos = " ".join(str(t) for t, _i, _f in blocos[:fim_k + 1])
+    return [(juntos, blocos[0][1], blocos[fim_k][2])] + blocos[fim_k + 1:]
+
+
+def _blocos_palavra(f, ini, fim):
+    """Uma palavra por vez, no ritmo exato de quem fala (jeito Reels/TikTok).
+
+    Usa os tempos de cada palavra que o Whisper devolve. Se eles não vierem
+    (job antigo, ou transcrição sem `word_timestamps`), divide a frase em partes
+    iguais dentro do tempo dela: o resultado fica menos preciso, mas o vídeo sai
+    no estilo que a pessoa pediu em vez de mudar de estilo calado."""
+    palavras = [p for p in (f.get("palavras") or [])
+                if str(p.get("texto") or "").strip()]
+    saida = []
+    if palavras:
+        for p in palavras:
+            a = max(ini, min(fim, float(p.get("ini", ini))))
+            b = max(a + PALAVRA_MIN, min(fim, float(p.get("fim", a))))
+            saida.append((str(p["texto"]).strip(), a, b))
+        # a palavra nunca pode invadir a seguinte: o piso de PALAVRA_MIN pode ter
+        # esticado uma delas por cima da próxima
+        for i in range(len(saida) - 1):
+            txt, a, b = saida[i]
+            saida[i] = (txt, a, min(b, saida[i + 1][1]))
+        return [s for s in saida if s[2] > s[1]]
+
+    palavras_txt = " ".join(str(f.get("texto") or "").split()).split()
+    if not palavras_txt:
+        return []
+    # sem o piso de PALAVRA_MIN aqui de propósito: numa fala rápida ele empurraria
+    # as últimas palavras pra fora do tempo da frase, e elas simplesmente não
+    # apareceriam. Dividir por igual mostra TODAS, que é o mínimo esperado.
+    passo = (fim - ini) / len(palavras_txt)
+    for i, p in enumerate(palavras_txt):
+        a = ini + i * passo
+        saida.append((p, a, min(fim, a + passo)))
+    return saida
+
+
+def _estilo_legenda(cfg):
+    """Estilo da legenda da fala pedido na tela (`legenda_estilo` no config).
+
+    Sem a chave vale "completo", que é como a plataforma sempre legendou: job
+    antigo (e pedido que não vem do Editor) sai igual ao de antes. Quem escolhe
+    "palavra" é a tela, e ela manda a chave sempre."""
+    v = str((cfg or {}).get("legenda_estilo", "") or "").strip().lower()
+    return v if v in ("palavra", "completo") else "completo"
+
+
+def _frases_legenda(fala, dur_total, estilo):
+    """Transforma a fala transcrita nos eventos que vão pra legenda queimada.
+
+    `estilo`: "palavra" (uma palavra por vez) ou "completo" (frase inteira em
+    até duas linhas). Qualquer outro valor cai em "completo", que é como a
+    plataforma sempre legendou."""
+    saida = []
+    for f in fala:
+        ini = max(0.0, float(f.get("ini", 0)))
+        fim = min(dur_total, float(f.get("fim", ini)))
+        if fim <= 0.05 or fim <= ini:
+            continue
+        if estilo == "palavra":
+            saida += _blocos_palavra(f, ini, fim)
+        else:
+            saida += _blocos_legenda(f.get("texto") or "", ini, fim)
+    return saida
+
+
+def _estilo_manual(chave, pos_leg=None):
+    """Estilo de um texto escrito pela pessoa.
+
+    `pos_leg` = onde a legenda queimada está (None = não há legenda nenhuma neste
+    vídeo). Quando o texto cai na MESMA faixa da legenda, ele SAI DE CIMA dela em
+    vez de sobrepor: embaixo e no meio o texto sobe, em cima ele desce. Sem isso
+    os dois desenham no mesmo lugar e o vídeo sai com texto por cima de texto.
+    Sem legenda, o texto fica exatamente onde a pessoa pediu."""
     aln = _AN.get(chave, 2)
     mv = 0 if aln == 5 else (MARGEM_CIMA if aln == 8 else MARGEM_BAIXO)
+    if pos_leg and _AN.get(str(pos_leg).strip().lower(), 2) == aln:
+        if aln == 5:
+            # alinhamento 5 (meio) IGNORA a margem: pra tirar o texto do centro
+            # ele vira âncora de baixo, contada do rodapé até acima do meio.
+            aln, mv = 2, H // 2 + DESVIO_TEXTO
+        else:
+            # 8 conta do topo (o texto desce), 2 conta do rodapé (o texto sobe)
+            mv += DESVIO_TEXTO
     return (f"Style: Manual{chave},{FONTE},{FT_LEGENDA},&H00FFFFFF,&H00000000,"
             f"&H64000000,1,0,0,0,100,100,0,0,1,{CONTORNO},2,{aln},70,70,{mv},1")
 
@@ -963,12 +1406,15 @@ def ass_montagem(caminho, textos, captions=None, frases=None, dur_total=0,
       - as legendas da IA (formato Legenda) OU as frases cronometradas (narração
         da IA e transcrição da fala do clipe principal)."""
     aln, mv = _aln_margin(pos)
+    # sem frases e sem captions não existe legenda queimada neste vídeo, então o
+    # texto da pessoa não precisa desviar de nada: fica onde ela pediu.
+    pos_leg = pos if (frases or captions) else None
     estilos = [
         f"Style: Venda,{FONTE},{FT_LEGENDA},&H00FFFFFF,&H00000000,&H64000000,"
         f"1,0,0,0,100,100,0,0,1,{CONTORNO},2,{aln},70,70,{mv},1",
         _estilo_gancho(aln, mv),
         _ESTILOS_PRECO,
-    ] + [_estilo_manual(k) for k in _AN]
+    ] + [_estilo_manual(k, pos_leg) for k in _AN]
 
     ev = []
     if frases:
@@ -1002,31 +1448,72 @@ def ass_montagem(caminho, textos, captions=None, frases=None, dur_total=0,
         f.write(_cab_ass("\n".join(estilos)) + "\n".join(ev) + "\n")
 
 
-def transcrever_fala(video, lang="pt", modelo="small"):
+class FalhaTranscricao(Exception):
+    """A transcrição local falhou num vídeo que PEDIU legenda.
+
+    Existe pra o render parar em vez de entregar um vídeo sem legenda como se
+    estivesse tudo certo: quem pediu "legendar a fala" e recebe o vídeo mudo de
+    legenda não tem como saber que faltou biblioteca/modelo na máquina do robô."""
+
+
+def transcrever_fala(video, lang="pt", modelo="small", obrigatoria=False,
+                     palavras=False):
     """Transcreve a fala do clipe principal com faster-whisper LOCAL (sem custo de
     API). Serve pra IA saber DO QUE a pessoa está falando em cada segundo e
-    encaixar os apoios no momento certo. Retorna [{ini, fim, texto}] ou []."""
+    encaixar os apoios no momento certo. Retorna [{ini, fim, texto}] ou [].
+
+    `obrigatoria=True` (vídeo que pediu legenda da fala): qualquer falha vira
+    `FalhaTranscricao` em vez de lista vazia. Sem isso o vídeo saía inteiro e
+    SEM legenda quando faltava o `faster-whisper` ou o modelo na máquina, e
+    ninguém ficava sabendo: nem o usuário, nem o painel de diagnóstico.
+
+    `palavras=True` (legenda palavra por palavra): pede o tempo de CADA palavra
+    ao Whisper e devolve isso em `palavras`. Custa um pouco mais de CPU, então
+    só é ligado quando a pessoa escolheu esse estilo de legenda."""
+    def _falhou(motivo, e=None):
+        if obrigatoria:
+            raise FalhaTranscricao(
+                f"[voz] Falha ao iniciar ou executar o faster-whisper para "
+                f"transcricao local: {motivo}" + (f" ({e.__class__.__name__}: {e})" if e else "")
+            )
+        return []
+
     try:
         from faster_whisper import WhisperModel
-    except Exception:
-        return []
+    except Exception as e:
+        return _falhou("biblioteca faster-whisper indisponivel", e)
     # nome derivado do arquivo: com vários principais (e vários produtos rodando
     # em paralelo) um nome fixo faria uma transcrição atropelar a outra
     base_nome = re.sub(r"[^\w.-]+", "_", os.path.basename(video))[:60]
     wav = os.path.join(DIR_TEMP, f"fala_{base_nome}.wav")
     os.makedirs(DIR_TEMP, exist_ok=True)
     if run([FFMPEG, "-y", "-i", video, "-ac", "1", "-ar", "16000", "-vn", wav]).returncode != 0:
-        return []
+        return _falhou(f"o ffmpeg nao conseguiu extrair o audio de {os.path.basename(video)}")
     try:
         wm = WhisperModel(modelo, device="cpu", compute_type="int8",
                           cpu_threads=os.cpu_count() or 4)
         segs, _info = wm.transcribe(
-            wav, vad_filter=True,
+            wav, vad_filter=True, word_timestamps=bool(palavras),
             language=None if lang in ("auto", "", None) else lang)
-        return [{"ini": float(s.start), "fim": float(s.end), "texto": (s.text or "").strip()}
-                for s in segs if (s.text or "").strip()]
-    except Exception:
-        return []
+        saida = []
+        for s in segs:
+            if not (s.text or "").strip():
+                continue
+            item = {"ini": float(s.start), "fim": float(s.end),
+                    "texto": (s.text or "").strip()}
+            if palavras:
+                item["palavras"] = [
+                    {"ini": float(w.start), "fim": float(w.end),
+                     "texto": (w.word or "").strip()}
+                    for w in (getattr(s, "words", None) or [])
+                    if (w.word or "").strip()
+                ]
+            saida.append(item)
+        return saida
+    except FalhaTranscricao:
+        raise
+    except Exception as e:
+        return _falhou(f"modelo '{modelo}' nao carregou ou a transcricao quebrou", e)
     finally:
         try:
             os.remove(wav)
@@ -1034,35 +1521,64 @@ def transcrever_fala(video, lang="pt", modelo="small"):
             pass
 
 
-def planejar_apoios(apoios, dur_base, fala):
+def _encostar_no_ritmo(entra, fala):
+    """CORTE NO TEMPO CERTO: puxa o momento da cena pra a virada de frase mais
+    perto, em vez de deixar ela entrar no meio de uma palavra.
+
+    A transcrição já vem com o começo e o fim de cada trecho falado. Se o segundo
+    escolhido cai dentro de uma frase mas está a menos de `IMA_RITMO` de uma
+    borda dela, o corte vai pra borda: é a pausa natural da respiração, onde a
+    troca de imagem não atropela nada. Longe de qualquer borda, fica onde está
+    (aí a cena entra durante a frase mesmo, que é o que a IA pediu)."""
+    if not fala:
+        return entra
+    melhor, dist = entra, IMA_RITMO
+    for f in fala:
+        for borda in (float(f.get("ini", 0)), float(f.get("fim", 0))):
+            d = abs(borda - entra)
+            if d < dist:
+                melhor, dist = borda, d
+    return max(0.0, melhor)
+
+
+def planejar_apoios(apoios, dur_base, fala, ritmo=True, desc_base="", produto=""):
     """Decide em que segundo cada clipe de apoio entra por cima do principal.
 
     Quem já tem `entra` (a pessoa arrastou na linha do tempo) manda. Pros demais
-    a IA lê a transcrição da fala e escolhe o trecho que combina com aquele
-    clipe; sem IA ou sem fala, distribui em intervalos iguais. No fim resolve as
-    sobreposições empurrando pra frente e derruba o que não couber.
+    a IA lê a transcrição da fala e o que a pessoa escreveu que aparece na base
+    (`desc_base`) e escolhe o trecho que combina com aquele clipe; sem IA e sem
+    nenhuma das duas pistas, distribui em intervalos iguais. Depois cada
+    momento escolhido pela IA é encostado na virada de frase mais próxima
+    (`_encostar_no_ritmo`), e no fim resolve as sobreposições empurrando pra
+    frente e derruba o que não couber.
+
+    O momento que a PESSOA fixou nunca é mexido: ela viu a linha do tempo.
+
+    RENDER ESTÁTICO (06/08/2026): quando a tela usa o "Posicionar cenas por IA"
+    (etapa 5 do Editor), TODOS os apoios chegam com `entra` preenchido. Aí
+    `livres` fica vazio, esta função não chama IA nenhuma e só obedece os
+    segundos que a pessoa aprovou: o encaixe deixou de acontecer escondido aqui
+    dentro e passou a ser conferido antes de gastar o vídeo. O caminho de decidir
+    aqui continua inteiro, porque job que não passou por aquele botão (e todo job
+    antigo) ainda chega com `entra` nulo.
 
     Retorna [(indice_do_apoio, entra, duracao)] já em ordem de tempo."""
     if not apoios:
         return []
-    # cabe 1 cena de apoio a cada 10s do principal; o resto fica de fora (a tela
-    # já avisa antes de gerar, isto aqui é a mesma regra do lado do render)
+    # cabe 1 cena de apoio a cada SEG_POR_APOIO segundos do principal; o resto
+    # fica de fora (a tela já avisa antes de gerar, mesma regra do lado do render)
     cabem = int(dur_base // SEG_POR_APOIO)
     if len(apoios) > cabem:
         apoios = apoios[:cabem]
     if not apoios:
         return []
-    duracoes = []
-    for a in apoios:
-        try:
-            d = float(a.get("out", 0)) - float(a.get("in", 0))
-        except (TypeError, ValueError):
-            d = 3.0
-        duracoes.append(max(APOIO_MIN, min(APOIO_MAX, d if d > 0 else 3.0)))
+    duracoes = [_dur_apoio(a) for a in apoios]
 
     livres = [i for i, a in enumerate(apoios) if a.get("entra") is None]
     escolhas = {}
-    if livres and fala:
+    # `desc_base` sozinha já dá trabalho pra IA: por isso o planejamento agora
+    # roda também em vídeo SEM fala, coisa que antes caía direto no espalhamento
+    if livres and (fala or str(desc_base).strip()):
         try:
             import gemini_copy
             escolhas = gemini_copy.plano_broll(fala, [
@@ -1072,15 +1588,18 @@ def planejar_apoios(apoios, dur_base, fala):
                  # forte pra IA casar o apoio com o trecho certo da fala
                  "descricao": str(apoios[i].get("descricao") or "").strip()}
                 for i in livres
-            ], dur_base)
+            ], dur_base, desc_base=desc_base, produto=produto)
         except Exception:
             escolhas = {}
 
-    # distribuição em intervalos iguais: fallback e ponto de partida dos livres
+    # distribuição em intervalos iguais: fallback e ponto de partida dos livres.
+    # O que a IA escolheu ainda é encostado na virada de frase mais próxima, pra
+    # a cena não entrar no meio de uma palavra.
     marcas = []
     for k, i in enumerate(livres):
         padrao = dur_base * (k + 1) / (len(livres) + 1)
-        marcas.append([i, float(escolhas.get(i, padrao))])
+        alvo = float(escolhas.get(i, padrao))
+        marcas.append([i, _encostar_no_ritmo(alvo, fala) if ritmo else alvo])
     for i, a in enumerate(apoios):
         if a.get("entra") is not None:
             try:
@@ -1096,7 +1615,16 @@ def planejar_apoios(apoios, dur_base, fala):
         # apoio não pode invadir o fim do vídeo nem colar no anterior
         if entra + d > dur_base:
             d = dur_base - entra
-        if d < APOIO_MIN:
+        # o piso é POR CENA: foto vale a partir de IMAGEM_MIN, vídeo a partir de
+        # APOIO_MIN e cena com tamanho MANUAL (painel da etapa 5) a partir de
+        # DURA_MANUAL_MIN - quem encolheu a cena na mão não pode vê-la morrer na
+        # régua do automático. Medindo foto pela régua do vídeo, toda cena de
+        # foto com menos de 2s morria aqui, inclusive a que a pessoa aprovou.
+        if _dura_manual(apoios[i]):
+            min_dur = DURA_MANUAL_MIN
+        else:
+            min_dur = IMAGEM_MIN if apoios[i].get("tipo") == "image" else APOIO_MIN
+        if d < min_dur:
             continue          # não sobrou espaço: esse apoio fica de fora
         saida.append((i, round(entra, 2), round(d, 2)))
         cursor = entra + d
@@ -1151,29 +1679,114 @@ def _filtro_stems(i_orig, i_mus, i_voz, v_orig, v_mus, v_voz, total):
                      f"afade=t=out:st={fim}:d={FADE}[aout]")
 
 
-def _stem_som(nome, sufixo, pedacos, total):
+def _expr_falando(fala, total, limite=40):
+    """Expressão do ffmpeg que vale 1 enquanto a pessoa está FALANDO na base.
+
+    É o gatilho do ducking do som das cenas de apoio: em vez de abaixar o apoio o
+    vídeo inteiro (que deixaria ele inaudível nas pausas), a faixa dele cai só
+    nos trechos em que existe fala.
+
+    Silêncios curtos entre frases não contam como pausa (o som subiria e desceria
+    a cada respiração), e se houver frase demais os buracos menores vão sendo
+    fechados até a expressão caber em `limite` janelas: um `if()` com centenas de
+    termos deixa o ffmpeg lentíssimo. Devolve "" quando não há fala nenhuma."""
+    janelas = []
+    for f in sorted(fala or [], key=lambda x: float(x.get("ini", 0) or 0)):
+        try:
+            a, b = max(0.0, float(f.get("ini", 0))), min(total, float(f.get("fim", 0)))
+        except (TypeError, ValueError):
+            continue
+        if b - a <= 0.05:
+            continue
+        if janelas and a - janelas[-1][1] < 0.35:
+            janelas[-1][1] = max(janelas[-1][1], b)
+        else:
+            janelas.append([a, b])
+    if not janelas:
+        return ""
+    while len(janelas) > limite:
+        # fecha sempre o MENOR buraco: o que se perde é a pausa mais curta
+        k = min(range(len(janelas) - 1), key=lambda j: janelas[j + 1][0] - janelas[j][1])
+        janelas[k][1] = max(janelas[k][1], janelas[k + 1][1])
+        del janelas[k + 1]
+    return "+".join(f"between(t,{a:.2f},{b:.2f})" for a, b in janelas)
+
+
+def _stem_som(nome, sufixo, pedacos, total, apoios=None, fala=None):
     """Faixa com o SOM DOS VÍDEOS, emendando os pedaços na ordem.
 
     Serve pros dois modos: a fala da pessoa nos clipes principais (que podem ser
     vários, tocando em sequência) e o som original dos clipes em sequência. Onde
     não há áudio entra silêncio do tamanho do pedaço, senão o concat recusa a
-    mistura. None = não há nada pra ouvir (vídeo mudo)."""
-    if not pedacos or not any(p["som"] for p in pedacos):
+    mistura. None = não há nada pra ouvir (vídeo mudo).
+
+    `apoios` (05/08/2026) é o som das CENAS DE APOIO, cada uma com o segundo em
+    que ela entra. Elas entravam mudas; agora o barulho delas entra baixinho e
+    abaixa mais ainda enquanto a pessoa fala (ducking automático). Vai tudo
+    misturado NESTA faixa de propósito: assim o botão "Reajustar áudio" do vídeo
+    pronto continua funcionando sem precisar conhecer uma faixa nova."""
+    apoios = [a for a in (apoios or []) if a.get("som")]
+    if (not pedacos or not any(p["som"] for p in pedacos)) and not apoios:
         return None
     alvo = os.path.join(DIR_TEMP, f"fab_stem_orig_{nome}{sufixo}.m4a")
     ins, partes = [], ""
     for i, p in enumerate(pedacos):
         d = max(0.1, float(p["dur"]))
         if p["som"]:
-            ins += ["-ss", f"{float(p['ss']):.2f}", "-t", f"{d:.2f}", "-i", p["path"]]
-            partes += (f"[{i}:a]aresample=44100,apad=whole_dur={d:.2f},"
+            # corte PRECISO: o -ss mira antes do alvo e o atrim tira o pedaço
+            # exato com o decodificador já aquecido (é isso que mantém a voz em
+            # sincronia com a legenda; ver SEEK_FOLGA)
+            pre, off = _seek_previo(p["ss"])
+            ins += ["-ss", f"{pre:.2f}", "-t", f"{off + d + 0.2:.2f}", "-i", p["path"]]
+            partes += (f"[{i}:a]atrim=start={off:.3f}:end={off + d:.3f},"
+                       f"asetpts=PTS-STARTPTS,aresample=44100,"
+                       f"apad=whole_dur={d:.2f},"
                        f"atrim=0:{d:.2f},asetpts=N/SR/TB[a{i}];")
         else:
             ins += ["-f", "lavfi", "-t", f"{d:.2f}", "-i", "anullsrc=r=44100:cl=stereo"]
             partes += f"[{i}:a]atrim=0:{d:.2f},asetpts=N/SR/TB[a{i}];"
     n = len(pedacos)
-    refs = "".join(f"[a{i}]" for i in range(n))
-    filtro = (partes + f"{refs}concat=n={n}:v=0:a=1,apad=whole_dur={total:.2f},"
+    if n:
+        refs = "".join(f"[a{i}]" for i in range(n))
+        partes += f"{refs}concat=n={n}:v=0:a=1[base];"
+        camadas = ["[base]"]
+    else:
+        camadas = []
+
+    for k, a in enumerate(apoios):
+        j = n + k
+        d = max(0.1, float(a["dur"]))
+        ms = max(0, int(round(float(a["entra"]) * 1000)))
+        pre, off = _seek_previo(a["ss"])
+        ins += ["-ss", f"{pre:.2f}", "-t", f"{off + d + 0.2:.2f}", "-i", a["path"]]
+        # corte preciso (atrim no filtro) + esmaecido curtinho nas pontas: o som
+        # do apoio entrando seco vira um "toc" no meio da fala
+        partes += (f"[{j}:a]atrim=start={off:.3f}:end={off + d:.3f},"
+                   f"asetpts=PTS-STARTPTS,aresample=44100,"
+                   f"apad=whole_dur={d:.2f},atrim=0:{d:.2f},"
+                   f"asetpts=N/SR/TB,afade=t=in:st=0:d=0.12,"
+                   f"afade=t=out:st={max(0.0, d - 0.12):.2f}:d=0.12,"
+                   f"adelay={ms}|{ms}[ap{k}];")
+        camadas.append(f"[ap{k}]")
+
+    if apoios:
+        # o volume do apoio já sai baixo daqui, e cai mais enquanto há fala
+        alvos = "".join(camadas[1:]) if n else "".join(camadas)
+        nap = len(apoios)
+        partes += (f"{alvos}amix=inputs={nap}:duration=longest:normalize=0[apo0];"
+                   if nap > 1 else f"{alvos}anull[apo0];")
+        expr = _expr_falando(fala or [], total)
+        partes += (
+            f"[apo0]volume=volume='if({expr},{VOL_APOIO_FALANDO},{VOL_APOIO})':eval=frame[apo];"
+            if expr else f"[apo0]volume={VOL_APOIO}[apo];")
+        camadas = (["[base]"] if n else []) + ["[apo]"]
+
+    if len(camadas) > 1:
+        partes += (f"{''.join(camadas)}amix=inputs={len(camadas)}:"
+                   f"duration=longest:normalize=0[mix];")
+    else:
+        partes += f"{camadas[0]}anull[mix];"
+    filtro = (partes + f"[mix]apad=whole_dur={total:.2f},"
               f"atrim=0:{total:.2f},asetpts=N/SR/TB[aout]")
     r = run([FFMPEG, "-y", *ins, "-filter_complex", filtro, "-map", "[aout]",
              "-c:a", "aac", "-b:a", AUDIO_KBPS, alvo])
@@ -1389,6 +2002,18 @@ def _trechos_com_fala(video, ini, fim, minimo):
     return ficam
 
 
+def _corte_da_base(b):
+    """O pedaço que a pessoa escolheu de um clipe principal: (inicio, fim) dentro
+    do arquivo. Uma função só porque a régua da tela e a linha do render precisam
+    enxergar EXATAMENTE o mesmo corte."""
+    b_in = max(0.0, float(b.get("in", 0) or 0))
+    try:
+        b_out = float(b.get("out", b_in + 5))
+    except (TypeError, ValueError):
+        b_out = b_in + 5.0
+    return b_in, max(b_in + 0.3, b_out)
+
+
 def _linha_da_base(bases, silencio_min=0.0):
     """Monta a linha do tempo da BASE: os clipes principais tocam em sequência,
     na ordem da lista, e cada um ocupa uma faixa dela.
@@ -1396,25 +2021,99 @@ def _linha_da_base(bases, silencio_min=0.0):
     Com `silencio_min` > 0, cada principal ainda vira VÁRIOS pedaços: os trechos
     sem fala mais longos que isso saem fora (corte seco, imagem e som juntos).
 
-    Devolve ([{path, in, dur, t0}], duracao_total). `t0` é em que segundo do
-    vídeo aquele pedaço começa."""
+    Devolve ([{path, bi, in, dur, t0}], duracao_total). `t0` é em que segundo do
+    vídeo aquele pedaço começa; `bi` é a posição do principal na lista `bases` (o
+    mesmo arquivo pode entrar duas vezes, com cortes diferentes, e sem esse campo
+    não daria pra saber de qual das duas entradas o pedaço veio)."""
     segs, acum = [], 0.0
-    for b in bases:
+    for bi, b in enumerate(bases):
         if acum >= MAX_MONTAGEM - 0.05:
             break
-        b_in = max(0.0, float(b.get("in", 0) or 0))
-        try:
-            b_out = float(b.get("out", b_in + 5))
-        except (TypeError, ValueError):
-            b_out = b_in + 5.0
-        b_out = max(b_in + 0.3, b_out)
+        b_in, b_out = _corte_da_base(b)
         for a, z in _trechos_com_fala(b["path"], b_in, b_out, silencio_min):
             if acum >= MAX_MONTAGEM - 0.05:
                 break
             dur = max(0.2, min(z - a, MAX_MONTAGEM - acum))
-            segs.append({"path": b["path"], "in": a, "dur": dur, "t0": acum})
+            segs.append({"path": b["path"], "bi": bi, "in": a, "dur": dur, "t0": acum})
             acum += dur
     return segs, acum
+
+
+def _linha_bruta(bases):
+    """A régua da TELA: os mesmos principais em sequência, mas com as pausas
+    dentro, porque é assim que o Editor toca e mede o vídeo.
+
+    É a escala em que nasce todo `entra` que chega no roteiro (a IA do
+    "Posicionar cenas" e o arraste na linha do tempo trabalham nela)."""
+    linha, acum = [], 0.0
+    for bi, b in enumerate(bases):
+        b_in, b_out = _corte_da_base(b)
+        dur = b_out - b_in
+        linha.append({"bi": bi, "in": b_in, "dur": dur, "t0": acum})
+        acum += dur
+    return linha, acum
+
+
+def _pra_linha_cortada(t, bruta, segs, dur_cortada):
+    """Traduz um segundo da régua da TELA no segundo equivalente do vídeo que vai
+    sair, quando o corte de pausas está ligado.
+
+    Sem isso o momento aprovado na tela (contado com as pausas) era aplicado
+    direto na base já encurtada, e cada cena de apoio caía num trecho da fala
+    diferente do que a pessoa viu; com vários principais o desencontro ia
+    crescendo, porque a cada take havia mais pausa cortada acumulada atrás.
+
+    Momento que caiu DENTRO de um trecho cortado vira o começo do pedaço
+    seguinte: a cena entra assim que a fala volta, que é o mais perto possível do
+    que foi aprovado."""
+    if not segs:
+        return 0.0
+    if not bruta:
+        return max(0.0, min(t, dur_cortada))
+
+    # 1) em que principal esse segundo cai, e em que instante DO ARQUIVO
+    alvo = bruta[0]
+    for f in bruta:
+        alvo = f
+        if t < f["t0"] + f["dur"]:
+            break
+    dentro = alvo["in"] + min(max(0.0, t - alvo["t0"]), alvo["dur"])
+
+    # 2) o pedaço daquele principal que sobreviveu ao corte e contém o instante
+    ultimo = None
+    for s in segs:
+        if s.get("bi") != alvo["bi"]:
+            continue
+        if dentro < s["in"]:
+            return round(s["t0"], 2)
+        if dentro < s["in"] + s["dur"]:
+            return round(s["t0"] + (dentro - s["in"]), 2)
+        ultimo = s
+    if ultimo is not None:
+        return round(ultimo["t0"] + ultimo["dur"], 2)
+    # aquele principal inteiro ficou de fora (estourou o teto de duração)
+    return round(dur_cortada, 2)
+
+
+def _apoios_na_linha_cortada(apoios, bases, segs, dur_cortada):
+    """Passa os momentos aprovados na tela pra régua do vídeo cortado.
+
+    Devolve cópias dos apoios (o roteiro original não é mexido) na MESMA ordem,
+    porque o planejamento devolve índices dessa lista. Quem chegou sem `entra`
+    passa direto: esse é decidido aqui dentro, já na régua certa."""
+    bruta, _ = _linha_bruta(bases)
+    saida = []
+    for a in apoios:
+        if a.get("entra") is None:
+            saida.append(a)
+            continue
+        try:
+            t = float(a["entra"])
+        except (TypeError, ValueError):
+            saida.append(a)
+            continue
+        saida.append(dict(a, entra=_pra_linha_cortada(t, bruta, segs, dur_cortada)))
+    return saida
 
 
 def _fatias_da_base(segs, a, b):
@@ -1429,26 +2128,42 @@ def _fatias_da_base(segs, a, b):
     return out
 
 
-def _fala_da_base(segs):
+def _fala_da_base(segs, obrigatoria=False, palavras=False):
     """Transcreve a fala de CADA principal e traz os tempos pra linha do vídeo.
 
     Sem isso, com dois principais, a legenda do segundo apareceria com o tempo
     contado do começo do arquivo dele, e não do ponto em que ele entra.
 
     O resultado é guardado por arquivo: com corte de silêncio um mesmo vídeo vira
-    vários pedaços, e transcrever de novo a cada pedaço custaria minutos à toa."""
+    vários pedaços, e transcrever de novo a cada pedaço custaria minutos à toa.
+
+    `palavras=True`: o tempo de cada palavra vem junto e é deslocado pela MESMA
+    conta da frase (sem isso a legenda palavra por palavra do 2º principal sairia
+    adiantada, contando do começo do arquivo dele)."""
     fala, cache = [], {}
     for s in segs:
         if s["path"] not in cache:
-            cache[s["path"]] = transcrever_fala(s["path"]) or []
+            cache[s["path"]] = transcrever_fala(s["path"], obrigatoria=obrigatoria,
+                                                palavras=palavras) or []
+        desloca = s["t0"] - s["in"]
+        ini_pedaco, fim_pedaco = s["t0"], s["t0"] + s["dur"]
         for f in cache[s["path"]]:
-            ini = f["ini"] - s["in"] + s["t0"]
-            fim = f["fim"] - s["in"] + s["t0"]
-            if fim <= s["t0"] or ini >= s["t0"] + s["dur"]:
+            ini = f["ini"] + desloca
+            fim = f["fim"] + desloca
+            if fim <= ini_pedaco or ini >= fim_pedaco:
                 continue          # trecho fora do pedaço que entrou no vídeo
-            fala.append({"ini": max(s["t0"], ini),
-                         "fim": min(s["t0"] + s["dur"], fim),
-                         "texto": f["texto"]})
+            item = {"ini": max(ini_pedaco, ini),
+                    "fim": min(fim_pedaco, fim),
+                    "texto": f["texto"]}
+            if f.get("palavras"):
+                item["palavras"] = [
+                    {"ini": max(ini_pedaco, p["ini"] + desloca),
+                     "fim": min(fim_pedaco, p["fim"] + desloca),
+                     "texto": p["texto"]}
+                    for p in f["palavras"]
+                    if p["fim"] + desloca > ini_pedaco and p["ini"] + desloca < fim_pedaco
+                ]
+            fala.append(item)
     return fala
 
 
@@ -1456,52 +2171,140 @@ def _montar_com_principal(prod_dir, nome, cfg, clipes, bases, sufixo, var_idx, n
                           *, textos, preco, produto, pos_leg, formato, captions,
                           sem_musica, v_orig, v_mus, v_voz):
     """Clipes principais como base (em sequência) + apoios em tela cheia por cima."""
-    segs_base, dur_base = _linha_da_base(bases, _silencio_min(cfg))
+    silencio_min = _silencio_min(cfg)
+    segs_base, dur_base = _linha_da_base(bases, silencio_min)
     if not segs_base:
         return False, "clipe principal sem duração utilizável"
     apoios = [c for c in clipes if c.get("papel") != "principal"]
+    # CORTE DE PAUSAS x MOMENTO DA CENA: o `entra` que chega no roteiro foi
+    # escolhido na tela, que conta o vídeo INTEIRO. Aqui a base já perdeu os
+    # trechos calados e ficou mais curta, então o mesmo número aponta pra outro
+    # ponto da fala. Traduzimos antes de planejar, senão a cena de apoio cobre
+    # uma parte do vídeo diferente da que foi aprovada.
+    if silencio_min > 0:
+        apoios = _apoios_na_linha_cortada(apoios, bases, segs_base, dur_base)
+    ed = _edicao(cfg)
 
     # a fala dos principais serve pra IA escolher os momentos E, no formato
     # "Transcrever fala", vira a legenda cronometrada do vídeo
-    precisa_fala = formato == "transcrever" or any(a.get("entra") is None for a in apoios)
-    fala = _fala_da_base(segs_base) if precisa_fala else []
-    marcas = planejar_apoios(apoios, dur_base, fala)
+    precisa_fala = (formato == "transcrever"
+                    or any(a.get("entra") is None for a in apoios)
+                    or ed["som_apoio"])   # o ducking precisa saber quando há fala
+    # com "transcrever" a legenda é o pedido principal: se a transcrição falhar,
+    # o render PARA (FalhaTranscricao) em vez de entregar o vídeo sem legenda.
+    # Nos outros formatos a transcrição é só uma pista pro encaixe das cenas, e
+    # aí a falha continua sendo silenciosa (o vídeo sai igual ao de antes).
+    estilo_leg = _estilo_legenda(cfg)
+    fala = (_fala_da_base(segs_base, obrigatoria=(formato == "transcrever"),
+                          palavras=(formato == "transcrever" and estilo_leg == "palavra"))
+            if precisa_fala else [])
+    # o que a pessoa escreveu que aparece no vídeo dela: única pista de IMAGEM da
+    # base (a transcrição conta o que é falado, não o que está na tela)
+    desc_base = "; ".join(
+        d for d in (str(b.get("descricao") or "").strip() for b in bases) if d)[:400]
+    # nome e preço do produto como contexto do encaixe (dono, 06/08/2026): no
+    # modo com fala não existe copy, então sem isto a IA do plano nem sabia do
+    # que o vídeo tratava. sem_copy = a pessoa disse que NÃO é produto, e aí o
+    # "produto" do job é só o título do vídeo, não vai.
+    ctx_produto = ""
+    if str(cfg.get("sem_copy", "")).strip().lower() not in ("1", "sim", "true"):
+        ctx_produto = str(produto or "").strip()[:120]
+        if ctx_produto and str(preco or "").strip():
+            ctx_produto += f" (R$ {str(preco).strip()[:20]})"
+    marcas = planejar_apoios(apoios, dur_base, fala, ritmo=True, desc_base=desc_base,
+                             produto=ctx_produto)
 
-    # ---- sequência final: pedaços da base alternando com os apoios
-    trechos, cursor = [], 0.0
-    for i, entra, d in marcas:
-        if entra > cursor + 0.05:
-            trechos.append(("base", cursor, entra))
-        trechos.append(("apoio", i, d))
-        cursor = entra + d
-    if cursor < dur_base - 0.05:
-        trechos.append(("base", cursor, dur_base))
-    if not trechos:
-        trechos = [("base", 0.0, dur_base)]
-
-    # CADA pedaço é uma entrada própria do ffmpeg. Abrir o mesmo arquivo várias
-    # vezes com -ss é barato; fatiar um decode só (split + trim) faria o ffmpeg
-    # segurar o vídeo inteiro em memória enquanto o concat ainda está no primeiro
-    # pedaço - em vídeo longo isso vira vários GB de RAM e derruba o render.
-    ins, partes, ordem = [], "", []
-    for tr in trechos:
-        if tr[0] == "base":
-            for caminho, ss, dur in _fatias_da_base(segs_base, tr[1], tr[2]):
-                k = len(ordem)
-                ins += ["-ss", f"{ss:.2f}", "-t", f"{dur:.2f}", "-i", caminho]
-                partes += _norm_v(k) + f"[t{k}];"
-                ordem.append(f"[t{k}]")
-        else:
-            a = apoios[tr[1]]
+    ins, partes, n_video = [], "", 0
+    if ed["transicoes"] and marcas:
+        # ---- COM TRANSIÇÃO: a base corre INTEIRA e cada apoio é desenhado por
+        # cima dela, aparecendo e sumindo com um esmaecido curto. Feito assim (e
+        # não com `xfade`) porque sobrepor NÃO muda a duração do vídeo: com xfade
+        # cada transição encurtaria o filme e a fala sairia do lugar.
+        ordem = []
+        for caminho, ss, dur in _fatias_da_base(segs_base, 0.0, dur_base):
             k = len(ordem)
-            if a.get("tipo") == "image":
-                ins += ["-loop", "1", "-t", f"{tr[2]:.2f}", "-i", a["path"]]
-            else:
-                ins += ["-ss", f"{float(a.get('in', 0)):.2f}", "-t", f"{tr[2]:.2f}",
-                        "-i", a["path"]]
-            partes += _norm_v(k) + f"[t{k}];"
+            pre, off = _seek_previo(ss)
+            ins += ["-ss", f"{pre:.2f}", "-t", f"{off + dur + 0.2:.2f}", "-i", caminho]
+            partes += _norm_v(k, corte=(off, dur)) + f"[t{k}];"
             ordem.append(f"[t{k}]")
-    n_video = len(ordem)
+        nb = len(ordem)
+        partes += ("".join(ordem) + f"concat=n={nb}:v=1:a=0[bg0];"
+                   if nb > 1 else f"{ordem[0]}null[bg0];")
+        n_video = nb
+        atual = "[bg0]"
+        for j, (i, entra, d) in enumerate(marcas):
+            a = apoios[i]
+            k = n_video
+            # a transição sai dos DOIS lados do corte, então cena curta ganha um
+            # esmaecido menor pra não virar só esmaecido
+            t = min(TRANSICAO, max(0.05, d / 3.0))
+            # FOTO: encosta nas bordas de cima e de baixo, e a sobra LATERAL fica
+            # transparente (`alpha=True`) pro vídeo de baixo aparecer em vez de
+            # faixa preta. VÍDEO de apoio: preenche a tela inteira (crop-to-fill,
+            # `_norm_v_secundario`), então não existe sobra nenhuma.
+            if a.get("tipo") == "image":
+                ins += ["-loop", "1", "-framerate", str(FPS), "-t", f"{d:.2f}", "-i", a["path"]]
+                base_f = (_norm_img_kb(k, d, alpha=True) if ed["kenburns"]
+                          else _norm_img(k, alpha=True))
+            else:
+                pre, off = _seek_previo(_inicio_apoio(a, ed["trecho"]))
+                ins += ["-ss", f"{pre:.2f}", "-t", f"{off + d + 0.2:.2f}",
+                        "-i", a["path"]]
+                base_f = _norm_v_secundario(k, corte=(off, d))
+            partes += (base_f + f",format=yuva420p,fade=t=in:st=0:d={t:.2f}:alpha=1,"
+                       f"fade=t=out:st={max(0.0, d - t):.2f}:d={t:.2f}:alpha=1,"
+                       f"setpts=PTS+{entra:.2f}/TB[ap{j}];")
+            # `repeatlast=0` é obrigatório: sem ele o último quadro do apoio
+            # ficaria congelado por cima da base até o fim do vídeo
+            partes += (f"{atual}[ap{j}]overlay=eof_action=pass:repeatlast=0:"
+                       f"enable='between(t,{entra:.2f},{entra + d:.2f})'[ov{j}];")
+            atual = f"[ov{j}]"
+            n_video += 1
+        partes += f"{atual}null[vc];"
+    else:
+        # ---- SEM TRANSIÇÃO (corte seco): a base é picotada e o apoio ocupa o
+        # buraco. É o caminho de sempre, mantido inteiro pra quem desligar a
+        # edição avançada receber exatamente o vídeo de antes.
+        trechos, cursor = [], 0.0
+        for i, entra, d in marcas:
+            if entra > cursor + 0.05:
+                trechos.append(("base", cursor, entra))
+            trechos.append(("apoio", i, d))
+            cursor = entra + d
+        if cursor < dur_base - 0.05:
+            trechos.append(("base", cursor, dur_base))
+        if not trechos:
+            trechos = [("base", 0.0, dur_base)]
+
+        # CADA pedaço é uma entrada própria do ffmpeg. Abrir o mesmo arquivo várias
+        # vezes com -ss é barato; fatiar um decode só (split + trim) faria o ffmpeg
+        # segurar o vídeo inteiro em memória enquanto o concat ainda está no primeiro
+        # pedaço - em vídeo longo isso vira vários GB de RAM e derruba o render.
+        ordem = []
+        for tr in trechos:
+            if tr[0] == "base":
+                for caminho, ss, dur in _fatias_da_base(segs_base, tr[1], tr[2]):
+                    k = len(ordem)
+                    pre, off = _seek_previo(ss)
+                    ins += ["-ss", f"{pre:.2f}", "-t", f"{off + dur + 0.2:.2f}",
+                            "-i", caminho]
+                    partes += _norm_v(k, corte=(off, dur)) + f"[t{k}];"
+                    ordem.append(f"[t{k}]")
+            else:
+                a = apoios[tr[1]]
+                k = len(ordem)
+                if a.get("tipo") == "image":
+                    ins += ["-loop", "1", "-framerate", str(FPS), "-t", f"{tr[2]:.2f}",
+                            "-i", a["path"]]
+                    partes += (_norm_img_kb(k, tr[2]) if ed["kenburns"] else _norm_img(k)) + f"[t{k}];"
+                else:
+                    pre, off = _seek_previo(_inicio_apoio(a, ed["trecho"]))
+                    ins += ["-ss", f"{pre:.2f}", "-t", f"{off + tr[2] + 0.2:.2f}",
+                            "-i", a["path"]]
+                    partes += _norm_v_secundario(k, corte=(off, tr[2])) + f"[t{k}];"
+                ordem.append(f"[t{k}]")
+        n_video = len(ordem)
+        partes += "".join(ordem) + f"concat=n={n_video}:v=1:a=0[vc];"
 
     # ---- faixas de áudio separadas (mixadas aqui e guardadas pro reajuste).
     # A fala vem dos arquivos originais inteiros, não desses pedaços: por isso
@@ -1513,30 +2316,44 @@ def _montar_com_principal(prod_dir, nome, cfg, clipes, bases, sufixo, var_idx, n
         # com música acelerada/lenta é preciso mais (ou menos) trecho da faixa:
         # a busca pelo melhor pedaço tem que olhar esse tamanho, não o do vídeo
         musica, mus_start = resolver_musica(cfg, dur_base * veloc, var_idx, n_var)
+    # som das cenas de apoio (só vídeo tem som, e só quando a edição pede)
+    som_apoios = []
+    if ed["som_apoio"]:
+        for i, entra, d in marcas:
+            a = apoios[i]
+            if a.get("tipo") == "image" or not _tem_audio(a["path"]):
+                continue
+            som_apoios.append({"path": a["path"], "ss": _inicio_apoio(a, ed["trecho"]),
+                               "dur": d, "entra": entra, "som": True})
     stems = {
         "orig": _stem_som(nome, sufixo,
                           [{"path": s["path"], "ss": s["in"], "dur": s["dur"],
                             "som": manter and _tem_audio(s["path"])} for s in segs_base],
-                          dur_base),
+                          dur_base, apoios=som_apoios, fala=fala),
         "musica": _stem_musica(nome, sufixo, musica, mus_start, dur_base, veloc),
         "voz": None,
     }
     ins, i_orig, i_mus, i_voz = _entradas_stems(ins, stems, n_video)
 
-    # ---- legenda: transcrição da fala (quando pedido) + textos da pessoa
+    # ---- legenda: transcrição da fala (quando pedido) + textos da pessoa.
+    # O estilo escolhido na tela decide o desenho: uma palavra por vez no ritmo
+    # da fala, ou a frase inteira em até duas linhas.
     frases = None
     if formato == "transcrever" and fala:
-        frases = [(f["texto"], max(0.0, f["ini"]), min(dur_base, f["fim"]))
-                  for f in fala if f["fim"] > 0.05]
+        frases = _frases_legenda(fala, dur_base, estilo_leg) or None
+        if frases and estilo_leg == "palavra":
+            # o gancho em caixa preta pega a primeira FRASE, não a primeira
+            # palavra solta (ver `_gancho_em_frase`)
+            frases = _gancho_em_frase(frases)
     ass = os.path.join("temp", f"fab_{nome}{sufixo}.ass")
     ass_montagem(os.path.join(BASE, ass), textos, captions=captions, frases=frases,
                  dur_total=dur_base, preco=preco, produto=produto, pos=pos_leg)
 
-    m = len(ordem)
-
+    # `partes` já termina entregando o vídeo montado em [vc] (com transição, pelo
+    # overlay; sem transição, pelo concat de sempre)
     def _filtro(modo):
-        return (partes + "".join(ordem) + f"concat=n={m}:v=1:a=0[vc];"
-                f"[vc]subtitles={ass.replace(os.sep, '/')}" + venc.fim_v(modo) + ";"
+        return (partes + f"[vc]subtitles={ass.replace(os.sep, '/')}"
+                + venc.fim_v(modo) + ";"
                 + _filtro_stems(i_orig, i_mus, i_voz, v_orig, v_mus, v_voz, dur_base))
 
     ok, err = _render(ins, _filtro, nome + sufixo, dur_base)
@@ -1547,47 +2364,307 @@ def _montar_com_principal(prod_dir, nome, cfg, clipes, bases, sufixo, var_idx, n
     return ok, err
 
 
-def _montar_sequencial(prod_dir, nome, cfg, clipes, copy, sufixo, var_idx, n_var,
-                       *, textos, preco, produto, pos_leg, formato, captions,
-                       sem_musica, v_orig, v_mus, v_voz):
-    """Clipes em sequência, na ordem e com os cortes que a pessoa fez na tela."""
-    durs, ins = [], []
+# NARRAÇÃO: menos que isto na tela a cena vira piscada e ninguém vê o que é.
+# Vale só quando as cenas estão sendo espremidas pra caber na fala.
+NARRACAO_CENA_MIN = 1.2
+# Teto de cenas na montagem final, contando as repetições. Existe pro caso
+# patológico: 1 clipe de meio segundo com 1 minuto de narração daria 120 entradas
+# no ffmpeg. Estourou o teto, o resto do tempo fica pro último quadro congelado.
+MAX_CENAS_MONTAGEM = 40
+
+
+def _frases_da_narracao(palavras):
+    """As frases da fala, com o segundo em que cada uma começa e termina.
+
+    Diferente do `agrupar_em_frases` do `narrar_video`, que quebra a cada 4
+    palavras porque é legenda: aqui a unidade é a FRASE de verdade (termina em
+    ponto, exclamação ou interrogação), porque é nela que a troca de cena cai
+    bem. Trocar de imagem no meio de uma frase parece erro de edição."""
+    frases, buff = [], []
+    for palavra, pi, pf in palavras:
+        buff.append((palavra, pi, pf))
+        if palavra and palavra.rstrip('"\')')[-1:] in (".", "!", "?"):
+            frases.append((" ".join(w for w, _, _ in buff), buff[0][1], buff[-1][2]))
+            buff = []
+    if buff:
+        frases.append((" ".join(w for w, _, _ in buff), buff[0][1], buff[-1][2]))
+    return frases
+
+
+def _cortes_por_frase(fatias, n_cenas, n_frases):
+    """Até que frase cada cena fica na tela, já ARRUMADO.
+
+    Nunca confia no que a IA mandou: índice fora da faixa, repetido ou fora de
+    ordem viraria cena de duração negativa, e uma cena que engole todas as frases
+    deixaria as seguintes sem nada. Sem resposta nenhuma (IA fora do ar, chave
+    ausente, ou a chave "melhor pedaço" desligada), divide as frases por igual e
+    o vídeo sai certo do mesmo jeito."""
+    igual = [int(round((k + 1) * n_frases / n_cenas)) - 1 for k in range(n_cenas)]
+    base = list(igual)
+    if fatias:
+        for k in range(n_cenas):
+            v = (fatias.get(k) or {}).get("ate")
+            if v is not None:
+                try:
+                    base[k] = int(v)
+                except (TypeError, ValueError):
+                    pass
+    saida, anterior = [], -1
+    for k in range(n_cenas):
+        # cada cena precisa sobrar pelo menos uma frase pra cada cena seguinte
+        teto = n_frases - n_cenas + k
+        v = max(anterior + 1, min(base[k], teto))
+        v = max(0, min(v, n_frases - 1))     # cinto de segurança do índice
+        anterior = v
+        saida.append(v)
+    saida[-1] = n_frases - 1      # a última cena SEMPRE fecha a narração
+    return saida
+
+
+def _material_da_cena(c):
+    """Quanto tempo essa cena consegue ficar na tela sem acabar o arquivo.
+
+    Foto não tem fim (entra com `-loop`), então ela aguenta o que for preciso."""
+    if c.get("tipo") == "image":
+        return MAX_MONTAGEM
+    try:
+        return max(0.3, float(c.get("out", 0)) - float(c.get("in", 0)))
+    except (TypeError, ValueError):
+        return 3.0
+
+
+def _plano_das_cenas(prod_dir, clipes, palavras, total, usar_trecho):
+    """Quanto tempo cada cena fica na tela e QUE PEDAÇO do arquivo aparece.
+
+    Devolve [(clipe, duracao, inicio_dentro_do_arquivo)] NA ORDEM EM QUE ENTRAM.
+    Não é 1 pra 1 com a lista que chegou: cena que não coube fica de fora, e com
+    material curto o mesmo clipe aparece mais de uma vez (o vídeo repete).
+
+    Sem narração é o plano natural: cada cena com o corte que a pessoa fez,
+    começando onde ela mandou. Nada muda.
+
+    Com a fala MAIS CURTA que a soma das cenas o vídeo era simplesmente cortado
+    no fim (dono, 12/08/2026): quem subia 3 vídeos de 1 minuto via só o começo do
+    primeiro e os outros dois nunca apareciam. Agora as cenas dividem o tempo da
+    fala entre elas, na ordem que a pessoa montou, e a IA escolhe de cada clipe o
+    pedaço que combina com o que está sendo falado enquanto ele está na tela.
+
+    Com a fala MAIS LONGA que as cenas o vídeo REPETE do começo (dono,
+    12/08/2026), em vez de congelar o último quadro até a narração acabar. Vídeo
+    parado no ar com voz falando por cima parece travamento; repetir mantém a
+    imagem viva e não inventa material que a pessoa não subiu.
+
+    A chave "A IA escolhe o melhor pedaço" (`usar_trecho`) manda na parte cara:
+    desligada, ninguém olha os quadros (nenhuma chamada de IA) e a fala é
+    dividida por igual, cada cena começando onde a pessoa cortou. As cenas
+    entram do mesmo jeito: o rodízio de tempo é de graça, quem custa é enxergar."""
+    naturais = []
     for c in clipes:
         try:
             d = float(c.get("out", 0)) - float(c.get("in", 0))
         except (TypeError, ValueError):
             d = 3.0
-        d = max(0.3, min(MAX_MONTAGEM, d))
-        durs.append(d)
         if c.get("tipo") == "image":
-            ins += ["-loop", "1", "-t", f"{d:.2f}", "-i", c["path"]]
-        else:
-            ins += ["-ss", f"{float(c.get('in', 0)):.2f}", "-t", f"{d:.2f}", "-i", c["path"]]
-    n = len(clipes)
-    dur_montagem = min(MAX_MONTAGEM, sum(durs))
+            d = max(IMAGEM_MIN, d)
+        try:
+            ini = float(c.get("in", 0) or 0)
+        except (TypeError, ValueError):
+            ini = 0.0
+        naturais.append((max(0.3, min(MAX_MONTAGEM, d)), ini))
+    natural = [(c, d, i) for c, (d, i) in zip(clipes, naturais)]
+    if total <= 0 or not clipes:
+        return natural
 
-    # narração da IA (formato "Voz narrada"): o vídeo estica até cobrir a fala
-    voz_mp3, frases = None, None
+    soma = sum(d for d, _ in naturais)
+    if soma < total - 0.6:
+        # ---- MÍDIA CURTA: repete do começo até a fala acabar ----
+        # A última passada é cortada onde der; sobra de menos de meio segundo não
+        # vira cena nenhuma (viraria um flash) e fica pro congelamento de sempre.
+        saida, restante = [], total
+        while restante > 0.6 and len(saida) < MAX_CENAS_MONTAGEM:
+            for c, (d, ini) in zip(clipes, naturais):
+                if restante <= 0.6 or len(saida) >= MAX_CENAS_MONTAGEM:
+                    break
+                usar = min(d, restante)
+                saida.append((c, usar, ini))
+                restante -= usar
+        return saida or natural
+    if soma <= total + 0.05:
+        return natural
+
+    # quantas cenas cabem sem virar piscada; as que passarem ficam de fora, como
+    # já ficavam antes (a tela avisa isso na aprovação)
+    cabem = max(1, int(total // NARRACAO_CENA_MIN))
+    usados = clipes[:cabem]
+    n = len(usados)
+
+    frases = _frases_da_narracao(palavras)
+    if not frases:
+        return natural            # sem tempo de palavra não há como dividir
+
+    fatias = {}
+    if usar_trecho and n <= MAX_CENAS_DESCRITAS and len(frases) >= n:
+        cenas = []
+        for i, c in enumerate(usados):
+            caminho = _caminho_clipe(prod_dir, c)
+            if not caminho:
+                break
+            try:
+                ini, fim = float(c.get("in", 0)), float(c.get("out", 0))
+            except (TypeError, ValueError):
+                ini, fim = 0.0, 0.0
+            quadros = _quadros_da_cena(caminho, c.get("tipo"), ini, fim)
+            if not quadros:
+                break
+            cenas.append({"i": i, "tipo": c.get("tipo"), "quadros": quadros})
+        if len(cenas) == n:
+            try:
+                fatias = gemini_copy.encaixar_na_fala(
+                    [(i, t) for i, (t, _, _) in enumerate(frases)], cenas) or {}
+            except Exception:
+                fatias = {}
+
+    if len(frases) >= n:
+        # o corte entre duas cenas é o FIM da última frase da primeira: a pausa
+        # entre as frases fica com a cena que estava na tela, e não vira buraco
+        cortes = _cortes_por_frase(fatias, n, len(frases))
+        duracoes, inicio = [], 0.0
+        for k in range(n):
+            fim = total if k == n - 1 else float(frases[cortes[k]][2])
+            duracoes.append(max(NARRACAO_CENA_MIN, fim - inicio))
+            inicio = fim
+    else:
+        # MAIS CENAS QUE FRASES: não há corte de frase pra dar a cada uma, então
+        # o tempo é dividido por igual. Sem esta saída o rodízio pediria a frase
+        # de índice 9 de uma fala que tem 6, e o render morria no meio.
+        duracoes = [total / n] * n
+
+    # nenhuma cena fica mais tempo do que o arquivo dela tem. O que faltar é
+    # oferecido a quem ainda tem material sobrando; se ninguém tiver, o vídeo
+    # fecha antes da fala e o último quadro congela (o `sobra` de sempre).
+    limites = [_material_da_cena(c) for c in usados]
+    duracoes = [min(d, limites[k]) for k, d in enumerate(duracoes)]
+    falta = total - sum(duracoes)
+    if falta > 0.05:
+        folgas = [max(0.0, limites[k] - duracoes[k]) for k in range(n)]
+        livre = sum(folgas)
+        if livre > 0:
+            for k in range(n):
+                duracoes[k] += min(folgas[k], falta * folgas[k] / livre)
+
+    # cena que não coube simplesmente não entra na lista (era o que já acontecia
+    # antes, quando o render cortava o fim do vídeo)
+    plano = []
+    for k, c in enumerate(usados):
+        d = duracoes[k]
+        try:
+            c_in, c_out = float(c.get("in", 0) or 0), float(c.get("out", 0) or 0)
+        except (TypeError, ValueError):
+            c_in, c_out = 0.0, d
+        melhor = float((fatias.get(k) or {}).get("melhor", 0.0)) if fatias else 0.0
+        espaco = max(0.0, (c_out - c_in) - d)
+        plano.append((c, d, c_in + espaco * max(0.0, min(1.0, melhor))))
+    return plano
+
+
+def _montar_sequencial(prod_dir, nome, cfg, clipes, copy, sufixo, var_idx, n_var,
+                       *, textos, preco, produto, pos_leg, formato, captions,
+                       sem_musica, v_orig, v_mus, v_voz):
+    """Clipes em sequência, na ordem e com os cortes que a pessoa fez na tela."""
+    ed = _edicao(cfg)
+    manter = _quer_manter_audio(cfg)
+
+    # A VOZ VEM PRIMEIRO (12/08/2026). Antes as cenas eram montadas e a narração
+    # gerada depois, o que só dava pra fazer porque o único ajuste possível era
+    # cortar o fim do vídeo. Agora é a fala que decide quanto tempo cada cena
+    # fica na tela, então ela precisa existir antes de montar qualquer coisa.
+    voz_mp3, frases, palavras = None, None, []
     narr_dur = 0.0
     if formato == "voz" and (copy.get("roteiro") or "").strip():
         alvo = os.path.join(DIR_TEMP, f"fab_voz_{nome}{sufixo}.mp3")
         dur_voz, palavras = gerar_voz_com_tempos(copy["roteiro"], alvo)
         if os.path.exists(alvo):
             voz_mp3 = alvo
-            frases = agrupar_em_frases(palavras)
+            # estilo escolhido na tela: uma palavra por vez (a ElevenLabs já
+            # devolve o tempo de cada uma) ou a frase em até duas linhas
+            estilo_leg = _estilo_legenda(cfg)
+            frases = agrupar_em_frases(
+                palavras, max_palavras=1 if estilo_leg == "palavra" else 4)
+            if estilo_leg == "palavra":
+                # o gancho em caixa preta pega a primeira FRASE, não a primeira
+                # palavra solta (ver `_gancho_em_frase`)
+                frases = _gancho_em_frase(frases)
+            else:
+                frases = [(_duas_linhas(txt) or txt, i, f) for txt, i, f in frases]
             narr_dur = dur_voz + 0.8
-    total = min(MAX_MONTAGEM, max(dur_montagem, narr_dur))
+
+    # Quanto tempo cada cena fica e QUE PEDAÇO dela aparece. Sem narração isto
+    # devolve exatamente o corte que a pessoa fez, e nada muda.
+    #
+    # O plano NÃO é 1 pra 1 com a lista que entrou: cena que não coube na fala
+    # fica de fora, e com material curto o mesmo clipe volta mais de uma vez (o
+    # vídeo repete). Por isso `clipes` é reatribuído a partir dele.
+    plano = _plano_das_cenas(prod_dir, clipes, palavras,
+                             min(MAX_MONTAGEM, narr_dur) if voz_mp3 else 0.0,
+                             ed["trecho"])
+    clipes = [c for c, _, _ in plano]
+
+    durs, ins, cortes = [], [], []
+    for c, d, inicio in plano:
+        # FOTO nunca fica menos que IMAGEM_MIN: abaixo disso ela pisca e ninguém
+        # vê o que é. O teto de 3s vale só pra foto de APOIO (lá ela cobre a
+        # pessoa); aqui a foto É a cena, e segurar mais tempo pode ser proposital.
+        if c.get("tipo") == "image":
+            d = max(IMAGEM_MIN, d)
+        d = max(0.3, min(MAX_MONTAGEM, d))
+        durs.append(d)
+        if c.get("tipo") == "image":
+            ins += ["-loop", "1", "-framerate", str(FPS), "-t", f"{d:.2f}", "-i", c["path"]]
+            cortes.append(None)
+        else:
+            # corte preciso: -ss mira antes e o trim tira o pedaço exato (a voz
+            # e a legenda dependem desse alinhamento; ver SEEK_FOLGA). O `inicio`
+            # é onde o pedaço começa DENTRO do arquivo: sem espremer é o corte da
+            # pessoa, espremendo é o ponto que a IA escolheu.
+            pre, off = _seek_previo(inicio)
+            ins += ["-ss", f"{pre:.2f}", "-t", f"{off + d + 0.2:.2f}", "-i", c["path"]]
+            cortes.append((off, d))
+    n = len(clipes)
+
+    # TRANSIÇÃO entre as cenas em sequência: aqui ela é um `xfade` de verdade
+    # (uma cena atravessa a outra), e isso ENCURTA o vídeo em `t` por emenda.
+    # Por isso ela só entra quando o som original dos clipes NÃO vai pro vídeo:
+    # com o som ligado, encurtar a imagem faria o áudio, que é montado no tamanho
+    # cheio, sair do lugar. Sem ele, quem manda no tempo é a narração e a música,
+    # que são faixas próprias e se ajustam ao total.
+    t_xf = 0.0
+    if ed["transicoes"] and n > 1 and not manter:
+        t_xf = min(TRANSICAO, max(0.05, min(durs) / 3.0))
+    dur_montagem = min(MAX_MONTAGEM, sum(durs) - t_xf * (n - 1))
+
+    # Com narração ativa o vídeo termina EXATAMENTE quando a fala acaba (tarefa
+    # 31): montagem mais longa é cortada no -t do render, mais curta congela o
+    # último quadro (tpad abaixo). Sem narração, vale a soma das cenas.
+    #
+    # Desde 12/08/2026 a montagem quase nunca desencontra da fala: o
+    # `_plano_das_cenas` espreme as cenas quando sobra mídia e repete a sequência
+    # quando falta. As duas redes daqui continuam valendo pro resto: o corte no
+    # `-t` pega arredondamento e foto no piso do IMAGEM_MIN, e o congelamento
+    # pega o caso patológico que estourou o `MAX_CENAS_MONTAGEM`.
+    total = min(MAX_MONTAGEM, narr_dur) if voz_mp3 else dur_montagem
     sobra = max(0.0, total - dur_montagem)   # congela o último quadro se a fala passar
 
     veloc = _veloc_musica(cfg)
     musica, mus_start = (None, 0.0)
     if not sem_musica:
         musica, mus_start = resolver_musica(cfg, total * veloc, var_idx, n_var)
-    manter = _quer_manter_audio(cfg)
     stems = {
         "orig": _stem_som(
             nome, sufixo,
-            [{"path": c["path"], "ss": float(c.get("in", 0) or 0), "dur": durs[i],
+            # o `ss` sai do PLANO, não do corte cru da pessoa: com as cenas
+            # espremidas o som tem que vir do mesmo pedaço que a imagem, senão
+            # a fala do clipe sairia de um trecho que não está na tela
+            [{"path": c["path"], "ss": plano[i][2], "dur": durs[i],
               "som": manter and c.get("tipo") != "image" and _tem_audio(c["path"])}
              for i, c in enumerate(clipes)],
             total),
@@ -1596,17 +2673,38 @@ def _montar_sequencial(prod_dir, nome, cfg, clipes, copy, sufixo, var_idx, n_var
     }
     ins, i_orig, i_mus, i_voz = _entradas_stems(ins, stems, n)
 
-    partes = "".join(_norm_v(i) + f"[v{i}];" for i in range(n))
-    refs = "".join(f"[v{i}]" for i in range(n))
+    # foto ganha um zoom lento (Ken Burns) pra não ficar parada na tela
+    partes = "".join(
+        (_norm_img_kb(i, durs[i])
+         if (ed["kenburns"] and clipes[i].get("tipo") == "image")
+         else _norm_v(i, corte=cortes[i])) + f"[v{i}];"
+        for i in range(n)
+    )
     cauda = f",tpad=stop_mode=clone:stop_duration={sobra:.2f}" if sobra > 0.05 else ""
+
+    if t_xf > 0:
+        # cadeia de xfade: cada emenda começa `t_xf` antes do fim da cena anterior,
+        # e por isso o deslocamento é acumulado (senão a 3ª cena entraria cedo demais)
+        emenda, offset = "", 0.0
+        anterior = "[v0]"
+        for i in range(1, n):
+            offset += durs[i - 1] - t_xf
+            saida = f"[xf{i}]"
+            emenda += (f"{anterior}[v{i}]xfade=transition=fade:duration={t_xf:.2f}:"
+                       f"offset={offset:.2f}{saida};")
+            anterior = saida
+        junta = emenda + f"{anterior}setsar=1{cauda}[vc];"
+    else:
+        refs = "".join(f"[v{i}]" for i in range(n))
+        junta = refs + f"concat=n={n}:v=1:a=0[vc0];[vc0]setsar=1{cauda}[vc];"
 
     ass = os.path.join("temp", f"fab_{nome}{sufixo}.ass")
     ass_montagem(os.path.join(BASE, ass), textos, captions=captions, frases=frases,
                  dur_total=total, preco=preco, produto=produto, pos=pos_leg)
 
     def _filtro(modo):
-        return (partes + refs + f"concat=n={n}:v=1:a=0[vc0];[vc0]setsar=1{cauda}[vc];"
-                f"[vc]subtitles={ass.replace(os.sep, '/')}" + venc.fim_v(modo) + ";"
+        return (partes + junta
+                + f"[vc]subtitles={ass.replace(os.sep, '/')}" + venc.fim_v(modo) + ";"
                 + _filtro_stems(i_orig, i_mus, i_voz, v_orig, v_mus, v_voz, total))
 
     ok, err = _render(ins, _filtro, nome + sufixo, total)
@@ -1802,16 +2900,29 @@ def processar(prod_dir, forcar):
                 n_var = 1
             sem_copy = str(cfg.get("sem_copy", "")).strip().lower() in ("1", "sim", "true")
             com_copy = not sem_copy and formato in ("legenda", "voz")
-            # cena que a pessoa subiu sem descrever: a IA OLHA os quadros do clipe e
-            # escreve o que ele mostra. Roda UMA vez, antes das variantes, e o
-            # resultado vale pro encaixe do apoio e pra copy.
-            completar_descricoes(prod_dir, roteiro, com_copy)
+            ed = _edicao(cfg)
+            # ROTEIRO ESCRITO PELA PESSOA (etapa 1 do Editor, "eu escrevo"): a voz
+            # lê exatamente o que ela digitou e a IA não inventa fala nenhuma.
+            fala_propria = str(cfg.get("roteiro_fala", "") or "").strip()
+            # A IA vai mesmo ESCREVER a copy? Com a fala vinda da pessoa o
+            # `gerar_copy` é pulado logo abaixo, e aí o contexto visual não tem
+            # leitor. Passar `com_copy` cru aqui fazia a fábrica descrever as
+            # cenas de todo vídeo de narração com "Eu escrevo": uma chamada de
+            # visão paga por vídeo, jogada fora no fim (corrigido em 12/08/2026).
+            copy_da_ia = com_copy and not (fala_propria and formato == "voz")
+            # cena que chegou sem descrição: a IA OLHA os quadros do clipe e escreve
+            # o que ele mostra. Roda UMA vez, antes das variantes, e o resultado
+            # vale pro encaixe do apoio e pra copy. Normalmente não faz nada: a
+            # etapa de aprovação da tela já manda as descrições prontas.
+            completar_descricoes(prod_dir, roteiro, copy_da_ia, usar_trecho=ed["trecho"])
             # o que a pessoa escreveu sobre cada cena guia a copy (sem isso a IA
             # escreveria às cegas, já que aqui o plano_edicao não roda)
             contexto = contexto_cenas(roteiro)
             for i in range(n_var):
                 copy = {}
-                if com_copy:
+                if fala_propria and formato == "voz":
+                    copy = {"roteiro": fala_propria, "descricao": "", "hashtags": []}
+                elif com_copy:
                     copy = gemini_copy.gerar_copy(
                         produto, descricao, formato=formato, tom=tom,
                         contexto_visual=contexto,
@@ -1875,8 +2986,17 @@ def processar(prod_dir, forcar):
                 return (nome, f"ERRO vídeo v{i+1}: {err}")
             escrever_txt(nome + sufixo, copy, produto)
         return (nome, f"OK ({n_var} variante(s))")
+    except FalhaTranscricao as e:
+        # legenda pedida e transcrição quebrada: erro limpo, sem traceback, já
+        # escrito na língua do painel de diagnóstico
+        return (nome, f"ERRO: {e}")
     except Exception as e:
-        return (nome, f"ERRO: {str(e)[:200]}")
+        # a mensagem sozinha costuma não dizer NADA ("[Errno 2]"), então o
+        # traceback vai junto: é ele que o worker manda pra web e que aparece no
+        # /admin/diagnostico
+        import traceback
+        return (nome, f"ERRO: {e.__class__.__name__}: {e}\n"
+                      f"{traceback.format_exc()[-1500:]}")
 
 
 def _cli_remix():

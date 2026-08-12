@@ -54,13 +54,17 @@ export function ViralCard({
     router.push(ROTA_MARCA_LOTE);
   }
   // "Editar esse": abre o Editor com uma cópia mesma-origem (Drive via proxy).
+  // `shopee=1` liga o PRESET de vídeo de produto no editor (dono, 06/08/2026):
+  // narração por IA, "É um produto? Sim" com o nome preenchido, tom equilibrado,
+  // venda na Shopee, som do vídeo mudo e músicas da plataforma ligadas. Aqui é
+  // sempre vídeo de produto da Shopee, então essas respostas já são conhecidas.
   const editUrl = video.driveId
     ? `/api/drive-video/${video.driveId}`
     : video.arquivo
       ? midiaUrl(video.arquivo)
       : null;
   const editorHref = editUrl
-    ? `/painel/novo?video=${encodeURIComponent(editUrl)}&nome=${encodeURIComponent(video.titulo)}`
+    ? `/painel/novo?video=${encodeURIComponent(editUrl)}&nome=${encodeURIComponent(video.titulo)}&shopee=1`
     : null;
   return (
     <>

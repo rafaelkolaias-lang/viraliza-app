@@ -10,14 +10,21 @@ export const metadata: Metadata = {
 export default async function NovoVideoPage({
   searchParams,
 }: {
-  searchParams: Promise<{ video?: string; nome?: string; reutilizar?: string }>;
+  searchParams: Promise<{
+    video?: string;
+    nome?: string;
+    reutilizar?: string;
+    shopee?: string;
+  }>;
 }) {
   const user = await getCurrentUser();
   const bloqueado = user?.role === "demo";
 
   const sp = await searchParams;
+  // `shopee=1` = veio de um vídeo de produto da Shopee: o editor abre com o
+  // fluxo de produto pré-selecionado (narração por IA, produto Sim, etc.)
   const videoInicial = sp.video
-    ? { url: sp.video, nome: sp.nome ?? "" }
+    ? { url: sp.video, nome: sp.nome ?? "", shopee: sp.shopee === "1" }
     : undefined;
 
   // "Reutilizar": reabre o editor com os mesmos ajustes de um vídeo já feito.

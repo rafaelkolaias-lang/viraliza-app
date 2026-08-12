@@ -9,6 +9,7 @@ import {
 } from "@/lib/cakto";
 import { emailComprou as emailComprouKiwify } from "@/lib/kiwify";
 import { DIAS_ASSINATURA } from "@/lib/creditos";
+import { registrarErroApp } from "@/lib/erros-app";
 
 /**
  * Regras de criação de conta, compartilhadas pelo cadastro por SENHA e pelo login
@@ -16,9 +17,16 @@ import { DIAS_ASSINATURA } from "@/lib/creditos";
  * (só quem comprou cria conta) e o mesmo brinde de boas-vindas.
  */
 
-// Crédito de boas-vindas: todo cadastro novo já começa com 1.000 créditos (R$ 10,00)
-// pra testar a plataforma sem precisar comprar. 1 crédito = R$ 0,01.
-export const CREDITO_INICIAL = 1000;
+// Crédito de boas-vindas: DESLIGADO pelo dono em 06/08/2026. Era 1.000 créditos
+// (R$ 10,00) pra todo cadastro novo que tivesse comprado a entrada.
+// Os outros dois brindes CONTINUAM VALENDO: o mensal da assinatura
+// (`CREDITO_MENSAL_CENTAVOS`) e o bônus de seguir o Instagram
+// (`BONUS_IG_CREDITOS`). Só o de boas-vindas acabou.
+// Fica em 0 e não em código apagado de propósito: o caminho inteiro continua de
+// pé, então voltar a dar brinde é trocar este número. Com 0 o cadastro não cria
+// transação nenhuma (o `brinde > 0` abaixo cuida disso).
+// 1 crédito = R$ 0,01.
+export const CREDITO_INICIAL = 0;
 
 /**
  * Pode criar conta com este e-mail? Só quem comprou (qualquer produto) passa - fecha
@@ -68,12 +76,24 @@ export async function podeCriarConta(email: string): Promise<boolean> {
  * 2. Se for pacote, ainda pode ter comprado a entrada em outro pedido: confere ao vivo.
  * 3. Nome desconhecido conta como entrada. Não dá pra provar que foi pacote, e barrar
  *    cliente legítimo é pior que o risco: a compra de pacote sempre traz o nome dela.
+ * 4. Consulta ao vivo FALHOU (API fora, mesmo depois das tentativas): vale a mesma
+ *    régua do item 3 - na dúvida, entrada (auditoria #15). Antes o erro virava "não
+ *    comprou" e o cliente da entrada nascia sem biblioteca, sem ninguém saber.
+ *    Fica anotado no Diagnóstico pro dono conferir depois.
  */
 export async function comprouEntrada(email: string): Promise<boolean> {
   const e = email.trim().toLowerCase();
   const acesso = await prisma.acessoPago.findUnique({ where: { email: e } });
   if (acesso && !ehPacoteDeCredito(acesso.produto)) return true;
-  return emailComprouEntrada(e);
+  const aoVivo = await emailComprouEntrada(e);
+  if (aoVivo === null) {
+    registrarErroApp({
+      area: "outro",
+      mensagem: `Cadastro de ${e}: a consulta à Cakto falhou e a conta foi liberada como ENTRADA por precaução. Confira na Cakto se a compra era só pacote.`,
+    });
+    return true;
+  }
+  return aoVivo;
 }
 
 /**
@@ -122,7 +142,7 @@ export async function criarContaLiberada(dados: {
                 tipo: "ajuste_admin",
                 valor: brinde,
                 saldoApos: brinde,
-                descricao: "Crédito de boas-vindas (1.000 créditos)",
+                descricao: `Crédito de boas-vindas (${CREDITO_INICIAL} créditos)`,
               },
             },
           }

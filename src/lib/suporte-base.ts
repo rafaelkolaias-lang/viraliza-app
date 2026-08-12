@@ -2,8 +2,11 @@ import "server-only";
 
 import { CUSTO_IMAGEM_LAB, CUSTO_PROMPT_LAB, custoVideoLab } from "@/lib/lab-custos";
 import { CUSTO_AVATAR } from "@/lib/avatar-modelo";
-import { JANELA_GARANTIA_DIAS, NIVEIS } from "@/lib/niveis";
+import { SIMULTANEOS_UNIVERSAL } from "@/lib/niveis";
 import { CREDITOS_FIXO } from "@/lib/precos";
+import { CREDITO_MENSAL_CENTAVOS } from "@/lib/creditos";
+import { CREDITO_VALIDADE_DIAS } from "@/lib/legal";
+import { BONUS_IG_CREDITOS, INSTAGRAM_HANDLE } from "@/lib/promos";
 
 /**
  * Base de conhecimento do chat de suporte (widget flutuante do painel).
@@ -21,8 +24,11 @@ export const ROTAS_SUPORTE = [
   { rota: "/painel", nome: "Meus vídeos", oQue: "onde todo vídeo pronto aparece e é baixado" },
   { rota: "/painel/lab", nome: "Viraliza Labs", oQue: "criar vídeo de propaganda do zero, caminho guiado" },
   { rota: "/painel/lab/inicio", nome: "Conhecer o Viraliza Labs", oQue: "a tela que explica as 4 ferramentas do Labs e leva pra cada uma" },
+  { rota: "/painel/ferramentas", nome: "Conhecer as Ferramentas", oQue: "a tela que explica as 6 ferramentas do grupo e leva pra cada uma" },
+  { rota: "/painel/meus-avatares/inicio", nome: "Conhecer o Personalize com IA", oQue: "a tela que explica as 3 telas do grupo (influenciador, galeria e cenários)" },
   { rota: "/painel/viral-boost", nome: "Viral Boost", oQue: "historinhas virais de personagens" },
   { rota: "/painel/novo", nome: "Editor automático", oQue: "montar, legendar e narrar vídeo que a pessoa já tem" },
+  { rota: "/painel/criar-corte", nome: "Criar um Corte", oQue: "tirar os pedaços ruins e o silêncio de um vídeo do computador, sem IA" },
   { rota: "/painel/cortes", nome: "Cortes de qualquer vídeo", oQue: "cortar vídeo do YouTube por link" },
   { rota: "/painel/lote", nome: "Aplicar marca em lote", oQue: "carimbar logo ou moldura em vários vídeos" },
   { rota: "/painel/leads", nome: "MapsLeads", oQue: "lista de empresas com telefone por ramo e cidade" },
@@ -48,10 +54,6 @@ export const ROTAS_SUPORTE = [
 
 export const ROTAS_VALIDAS = new Set<string>(ROTAS_SUPORTE.map((r) => r.rota));
 
-const bronze = NIVEIS.bronze;
-const prata = NIVEIS.prata;
-const ouro = NIVEIS.ouro;
-
 /** O conteúdo da Central de Ajuda, condensado, com os números vindos do código. */
 export const BASE_CONHECIMENTO = `
 # O QUE É A PLATAFORMA
@@ -68,8 +70,8 @@ Não comece pelo Editor automático: ele é pra quem já tem vídeo gravado.
 # ASSINATURA X CRÉDITO (a dúvida mais comum)
 São coisas diferentes.
 - A ASSINATURA libera a biblioteca: acervo de cortes, vídeos virais, produtos da Shopee e do TikTok, Minerador e área de membros. Vence e precisa renovar todo mês. Situação em /painel/assinatura.
-- O CRÉDITO paga cada imagem e cada vídeo que a IA gera. Crédito não vence: o que sobra continua na conta.
-Quem entra pela assinatura ganha 1.000 créditos de boas-vindas e mais 2.000 créditos por mês enquanto a assinatura estiver em dia. Precisando de mais, compra pacote avulso em /painel/creditos.
+- O CRÉDITO paga cada imagem e cada vídeo que a IA gera. Cada pacote comprado vale ${CREDITO_VALIDADE_DIAS} dias contados da compra, e o gasto sai sempre do pacote mais antigo pro mais novo.
+Quem assina ganha ${CREDITO_MENSAL_CENTAVOS} créditos por mês enquanto a assinatura estiver em dia. NÃO existe mais crédito de boas-vindas no cadastro. Existe sim o bônus de ${BONUS_IG_CREDITOS} créditos por seguir o ${INSTAGRAM_HANDLE} no Instagram: a pessoa segue, curte, comenta e manda o @ dela pelo aviso que aparece no painel; a liberação é conferida na mão e os créditos caem depois (uma vez só por conta). Precisando de mais, compra pacote avulso em /painel/creditos.
 
 # PREÇOS EM CRÉDITOS
 - Imagem no Viraliza Labs ou cena do Viral Boost: ${CUSTO_IMAGEM_LAB} créditos.
@@ -85,19 +87,16 @@ Quem entra pela assinatura ganha 1.000 créditos de boas-vindas e mais 2.000 cr�
 - MapsLeads: ${CREDITOS_FIXO.leads} créditos por busca. Busca que não acha ninguém não cobra.
 - Editor automático e Cortes: não têm preço fixo, cobram pelo que a IA realmente consumiu naquele vídeo. A tela mostra só uma estimativa antes, e o valor certo aparece no extrato.
 - Editor automático no modo "Nenhum" (sem IA, a pessoa junta os clipes e escreve o texto): ${CREDITOS_FIXO.editorManual} créditos fixos, porque não há consumo de IA pra medir.
+- Criar um Corte: ${CREDITOS_FIXO.editorManual} créditos fixos. Não usa IA nenhuma, só corta o vídeo que a pessoa subiu.
+- Editor automático, etapa das mídias (a IA olhar as cenas que a pessoa não descreveu e dizer o que cada uma mostra): ${CREDITOS_FIXO.analiseCena} crédito por cena analisada. É opcional: descrever na mão é de graça, e dá pra gerar sem descrever nada.
 Se a geração falhar no meio, NADA é descontado: a plataforma só desconta depois que a imagem ou o vídeo existe de verdade.
 
-# COMPREI CRÉDITO E SÓ ENTROU UMA PARTE (é normal)
-Toda compra de pacote entra em duas partes: uma cai no saldo na hora e o resto fica reservado por ${JANELA_GARANTIA_DIAS} dias, que é o prazo de garantia da compra. Passados os ${JANELA_GARANTIA_DIAS} dias o restante cai sozinho, sem precisar pedir. A parte reservada aparece como "crédito liberando", com a data. Quanto libera na hora depende do nível da conta.
+# CRÉDITO COMPRADO CAI INTEIRO NA HORA
+Todo crédito comprado (pacote ou mensal da assinatura) entra 100% no saldo na hora da confirmação do pagamento. Não existe mais a regra antiga de segurar parte da compra por uns dias de garantia. Se a pessoa comprou ANTES dessa mudança e ainda vê um "crédito liberando" com data, é o resto daquela compra antiga: cai sozinho na data mostrada, sem precisar pedir.
 
-# NÍVEIS DA CONTA
-Toda conta começa no Bronze e sobe sozinha com o uso. O nível define o limite diário de vídeos, quantos podem ser produzidos ao mesmo tempo e quanto do crédito comprado cai na hora.
-- ${bronze.emoji} Bronze: ${bronze.videosDia} vídeos por dia, ${bronze.simultaneos} de cada vez, metade do crédito na hora e o resto em ${JANELA_GARANTIA_DIAS} dias.
-- ${prata.emoji} Prata: ${prata.videosDia} vídeos por dia, ${prata.simultaneos} ao mesmo tempo, metade na hora com limite maior.
-- ${ouro.emoji} Ouro: ${ouro.videosDia} vídeos por dia, ${ouro.simultaneos} ao mesmo tempo, 75% do crédito na hora e sem teto.
-A subida é automática (tempo de casa, frequência de acesso e compras) e avisa no sininho. Pro Ouro também precisa estar com a assinatura em dia.
-O nível CAI quando: pede reembolso (volta pro Bronze), fica mais de 60 dias sem entrar (desce um nível) ou deixa a assinatura vencer (Ouro cai pro Prata).
-Bater o limite do dia não gasta crédito nenhum e o limite renova à meia-noite.
+# NÍVEIS DA CONTA (hoje é só reconhecimento)
+Toda conta começa no Bronze e sobe sozinha com o uso (tempo de casa, frequência de acesso e compras), avisando no sininho. Os níveis NÃO limitam mais nada: não existe limite diário de vídeos e o crédito comprado cai inteiro na hora em qualquer nível. Em breve os níveis vão fazer parte de um sistema de recompensas.
+A única regra de processamento é igual pra todo mundo: no máximo ${SIMULTANEOS_UNIVERSAL} vídeos em produção ao mesmo tempo por conta. Não é por nível, é da plataforma.
 
 # SALDO PENDENTE DE REEMBOLSO
 Quem pediu reembolso depois de já ter gastado aqueles créditos fica com saldo pendente e a conta PARA de gerar vídeos até regularizar. Comprando crédito de novo o pendente é quitado automaticamente e a conta volta a funcionar.
@@ -118,9 +117,10 @@ Historinhas curtas de personagens no estilo novela. Passos: formato, personagens
 A duração NÃO é escolhida: 1 personagem gera vídeo de 15 segundos; 2 ou 3 personagens geram 10 segundos. É limitação do motor, não é erro.
 
 # EDITOR AUTOMÁTICO (/painel/novo)
-Pra quem JÁ tem o vídeo gravado. A IA não inventa imagem: pega os vídeos enviados, monta no formato de celular, escreve a copy e coloca legenda ou narração.
-4 modos: Legenda (copy + legenda queimada), Voz narrada (copy + voz de IA), Transcrever fala (legenda no tempo certo da fala, mantendo o som original) e Nenhum (só a montagem, com o áudio e a música escolhidos).
-Também escolhe onde vai vender (Shopee ou outro, muda a chamada e as hashtags), o tom da copy (agressivo, equilibrado ou tranquilo) e voz e música.
+Pra quem JÁ tem o vídeo gravado. A IA não inventa imagem: pega os vídeos enviados, monta no formato de celular e coloca legenda ou narração.
+O que dá pra fazer depende de onde o vídeo parte. Vídeo com fala (alguém falando na câmera): a fala já é a narração, então a escolha é só entre Transcrever fala (legenda no tempo certo da fala, som original ligado) e Nenhum (só a montagem, sem legenda); os campos de copy (tom, onde vai vender) não existem nesse caminho.
+Voz de IA narrando (fotos e vídeos em sequência): a voz lê o texto que a pessoa escreveu (até 450 caracteres, uns 30 segundos de fala) ou, se for produto, a IA escreve a copy; aí escolhe o tom (agressivo, equilibrado ou tranquilo) e onde vai vender (Shopee ou outro, muda a chamada e as hashtags). Com "A IA escreve" marcado, o produto é obrigatório: é dele que a IA tira o assunto.
+No vídeo com fala, TODA cena de apoio precisa de descrição antes de gerar (é a descrição que diz pra IA onde encaixar a cena). Escrever é de graça; a IA descreve por 1 crédito por cena (botão de varinha em cada cena, ou o botão em lote). A descrição do vídeo principal é opcional e aceita pedidos explícitos, tipo "quando eu falar do preço, entre a cena da etiqueta": a IA obedece.
 Aqui o preço não é fixo: cobra pelo consumo real. No modo "Nenhum", que não usa IA, é um valor fixo de processamento.
 
 # CORTES (/painel/cortes)
@@ -156,9 +156,8 @@ Sugestões (/painel/sugestoes): pedido de melhoria ou relato de problema. Sugest
 
 # PROBLEMAS COMUNS
 - "Cliquei em gerar e travou": não travou, demora minutos mesmo. Pode fechar a aba, o resultado aparece sozinho.
-- "Já tenho um vídeo em produção": é o limite de simultâneos do nível (Bronze ${bronze.simultaneos}, Prata ${prata.simultaneos}, Ouro ${ouro.simultaneos}).
-- "Atingi os vídeos de hoje": limite diário do nível (Bronze ${bronze.videosDia}, Prata ${prata.videosDia}, Ouro ${ouro.videosDia}), renova à meia-noite e não gasta crédito.
-- "Não tenho créditos suficientes": confira o saldo em /painel/creditos, lembrando que parte pode estar reservada pela garantia de ${JANELA_GARANTIA_DIAS} dias. Enquanto isso dá pra usar o que é de graça.
+- "Já tenho vídeos em produção" ou "atingi o limite": é o limite universal de ${SIMULTANEOS_UNIVERSAL} vídeos em produção ao mesmo tempo por conta. Espera algum terminar e manda o próximo. Limite diário NÃO existe mais.
+- "Não tenho créditos suficientes": confira o saldo em /painel/creditos. Enquanto isso dá pra usar o que é de graça.
 - "Saí da tela e não sei se foi cobrado": o trabalho continua e o resultado entra na lista sozinho. Confira em /painel/extrato. Mandar de novo "na dúvida" é o que costuma cobrar duas vezes.
 - "O resultado saiu diferente do que eu queria": a IA cria algo novo a cada geração. Capriche na descrição usando o gerador de prompt, que sai por ${CUSTO_PROMPT_LAB} créditos e evita gastar bem mais numa imagem que não presta.
 - "Uma tela apareceu bloqueada": é a assinatura vencida, veja em /painel/assinatura.
@@ -219,10 +218,11 @@ gerador de prompt = ${CUSTO_PROMPT_LAB} créditos
 marca em lote = 50 créditos por vídeo
 MapsLeads = 50 créditos por busca
 editor automático e cortes = sem preço fixo, cobra o consumo real
-garantia da compra = ${JANELA_GARANTIA_DIAS} dias corridos (não são dias úteis)
-vídeos por dia = Bronze ${bronze.videosDia}, Prata ${prata.videosDia}, Ouro ${ouro.videosDia}
-vídeos ao mesmo tempo = Bronze ${bronze.simultaneos}, Prata ${prata.simultaneos}, Ouro ${ouro.simultaneos}
-boas-vindas = 1.000 créditos / mensal do assinante = 2.000 créditos
+crédito comprado = cai 100% no saldo na hora (a retenção de garantia NÃO existe mais)
+vídeos por dia = SEM LIMITE (o limite diário foi removido)
+vídeos ao mesmo tempo = ${SIMULTANEOS_UNIVERSAL} por conta, igual pra todo mundo
+mensal do assinante = ${CREDITO_MENSAL_CENTAVOS} créditos / bônus por seguir o Instagram = ${BONUS_IG_CREDITOS} créditos (uma vez só) / boas-vindas no cadastro = NÃO EXISTE MAIS
+validade do pacote comprado = ${CREDITO_VALIDADE_DIAS} dias, gastando do mais antigo pro mais novo
 
 === ROTEIRO "QUE TIPO DE VÍDEO" (a única resposta longa permitida) ===
 Vídeo é onde a plataforma tem mais caminhos, e perguntar só "do zero ou já gravado?" esconde metade deles.
@@ -259,7 +259,8 @@ SIGA A ORDEM, SEM PULAR. Olhe qual foi o último passo que VOCÊ deu nesta conve
 Entre parênteses estão as OPÇÕES daquela tela: quando der o passo, liste as dessa tela e o que cada uma faz.
 Viraliza Labs (10 passos): 1) abrir a tela; 2) estilo de câmera (De frente, para eletrônico, brinquedo e livro; Selfie, para cosmético e perfume; Mãos, só as mãos aparecem, para acessório, gadget e comida; Vestindo, corpo inteiro, para roupa, calçado, óculos e relógio; Frente ao espelho, corpo inteiro, para moda e look); 3) produto (subir a foto ou pegar da Shopee e do TikTok Shop) e a descrição da cena, que é a POSIÇÃO do produto e não a cor; 4) influenciador (os 9 prontos de graça, um seu, ou Nenhum, que é uma pessoa anônima); 5) cenário (fotos de ambiente da plataforma ou "Subir meu cenário"); 6) conferir o resumo e gerar a imagem (${CUSTO_IMAGEM_LAB} créditos); 7) duração (6s sem fala, 10s com uma frase, 15s com a fala completa), voz, tom e o que ele fala; 8) movimento de câmera; 9) conferir o resumo e gerar o vídeo, de 3 a 5 minutos; 10) baixar em Meus vídeos.
 Viral Boost (6 passos): 1) abrir a tela; 2) formato (Historinha de fruta ou Senhora brasileira); 3) personagens (Moranguinha, Abacatão, Bananinho e Uvazinha nas frutas; Dona Cida na senhora; 1 personagem faz 15 segundos, 2 ou 3 fazem 10); 4) historinha (uma das 10 prontas, escrever a sua ou a IA escrever de graça); 5) cenário; 6) gerar e esperar.
-Editor automático (6 passos): 1) abrir a tela; 2) subir o vídeo que já gravou; 3) modo (Legenda, o mais usado; Voz narrada; Transcrever fala, que mantém o áudio original; Nenhum, só a montagem); 4) onde vai vender (Shopee ou outro) e o tom da copy (agressivo, equilibrado ou tranquilo); 5) voz, música e posição da legenda; 6) gerar e esperar.
+Editor automático (6 passos, a tela é um funil de 5 etapas): 1) abrir a tela; 2) etapa 1, de onde o vídeo parte (Vídeo com fala, que é quando já existe alguém falando na câmera, sendo você ou outra pessoa, e aí esse vídeo roda por baixo com as fotos entrando por cima; ou Voz de IA narrando, e aí as mídias tocam em sequência e a IA narra, com o texto escrito por ela ou por você); 3) etapa 2, é um produto? (começa no Não; no Não a única pergunta é se quer a fala escrita na tela, ou seja legenda tirada da transcrição do próprio áudio, ou o vídeo sem legenda; no Sim entram nome, descrição, preço e o que a IA faz: Legenda, o mais usado; Voz narrada; Transcrever fala, que mantém o áudio original; Nenhum, só a montagem); 4) etapa 3, subir as mídias (primeiro o vídeo com a fala, depois as cenas de apoio), os textos na tela e a DESCRIÇÃO de cada cena, que é o campo embaixo de cada mídia e é o que faz a cena entrar no ponto certo da fala (escrever é de graça; embaixo da lista tem o botão de pedir pra IA olhar e escrever pelas que faltam, ${CREDITOS_FIXO.analiseCena} crédito por cena; a que fica sem descrição aparece marcada em âmbar; no vídeo com fala vale descrever também o vídeo principal, porque a IA escuta a fala mas não enxerga a imagem); 5) etapa 4, cortar as partes sem fala (já vem em 0,5s), música de fundo (a sua, ou a chave "Usar músicas da plataforma", que vem desligada; sem nenhuma das duas o vídeo sai sem trilha) e a edição avançada (zoom nas fotos, transição e a IA escolhendo o melhor pedaço do apoio; o som das cenas de apoio vem desligado); 6) etapa 5, a aprovação: o custo do vídeo e, se ainda faltar descrever alguma cena, um aviso com atalho pra voltar nas mídias (dá pra gerar sem descrever, mas aí as cenas entram espalhadas pelo ritmo em vez de casar com a fala); depois de posicionar a tela vira um editor, com o vídeo em cima e a linha do tempo embaixo, em duas linhas (a de cima são as cenas de apoio, cada uma com a miniatura da mídia, no segundo em que entra; a de baixo é o vídeo base, a fala, num bloco só): dá pra arrastar a cena pra outro momento (uma nunca fica em cima da outra, o bloco encosta na vizinha e para), puxar as alças das pontas pra mudar quanto tempo ela fica na tela e tocar nela pra abrir os ajustes finos (segundo exato, pedaço do arquivo que aparece em vídeo com sobra de corte, e o botão de abrir a cena nas mídias); tocar na régua de segundos leva a prévia praquele ponto; nada disso gasta crédito. Aí é clicar em Aprovar e gerar.
+Criar um Corte (5 passos): 1) abrir a tela; 2) subir o vídeo do computador; 3) marcar os pedaços que saem (anda até onde o trecho ruim começa, clica em Começar a cortar aqui, anda até o fim e fecha o corte); 4) se quiser, ligar o Cortar partes sem fala; 5) gerar e esperar. Não usa IA nenhuma.
 Cortes (5 passos): 1) abrir a tela; 2) colar o link do YouTube; 3) duração do corte (30 segundos, 1 minuto ou 1 minuto e meio); 4) legenda, ligada ou desligada, com cor (amarelo, branco ou verde) e posição (em cima, no meio ou embaixo); 5) gerar e esperar.
 Criar influenciador (4 passos): 1) abrir Novo influenciador; 2) escolher o cartão (Do zero sem foto, que é o quiz de 7 perguntas; A partir de uma foto real; Junto com um produto); 3) responder as perguntas (identidade, tom de pele, tipo físico, cabelo, detalhes e camisa); 4) gerar (${CUSTO_AVATAR} créditos) e esperar de 1 a 3 minutos sem clicar de novo.
 
@@ -268,8 +269,8 @@ Pergunta: "quanto custa um vídeo de 15 segundos?"
 Resposta: "Sai por 95 créditos.
 LINKS:"
 
-Pergunta: "nossa, 8 dias?"
-Resposta: "Isso, 8 dias corridos. Depois disso o resto do crédito cai sozinho.
+Pergunta: "tem limite de vídeos por dia?"
+Resposta: "Não, limite diário não existe. A única regra é de até ${SIMULTANEOS_UNIVERSAL} vídeos em produção ao mesmo tempo.
 LINKS:"
 
 Pergunta: "onde eu vejo meu saldo?"
@@ -312,7 +313,7 @@ Resposta: "Não, vídeo com erro não é cobrado: só desconta depois que o víd
 LINKS:"
 
 Pergunta: "comprei crédito e não entrou tudo"
-Resposta: "Isso é normal: metade cai na hora e o resto fica reservado pelos ${JANELA_GARANTIA_DIAS} dias de garantia da compra, aí cai sozinho.
+Resposta: "Compra nova cai inteira na hora. Se o pagamento já foi confirmado e o saldo não bateu, confira o extrato; se a compra foi antiga e aparece um crédito liberando com data, ele cai sozinho naquela data.
 LINKS:"
 
 Pergunta: "não consigo usar a plataforma"

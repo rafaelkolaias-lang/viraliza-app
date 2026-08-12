@@ -9,6 +9,7 @@ import "server-only";
 
 export type ServicoErro =
   | "ElevenLabs (voz)"
+  | "Transcrição (Whisper)"
   | "Gemini (copy/imagem)"
   | "Veo (vídeo IA)"
   | "Grok (vídeo avatar)"
@@ -34,7 +35,12 @@ export function classificarErro(erro?: string | null): ErroClassificado {
   // a ordem importa: a causa raiz (eleven/gemini) costuma aparecer no log mesmo
   // quando a mensagem final é "a fábrica não gerou vídeo".
   let servico: ServicoErro = "Outro";
-  if (/eleven|text_to_speech|xi-api|convert_with_timestamps|\[voz\]|voz=|library voices/.test(t))
+  // O Whisper vem ANTES da ElevenLabs de propósito: a fábrica marca a falha de
+  // transcrição com o mesmo prefixo "[voz]" da narração, e sem esta linha um
+  // vídeo que não conseguiu legendar apareceria como problema de ElevenLabs.
+  if (/faster[-_ ]?whisper|whispermodel|\bwhisper\b|transcri(ç|c)(ã|a)o local|word_timestamps/.test(t))
+    servico = "Transcrição (Whisper)";
+  else if (/eleven|text_to_speech|xi-api|convert_with_timestamps|\[voz\]|voz=|library voices/.test(t))
     servico = "ElevenLabs (voz)";
   else if (/gemini|genai|google.*api|api key not valid|generativelanguage/.test(t))
     servico = "Gemini (copy/imagem)";
@@ -47,7 +53,10 @@ export function classificarErro(erro?: string | null): ErroClassificado {
 
   // motivo humano da causa mais provável
   let motivo: string | undefined;
-  if (/library voices|paid_plan_required|402/.test(t))
+  if (servico === "Transcrição (Whisper)")
+    motivo =
+      "O vídeo pediu legenda da fala e a transcrição local não rodou na máquina do robô. Causa mais comum: o faster-whisper não está instalado ou o modelo de transcrição não foi baixado. O vídeo é interrompido de propósito, pra não sair sem a legenda que a pessoa pediu.";
+  else if (/library voices|paid_plan_required|402/.test(t))
     motivo = "Voz exige plano PAGO (voz 'library' da ElevenLabs). Precisa de chave paga ou troque a voz.";
   else if (/exceeds your quota|character.*quota|cota|quota/.test(t) && servico === "ElevenLabs (voz)")
     motivo = "Cota de caracteres da(s) chave(s) ElevenLabs esgotada.";

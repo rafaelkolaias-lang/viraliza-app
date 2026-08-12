@@ -494,16 +494,18 @@ MAX_DESCRICAO = 160
 
 
 def descrever_cenas(cenas):
-    """Olha os quadros de cada clipe de apoio e escreve, numa frase, o que ele MOSTRA.
+    """Olha os quadros de cada clipe de apoio e diz o que ele MOSTRA e QUAL PEDAÇO
+    dele vale a pena pôr na tela.
 
     É o que salva a cena que a pessoa subiu SEM descrever: sem nenhuma pista do
     conteúdo, o `plano_broll` só consegue espalhar os apoios pelo ritmo, em vez
     de encaixar no trecho da fala que combina com aquela imagem.
 
-    cenas: [{i, tipo, quadros: [bytes jpeg]}] - 3 quadros num vídeo (começo, meio
-    e fim do trecho cortado) e 1 numa foto.
-    Retorna {indice_da_cena: "frase"}. Dicionário vazio nunca é erro fatal: o
-    render segue exatamente como seguia antes."""
+    cenas: [{i, tipo, quadros: [bytes jpeg]}] - 5 quadros espalhados pelo trecho
+    cortado num vídeo (05/08/2026; eram 3) e 1 numa foto.
+    Retorna {indice_da_cena: {"mostra": frase, "melhor": 0..1}}, onde `melhor` é
+    em que ponto do clipe está o quadro mais forte. Dicionário vazio nunca é erro
+    fatal: o render segue exatamente como seguia antes."""
     if not _KEYS or not cenas:
         return {}
     out = {}
@@ -527,7 +529,7 @@ def _descrever_lote(cenas):
             partes.append(f"CENA {c.get('i')} (foto parada):")
         else:
             partes.append(f"CENA {c.get('i')} ({len(quadros)} quadros do MESMO trecho de "
-                          "vídeo, na ordem: começo, meio e fim):")
+                          "vídeo, na ordem do começo pro fim):")
         for q in quadros:
             partes.append(types.Part.from_bytes(data=q, mime_type="image/jpeg"))
     if not esperadas:
@@ -535,18 +537,24 @@ def _descrever_lote(cenas):
     partes.append(f"""Estas são cenas de apoio de um vídeo de venda: elas vão entrar por
 cima da pessoa que fala, no momento em que a fala dela combinar com o que a cena mostra.
 
-Descreva CADA cena em UMA frase curta (no máximo 12 palavras), em português do Brasil,
-dizendo o que aparece na tela. Regras:
-- Diga o que se VÊ: o objeto/produto, a parte dele em destaque e a ação. Ex.: "close no
-  tecido da legging sendo esticado", "caixa do produto sendo aberta na mesa".
-- Nos vídeos, compare os quadros na ordem pra captar o MOVIMENTO (o que muda entre o
-  primeiro e o último). Se nada muda, descreva só o que está em quadro.
-- NÃO invente marca, preço, material nem benefício que não dê pra ver.
-- Nada de opinião ou copy de venda: é uma etiqueta do conteúdo, não um anúncio.
-- Uma entrada por cena, usando o mesmo número que veio no rótulo "CENA N".
+Para CADA cena responda duas coisas:
+1) "mostra": UMA frase curta (no máximo 12 palavras), em português do Brasil, dizendo o
+   que aparece na tela. Regras:
+   - Diga o que se VÊ: o objeto/produto, a parte dele em destaque e a ação. Ex.: "close no
+     tecido da legging sendo esticado", "caixa do produto sendo aberta na mesa".
+   - Nos vídeos, compare os quadros na ordem pra captar o MOVIMENTO (o que muda entre o
+     primeiro e o último). Se nada muda, descreva só o que está em quadro.
+   - NÃO invente marca, preço, material nem benefício que não dê pra ver.
+   - Nada de opinião ou copy de venda: é uma etiqueta do conteúdo, não um anúncio.
+2) "melhor": um número de 0 a 1 dizendo em que ponto do clipe está o quadro MAIS FORTE
+   (0 = o primeiro quadro que você recebeu, 1 = o último). O clipe inteiro NÃO vai pro
+   vídeo: entram só uns segundos a partir desse ponto, então escolha onde a ação
+   acontece de verdade e não onde a câmera ainda está se ajustando. Em foto responda 0.
+
+Uma entrada por cena, usando o mesmo número que veio no rótulo "CENA N".
 
 Responda SOMENTE JSON:
-{{"cenas": [{{"cena": 0, "mostra": "close no tecido sendo esticado"}}]}}""")
+{{"cenas": [{{"cena": 0, "mostra": "close no tecido sendo esticado", "melhor": 0.4}}]}}""")
     erros = []
     for _ in range(len(_KEYS)):
         key = next(_ciclo)
@@ -573,12 +581,118 @@ Responda SOMENTE JSON:
         except (TypeError, ValueError):
             continue
         frase = str(item.get("mostra") or "").strip()[:MAX_DESCRICAO]
-        if frase:
-            out[i] = frase
+        if not frase:
+            continue
+        try:
+            melhor = max(0.0, min(1.0, float(item.get("melhor", 0))))
+        except (TypeError, ValueError):
+            melhor = 0.0
+        out[i] = {"mostra": frase, "melhor": melhor}
     return out
 
 
-def plano_broll(fala, apoios, dur_base):
+def encaixar_na_fala(frases, cenas):
+    """NARRAÇÃO: divide a fala entre as cenas e escolhe que pedaço de cada uma entra.
+
+    É o irmão do `plano_broll`, do outro lado do problema. Lá a fala já existe
+    (é o áudio do vídeo da pessoa) e a IA decide EM QUE SEGUNDO cada cena entra
+    por cima. Aqui as cenas é que estão fixas, na ordem que a pessoa montou, e o
+    que se divide é a FALA.
+
+    O que isto resolve (dono, 12/08/2026): a fala dura 15s, a pessoa subiu 3
+    vídeos de 1 minuto, e o render cortava o vídeo no fim da fala - as cenas 2 e
+    3 nunca apareciam. Agora as três entram, cada uma com o pedaço que combina
+    com o que está sendo falado enquanto ela está na tela.
+
+    A ORDEM É DA PESSOA e não se discute: a cena 0 vem primeiro, depois a 1. A
+    IA só decide onde estão os cortes e que pedaço de cada clipe aparece.
+
+    frases: [(indice, texto)] da narração, na ordem em que é falada.
+    cenas:  [{i, tipo, quadros: [bytes jpeg]}], na ordem em que aparecem.
+    Retorna {indice_da_cena: {"ate": indice_da_ultima_frase, "melhor": 0..1}}.
+    Dicionário vazio nunca é erro fatal: quem chama divide o tempo por igual.
+
+    NÃO tem lote (ao contrário do `descrever_cenas`): o corte de uma cena depende
+    de todas as outras, então partir em duas chamadas daria dois planos que não
+    conversam entre si."""
+    if not _KEYS or not cenas or not frases:
+        return {}
+    partes = []
+    for c in cenas:
+        quadros = [q for q in (c.get("quadros") or []) if q]
+        if not quadros:
+            return {}          # cena sem quadro = plano incompleto: melhor nem tentar
+        if c.get("tipo") == "image" or len(quadros) == 1:
+            partes.append(f"CENA {c.get('i')} (foto parada):")
+        else:
+            partes.append(f"CENA {c.get('i')} ({len(quadros)} quadros do MESMO trecho "
+                          "de vídeo, na ordem do começo pro fim):")
+        for q in quadros:
+            partes.append(types.Part.from_bytes(data=q, mime_type="image/jpeg"))
+
+    ultima = frases[-1][0]
+    n = len(cenas)
+    fala = "\n".join(f"{i}) {t}" for i, t in frases)
+    partes.append(f"""Este é um vídeo de venda NARRADO. As cenas acima tocam em
+sequência, NESTA ORDEM (quem escolheu a ordem foi a pessoa: não mude, não pule e
+não repita nenhuma), e a narração abaixo corre por cima delas.
+
+NARRAÇÃO, frase por frase:
+{fala}
+
+Divida a narração entre as {n} cenas e responda, para CADA uma:
+
+1) "ate": o número da ÚLTIMA frase que ainda está sendo falada com essa cena na
+   tela. Regras que NÃO podem ser quebradas:
+   - juntas, as cenas cobrem a narração inteira, na ordem, sem pular frase;
+   - o "ate" CRESCE de uma cena pra outra (cada cena termina depois da anterior);
+   - a última cena termina na frase {ultima}.
+   Corte pelo SENTIDO: a cena tem que estar na tela justamente quando a fala
+   estiver falando do que ela mostra. Se a fala fala do preço no fim, a cena que
+   mostra a etiqueta é a que deve estar na tela ali.
+
+2) "melhor": em que ponto do clipe está o pedaço que mais combina com o que é
+   falado enquanto ele está na tela. 0 = começo do clipe, 1 = fim. Numa FOTO
+   responda 0. Num vídeo, compare os quadros na ordem: escolha onde a ação que
+   a fala cita está acontecendo, não onde a imagem está parada.
+
+Responda SOMENTE JSON:
+{{"cenas": [{{"cena": 0, "ate": 2, "melhor": 0.4}}]}}""")
+
+    for _ in range(len(_KEYS)):
+        key = next(_ciclo)
+        try:
+            client = genai.Client(api_key=key)
+            resp = client.models.generate_content(
+                model=MODELO, contents=partes,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json", temperature=0.2),
+            )
+            uso.add_gemini(MODELO, getattr(resp, "usage_metadata", None))
+            d = json.loads(resp.text)
+            break
+        except Exception:
+            continue
+    else:
+        return {}
+
+    out = {}
+    for item in (d.get("cenas") or []):
+        if not isinstance(item, dict):
+            continue
+        try:
+            i, ate = int(item.get("cena")), int(item.get("ate"))
+        except (TypeError, ValueError):
+            continue
+        try:
+            melhor = max(0.0, min(1.0, float(item.get("melhor", 0))))
+        except (TypeError, ValueError):
+            melhor = 0.0
+        out[i] = {"ate": ate, "melhor": melhor}
+    return out
+
+
+def plano_broll(fala, apoios, dur_base, desc_base="", produto=""):
     """Escolhe EM QUE SEGUNDO cada clipe de apoio entra por cima do vídeo principal.
 
     É o "coerente com a narrativa" do B-roll: a pessoa aparece falando e, no
@@ -587,13 +701,23 @@ def plano_broll(fala, apoios, dur_base):
     fala:   [{ini, fim, texto}] da transcrição do clipe principal (whisper local).
     apoios: [{i, tipo, nome, dur}] dos clipes que ainda NÃO têm momento fixo (os
             que a pessoa arrastou na linha do tempo nem chegam aqui).
+    desc_base: o que a PESSOA escreveu que aparece no vídeo principal (06/08/2026).
+            É a única pista sobre a IMAGEM da base: a transcrição conta o que ela
+            fala, não o que está na tela. Com ela dá pra casar "aqui eu mostro a
+            etiqueta" com o apoio que mostra a etiqueta, e é o que permite este
+            planejamento rodar em vídeo SEM fala nenhuma. Se ela contiver um
+            PEDIDO explícito ("quando eu falar de X, entre a cena Y"), o prompt
+            manda obedecer antes de qualquer outra regra (dono, 06/08/2026).
+    produto: nome (e preço) do produto quando "É um produto? Sim" (06/08/2026).
+            Contexto extra: no modo com fala não existe copy, então sem isto a
+            IA do plano nem sabia do que o vídeo tratava.
     Retorna {indice_do_apoio: segundo}. Dicionário vazio = a fábrica distribui
     em intervalos iguais sozinha (nunca é erro fatal)."""
-    if not _KEYS or not fala or not apoios:
+    if not _KEYS or not apoios or not (fala or desc_base):
         return {}
     linhas = "\n".join(
         f"[{float(f.get('ini', 0)):.1f}s a {float(f.get('fim', 0)):.1f}s] {f.get('texto', '')}"
-        for f in fala[:120])
+        for f in fala[:120]) if fala else ""
     # a descrição escrita pela pessoa é a pista mais forte; sem ela sobra o nome
     # do arquivo, que quase nunca diz o que tem na cena
     lista = "\n".join(
@@ -601,12 +725,24 @@ def plano_broll(fala, apoios, dur_base):
         + (f"MOSTRA \"{a.get('descricao')}\"" if (a.get("descricao") or "").strip()
            else f"{a.get('tipo', 'video')} sem descrição (arquivo \"{a.get('nome', '')}\")")
         + f" - fica {a.get('dur', 3)}s na tela" for a in apoios)
+    # o que a pessoa disse que aparece na base. Vem antes da transcrição de
+    # propósito: é a informação de IMAGEM, e sem ela a IA só sabe o que é falado
+    sobre_base = (f"\nO que aparece na tela desse vídeo principal, segundo quem gravou:"
+                  f"\n\"{str(desc_base).strip()[:400]}\"\n" if str(desc_base).strip() else "")
+    trecho_fala = (f"""Esta é a transcrição do que ela fala, com o tempo de cada trecho:
+{linhas}
+""" if linhas else """Este vídeo NÃO tem fala transcrita: guie-se apenas pelo que ele
+mostra, descrito acima, e pelo ritmo.
+""")
+    # do que o vídeo trata: no modo com fala não existe copy, então sem esta
+    # linha a IA do plano nem sabia qual era o produto
+    sobre_produto = (f"\nO produto divulgado no vídeo: {str(produto).strip()[:150]}.\n"
+                     if str(produto or "").strip() else "")
     pedido = f"""Você está editando um vídeo vertical de venda.
 
-O vídeo principal tem {dur_base:.1f} segundos e é a pessoa FALANDO na câmera. Esta é
-a transcrição do que ela fala, com o tempo de cada trecho:
-{linhas}
-
+O vídeo principal tem {dur_base:.1f} segundos e é a pessoa na câmera.
+{sobre_produto}{sobre_base}
+{trecho_fala}
 Estes clipes de apoio mostram o produto e vão entrar POR CIMA, em tela cheia e
 mudos, cobrindo a imagem da pessoa enquanto a voz dela continua:
 {lista}
@@ -615,6 +751,11 @@ Escolha em que SEGUNDO cada apoio deve entrar. Regras:
 - Entre exatamente quando a fala combinar com o que o apoio mostra (ex.: ela cita o
   tecido -> entra o clipe que mostra o tecido). A descrição do apoio é a pista
   principal: case ela com o trecho da fala que tem a ver.
+- Se a descrição do vídeo principal disser que em algum momento ela mostra algo,
+  esse é o lugar do apoio que mostra a mesma coisa.
+- Se a descrição do vídeo principal contiver um PEDIDO explícito de quem gravou
+  (ex.: "quando eu falar do preço, entre a cena da etiqueta"), esse pedido MANDA
+  na frente de todas as outras regras: obedeça exatamente.
 - Apoio SEM descrição: encaixe onde fizer mais sentido pelo ritmo, espalhando.
 - NUNCA no comecinho: os primeiros 2 segundos são o rosto dela, é o que segura a pessoa.
 - Não empilhe: deixe espaço entre um apoio e o outro, cada um tem a duração indicada.

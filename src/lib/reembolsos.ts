@@ -69,6 +69,35 @@ export async function totalBrinde(userId: string): Promise<number> {
   return r._sum.valor ?? 0;
 }
 
+/** Brinde a remover no reembolso de UMA cobrança da assinatura (auditoria #51).
+ *  Antes usava o `totalBrinde` (histórico inteiro), então contestar UMA mensalidade
+ *  apagava os créditos de TODOS os meses já pagos. Agora o escopo é o ciclo:
+ *  - Renovação: só o brinde mensal gravado com o próprio número do pedido.
+ *  - Entrada: o pedido dela não grava brinde com o próprio número (a 1ª cobrança
+ *    chega antes do cadastro, e o crédito do 1º mês sai com número nulo pelo
+ *    primeiro acesso), então cai aqui o crédito do 1º mês + o de boas-vindas. */
+export async function brindeDoPedido(userId: string, orderId: string): Promise<number> {
+  const doPedido = await prisma.creditoTransacao.aggregate({
+    where: { userId, valor: { gt: 0 }, tipo: "bonus_assinatura", kiwifyOrderId: orderId },
+    _sum: { valor: true },
+  });
+  const somaPedido = doPedido._sum.valor ?? 0;
+  if (somaPedido > 0) return somaPedido; // renovação: só o mês reembolsado
+
+  const daEntrada = await prisma.creditoTransacao.aggregate({
+    where: {
+      userId,
+      valor: { gt: 0 },
+      OR: [
+        { tipo: "bonus_assinatura", kiwifyOrderId: null },
+        { tipo: "ajuste_admin", descricao: { startsWith: "Crédito de boas-vindas" } },
+      ],
+    },
+    _sum: { valor: true },
+  });
+  return daEntrada._sum.valor ?? 0;
+}
+
 /** Reembolso SOLICITADO: congela o saldo inteiro e desliga a assinatura.
  *  Idempotente por pedido. Retorna true se suspendeu agora. */
 export async function suspenderPorReembolso(email: string, orderId: string) {
@@ -95,8 +124,11 @@ export async function suspenderPorReembolso(email: string, orderId: string) {
         tipo: "suspensao_reembolso",
         valor: -u.saldoCentavos,
         saldoApos: 0,
+        // JSON de propósito: a restauração lê `assinanteAntes`/`nivelAntes` de
+        // volta daqui. O extrato mostra só o `m` (descricaoLegivel, auditoria
+        // #17) - e o texto é neutro, sem citar gateway (vale pra Cakto também).
         descricao: JSON.stringify({
-          m: "Reembolso solicitado na Kiwify: créditos congelados até a decisão",
+          m: "Reembolso solicitado: créditos congelados até a decisão",
           assinanteAntes: u.assinante,
           nivelAntes,
         }),
@@ -115,24 +147,28 @@ export async function restaurarSuspensao(orderId: string) {
     where: { kiwifyOrderId: orderId, tipo: "suspensao_reembolso" },
   });
   if (!susp) return false;
+  // userId nulo = a conta foi excluída depois da suspensão (auditoria #14):
+  // não existe mais saldo pra devolver
+  const donoId = susp.userId;
+  if (!donoId) return false;
   if (await existeTransacaoOrder(orderId, "reversao_suspensao")) return false;
 
   const info = parseInfo(susp.descricao);
   const devolver = Math.abs(susp.valor);
   await prisma.$transaction(async (tx) => {
     const u = await tx.user.findUnique({
-      where: { id: susp.userId },
+      where: { id: donoId },
       select: { saldoCentavos: true },
     });
     if (!u) return;
     const saldoApos = u.saldoCentavos + devolver;
     await tx.user.update({
-      where: { id: susp.userId },
+      where: { id: donoId },
       data: { saldoCentavos: saldoApos, assinante: info.assinanteAntes ?? true },
     });
     await tx.creditoTransacao.create({
       data: {
-        userId: susp.userId,
+        userId: donoId,
         tipo: "reversao_suspensao",
         valor: devolver,
         saldoApos,
@@ -142,7 +178,7 @@ export async function restaurarSuspensao(orderId: string) {
     });
   });
   // devolve também o nível que a pessoa tinha antes de pedir o reembolso
-  await restaurarNivel(susp.userId, info.nivelAntes);
+  await restaurarNivel(donoId, info.nivelAntes);
   console.log("[reembolsos] suspensão revertida", orderId);
   return true;
 }
@@ -210,8 +246,10 @@ export async function aplicarReembolsoAceito(sale: KiwifySale, orderId: string) 
       console.log("[reembolsos] saldo devedor lançado", orderId, user.email, falta);
     }
   } else {
-    // reembolso da PLATAFORMA (entrada): perde os créditos de brinde + assinatura
-    const brinde = await totalBrinde(user.id);
+    // reembolso da PLATAFORMA (entrada ou uma mensalidade): perde o brinde DAQUELE
+    // ciclo + assinatura. Antes tirava o histórico inteiro de brinde (auditoria
+    // #51), zerando meses legítimos já pagos ao contestar uma única cobrança.
+    const brinde = await brindeDoPedido(user.id, orderId);
     debitado = brinde > 0
       ? await debitarClamp(user.id, brinde, "estorno", {
           descricao: "Reembolso da plataforma: créditos de brinde removidos",

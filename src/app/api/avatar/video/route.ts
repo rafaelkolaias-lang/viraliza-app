@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { NextResponse, after } from "next/server";
@@ -7,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { montarPromptProduto, montarPromptAvatarPronto, montarPromptLivre } from "@/lib/produto-shot";
 import { gerarVideoGrok, type ArquivoImagem } from "@/lib/video-robot";
 import { custoVideoAvatar, IDIOMAS_FALA } from "@/lib/avatar-modelo";
-import { getCarteira, debitarClamp } from "@/lib/creditos";
+import { getCarteira, debitarClamp, custoReservado } from "@/lib/creditos";
 import { registrarGrokVideo } from "@/lib/gastos-api";
 import { travaDeGeracao } from "@/lib/niveis";
 import { criarNotificacao } from "@/lib/notificacoes";
@@ -144,19 +145,72 @@ export async function POST(req: Request) {
   const custo = custoVideoAvatar(dur);
   const isAdmin = user.role === "admin" || user.role === "demo";
 
-  // checa saldo ANTES de gastar a geração (o débito de fato só sai se o vídeo vier)
+  /**
+   * Trava de pedido repetido (auditoria #26), igual à do Lab e à do Boost: se a
+   * tela demorar e a pessoa recarregar e clicar de novo, o mesmo pedido não pode
+   * virar um segundo vídeo (e uma segunda cobrança). Como as entradas daqui são
+   * grandes (fotos em data URL), a identidade do pedido vira um hash gravado nas
+   * opções do job na criação; pedido idêntico em andamento reconecta nele.
+   */
+  const chaveDedup = createHash("sha1")
+    .update(
+      JSON.stringify({
+        livre,
+        imagemUnica,
+        dur,
+        comFala,
+        promptLivre: textoLivre || null,
+        imagens: livre && Array.isArray(body.imagens) ? body.imagens : null,
+        avatarUrl: body.avatarUrl ?? null,
+        produtoFotos: Array.isArray(body.produtoFotos) ? body.produtoFotos : null,
+        apresentacao: body.apresentacao ?? null,
+        cenario: body.cenario ?? null,
+        titulo: body.titulo ?? null,
+        estilo: body.estilo ?? null,
+        idioma: body.idioma ?? null,
+      }),
+    )
+    .digest("hex")
+    .slice(0, 20);
+  const emAndamento = await prisma.job.findFirst({
+    where: {
+      userId: user.id,
+      status: { in: ["na_fila", "renderizando"] },
+      criadoEm: { gte: new Date(Date.now() - 20 * 60_000) },
+      opcoes: { contains: `"dedup":"${chaveDedup}"` },
+    },
+    orderBy: { criadoEm: "desc" },
+    select: { id: true },
+  });
+  if (emAndamento) {
+    return NextResponse.json({ ok: true, jobId: emAndamento.id, custo: 0, jaRodando: true });
+  }
+
   if (!isAdmin) {
-    const { saldoCentavos } = await getCarteira(user.id);
-    if (saldoCentavos < custo) {
-      return NextResponse.json(
-        { erro: "Créditos insuficientes.", faltaCreditos: true, custo },
-        { status: 402 },
-      );
-    }
-    // trava por nível da conta: dívida de reembolso, teto diário e simultâneos
+    // trava por nível da conta: dívida de reembolso e simultâneos
     const trava = await travaDeGeracao(user);
     if (!trava.ok) {
       return NextResponse.json({ erro: trava.erro }, { status: trava.status });
+    }
+    // Saldo: desconta o que os vídeos JÁ DISPARADOS ainda vão cobrar quando
+    // saírem (auditoria #8) - sem isso, N pedidos em paralelo passavam todos
+    // na checagem e só o primeiro pagava inteiro.
+    const [{ saldoCentavos }, reservado] = await Promise.all([
+      getCarteira(user.id),
+      custoReservado(user.id),
+    ]);
+    if (saldoCentavos - reservado < custo) {
+      return NextResponse.json(
+        {
+          erro:
+            saldoCentavos >= custo
+              ? "Créditos insuficientes: os vídeos que ainda estão gerando vão usar o saldo que sobrou."
+              : "Créditos insuficientes.",
+          faltaCreditos: true,
+          custo,
+        },
+        { status: 402 },
+      );
     }
   }
 
@@ -220,7 +274,12 @@ export async function POST(req: Request) {
       duracao: dur,
       // marca de origem (igual lab/boost): é por ela que o admin separa vídeo de
       // IA de vídeo do Editor. Precisa nascer aqui pra contar erro e em produção.
-      opcoes: JSON.stringify({ avatar: true }),
+      // `dedup` = trava de pedido repetido; `custoPrevisto` = reserva de saldo.
+      opcoes: JSON.stringify({
+        avatar: true,
+        dedup: chaveDedup,
+        ...(isAdmin ? {} : { custoPrevisto: custo }),
+      }),
     },
   });
 
@@ -249,6 +308,8 @@ export async function POST(req: Request) {
         data: {
           opcoes: JSON.stringify({
             avatar: true, // não perder a marca de origem ao gravar as entradas
+            dedup: chaveDedup, // nem a trava de pedido repetido...
+            ...(isAdmin ? {} : { custoPrevisto: custo }), // ...nem a reserva de saldo
             entrada: {
               avatarUrl: avatarUrlEntrada,
               produtoFotos: fotosUrls,
@@ -294,11 +355,12 @@ export async function POST(req: Request) {
       }
 
       // cobra SÓ agora que o vídeo saiu (falha não desconta). Admin/demo não pagam.
-      // debitarClamp nunca deixa negativo: se o saldo mudou, cobra o que der.
+      // Se o saldo mudou no meio, o que faltar vira saldo devedor (auditoria #8).
       if (!isAdmin) {
         await debitarClamp(userId, custo, "debito_geracao", {
           descricao: `${livre ? "Vídeo livre" : "Vídeo com avatar"} (${dur}s, ${comFala ? "com fala" : "sem fala"})`,
           jobId: job.id,
+          faltaViraDivida: true,
         }).catch(() => {});
       }
 

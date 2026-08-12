@@ -49,6 +49,25 @@ const FILTROS = [
 
 const DIA_MS = 86_400_000;
 
+/**
+ * Descrição que dá pra LER (auditoria #17). A suspensão por reembolso grava a
+ * descrição como JSON (`{"m":"...","assinanteAntes":...}`) porque a restauração
+ * precisa desses campos de volta - mas quem abre o extrato tem que ver só a
+ * mensagem, nunca o código. JSON sem campo `m` vira vazio; texto normal passa
+ * direto.
+ */
+function descricaoLegivel(d: string): string {
+  if (d.trimStart().startsWith("{")) {
+    try {
+      const o = JSON.parse(d) as { m?: unknown };
+      return typeof o?.m === "string" ? o.m : "";
+    } catch {
+      // não era JSON de verdade: mostra como veio
+    }
+  }
+  return d;
+}
+
 function fmtCred(n: number) {
   return n.toLocaleString("pt-BR");
 }
@@ -138,7 +157,8 @@ export function ExtratoDetalhado({
       if (filtro === "gastos" && t.valor >= 0) return false;
       if (filtro === "compras" && t.valor <= 0) return false;
       if (!q) return true;
-      const txt = `${TIPO_LABEL[t.tipo] ?? t.tipo} ${t.descricao}`.toLowerCase();
+      // busca no que a pessoa VÊ (a descrição legível), não no JSON interno
+      const txt = `${TIPO_LABEL[t.tipo] ?? t.tipo} ${descricaoLegivel(t.descricao)}`.toLowerCase();
       return txt.includes(q);
     });
   }, [noPeriodo, filtro, busca]);
@@ -263,7 +283,10 @@ export function ExtratoDetalhado({
                       {TIPO_LABEL[t.tipo] ?? t.tipo}
                     </p>
                     <p className="truncate text-xs text-muted-foreground">
-                      {t.descricao ? `${t.descricao} · ` : ""}
+                      {(() => {
+                        const d = descricaoLegivel(t.descricao);
+                        return d ? `${d} · ` : "";
+                      })()}
                       {fmtData.format(new Date(t.criadoEm))}
                     </p>
                   </div>

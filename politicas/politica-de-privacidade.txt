@@ -1,0 +1,105 @@
+[AVISO INTERNO - APAGUE ESTE BLOCO ANTES DE PUBLICAR]
+Este documento ainda NAO pode ir pro ar: falta razao social, CNPJ e endereco.
+Preencha os tres campos em src/lib/legal.ts e gere este arquivo de novo:
+o aviso some sozinho e o CNPJ aparece no lugar de PENDENTE.
+[FIM DO AVISO INTERNO]
+
+Política de Privacidade
+
+Versão 2.0 | Última atualização: 6 de agosto de 2026
+
+1. Quem é o controlador dos seus dados
+
+O Viraliza é uma plataforma web de criação de conteúdo com inteligência artificial, operada por PENDENTE, CNPJ PENDENTE, com endereço em PENDENTE ("nós"). Somos o controlador dos dados tratados aqui, nos termos da Lei Geral de Proteção de Dados (Lei 13.709/2018).
+
+2. Dados que coletamos
+
+- Cadastro: nome, e-mail e senha (guardada com hash, nunca em texto legível). Se você entra com o Google, recebemos nome, e-mail e o identificador da sua conta Google.
+
+- Pagamento: as compras são processadas por processadoras independentes (Cakto e Mercado Pago). Recebemos delas a confirmação da compra com nome, e-mail, telefone e valor pago. Não recebemos nem armazenamos número de cartão.
+
+- Conteúdo que você envia: vídeos, fotos, áudios, textos e informações de produto que você sobe pra usar nas ferramentas, inclusive imagens de rosto e gravações de voz quando a ferramenta escolhida trabalha com isso.
+
+- Uso da plataforma: conteúdo gerado, créditos consumidos, histórico de transações, nível da conta e registros de atividade.
+
+- Registros de acesso: endereço de rede (IP), data e hora de acesso, guardados por 6 meses, como exige o artigo 15 do Marco Civil da Internet.
+
+- Atendimento: as mensagens trocadas com o suporte, no WhatsApp ou dentro da plataforma.
+
+3. Por que tratamos (base legal)
+
+- Execução do contrato: criar e manter sua conta, processar créditos, gerar e entregar o conteúdo que você pediu, dar suporte. É a base da maior parte do que fazemos, e não depende de consentimento.
+
+- Obrigação legal: guarda dos registros de acesso, documentos fiscais e resposta a autoridades.
+
+- Legítimo interesse: prevenção a fraude, abuso e estorno indevido (é o que sustenta o sistema de níveis da conta), segurança da plataforma e mensuração de anúncios.
+
+- Consentimento: usado somente quando pedimos de forma separada e específica, por exemplo pra comunicação promocional ou pra usar o seu conteúdo como exemplo. Você pode retirar o consentimento a qualquer momento, sem prejuízo do serviço contratado.
+
+4. Imagem, rosto e voz
+
+Algumas ferramentas trabalham com imagem de pessoa e com voz. Sobre esse material:
+
+- Ele é usado exclusivamente pra executar a geração que você pediu.
+
+- Não usamos o seu rosto, a sua voz nem o seu conteúdo pra treinar modelos de inteligência artificial, nossos ou de terceiros, e não os usamos como exemplo, propaganda ou material público sem pedir sua autorização antes, de forma separada.
+
+- Não fazemos identificação biométrica: não extraímos nem guardamos assinatura facial ou vocal pra reconhecer você ou qualquer pessoa.
+
+- Se você enviar imagem ou voz de outra pessoa, você é responsável por ter a autorização dela, conforme os Termos de Uso.
+
+5. Com quem compartilhamos
+
+Não vendemos os seus dados. Compartilhamos só com quem é necessário pra o serviço funcionar:
+
+- Processadoras de pagamento (Cakto e Mercado Pago): dados da compra.
+
+- Provedores de inteligência artificial (Google, OpenAI, ElevenLabs e outros usados pelas ferramentas): recebem o conteúdo que você mandou processar. Eles não recebem os seus dados de cadastro nem sabem quem você é.
+
+- Infraestrutura: hospedagem, banco de dados e armazenamento dos arquivos.
+
+- Meta (Facebook e Instagram), pra mensuração de anúncios: enviamos e-mail, telefone e nome criptografados de forma irreversível (hash SHA-256). A Meta não recebe esses dados em texto legível.
+
+- Autoridades públicas, quando houver obrigação legal.
+
+6. Transferência internacional
+
+Parte dos provedores acima fica fora do Brasil, principalmente nos Estados Unidos. Isso significa que o conteúdo enviado pra processamento e alguns dados de conta são transferidos pra outros países. Fazemos essas transferências pra executar o contrato com você e escolhendo fornecedores que ofereçam proteção compatível com a LGPD, com cláusulas contratuais de proteção de dados, conforme os artigos 33 e seguintes da lei.
+
+7. Cookies e sessão
+
+Usamos um cookie de sessão (httpOnly) exclusivamente pra manter você logado com segurança. Não usamos cookies de rastreamento de terceiros dentro da plataforma.
+
+8. Por quanto tempo guardamos
+
+- Conta e histórico de uso: enquanto a conta existir.
+
+- Arquivos que você enviou e conteúdo gerado: enquanto a conta existir ou até você apagar dentro da plataforma, o que vier antes.
+
+- Registros de acesso: 6 meses (Marco Civil da Internet).
+
+- Dados de compra e fiscais: 5 anos após a transação, por obrigação legal e pra defesa em eventual disputa.
+
+9. Seus direitos e como exercer
+
+Pela LGPD você pode pedir: confirmação de que tratamos seus dados, acesso a eles, correção, anonimização, portabilidade, informação sobre com quem compartilhamos, revogação de consentimento e exclusão dos seus dados.
+
+Exclusão de conta: peça pelos canais abaixo. Apagamos seus dados de cadastro, os arquivos enviados e o conteúdo gerado. Continuamos guardando apenas o que a lei nos obriga (registros de acesso por 6 meses e dados de compra por 5 anos) e o mínimo necessário pra defesa em disputa em andamento.
+
+Respondemos em até 15 dias contados do pedido. Se precisarmos de mais tempo por complexidade, avisamos você dentro desse prazo.
+
+10. Segurança
+
+Senhas são guardadas com hash (bcrypt), chaves e segredos ficam cifrados, o acesso administrativo é restrito e o tráfego é criptografado. Nenhum sistema é impenetrável: se acontecer um incidente que possa causar risco relevante a você, comunicaremos você e a Autoridade Nacional de Proteção de Dados, como manda a lei.
+
+11. Menores de 18 anos
+
+A plataforma não é destinada a menores de 18 anos e não coletamos dados dessa faixa etária de forma consciente. Se identificarmos uma conta de menor, ela será encerrada e os dados apagados. Se você é responsável e acredita que isso aconteceu, fale com a gente pelos canais abaixo.
+
+12. Encarregado e contato
+
+Pedidos sobre dados pessoais, dúvidas de privacidade e contato do encarregado (DPO): oficialonossouniverso@gmail.com, ou o WhatsApp oficial da plataforma. Você também pode reclamar diretamente à Autoridade Nacional de Proteção de Dados (ANPD).
+
+13. Alterações
+
+Esta política pode ser atualizada. A versão vigente estará sempre nesta página, com número de versão e data no topo. Mudanças relevantes são comunicadas dentro da plataforma.

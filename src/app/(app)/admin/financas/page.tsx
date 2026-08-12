@@ -11,6 +11,8 @@ import {
   Cpu,
   PiggyBank,
   Megaphone,
+  Crown,
+  Coins,
 } from "lucide-react";
 import {
   Table,
@@ -136,6 +138,18 @@ export default async function FinancasPage({
           sub={`clientes pagaram ${brl(f.periodo.receitaCentavos)}`}
         />
         <StatCard label={`Vendas · ${labelPeriodo}`} value={f.periodo.vendasPagas} icon={Receipt} />
+        <StatCard
+          label={`Assinaturas · ${labelPeriodo}`}
+          value={brl(f.periodo.receitaLiquidaAssinaturaCentavos)}
+          icon={Crown}
+          sub={`${f.periodo.vendasPagasAssinatura} venda${f.periodo.vendasPagasAssinatura === 1 ? "" : "s"} · bruto ${brl(f.periodo.receitaAssinaturaCentavos)}`}
+        />
+        <StatCard
+          label={`Créditos · ${labelPeriodo}`}
+          value={brl(f.periodo.receitaLiquidaCreditoCentavos)}
+          icon={Coins}
+          sub={`${f.periodo.vendasPagasCredito} venda${f.periodo.vendasPagasCredito === 1 ? "" : "s"} · bruto ${brl(f.periodo.receitaCreditoCentavos)}`}
+        />
         <StatCard
           label="Reembolsos"
           value={`− ${brl(f.periodo.reembolsoLiquidoCentavos)}`}
@@ -284,6 +298,7 @@ export default async function FinancasPage({
               <TableHeader>
                 <TableRow>
                   <TableHead>Cliente</TableHead>
+                  <TableHead className="hidden md:table-cell">Produto</TableHead>
                   <TableHead className="hidden sm:table-cell">Quando</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Você recebe</TableHead>
@@ -297,6 +312,25 @@ export default async function FinancasPage({
                       <TableCell>
                         <p className="text-sm font-medium">{c.nome}</p>
                         <p className="text-xs text-muted-foreground">{c.email}</p>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        <span
+                          className={`rounded px-2 py-0.5 text-xs font-medium ${
+                            c.ehCredito
+                              ? "bg-violet-500/15 text-violet-600"
+                              : "bg-emerald-500/15 text-emerald-600"
+                          }`}
+                        >
+                          {c.ehCredito ? "Crédito" : "Assinatura"}
+                        </span>
+                        {c.produtoNome && (
+                          <p
+                            className="mt-0.5 max-w-[180px] truncate text-[11px] text-muted-foreground/70"
+                            title={c.produtoNome}
+                          >
+                            {c.produtoNome}
+                          </p>
+                        )}
                       </TableCell>
                       <TableCell className="hidden text-sm text-muted-foreground sm:table-cell">
                         {c.quando}

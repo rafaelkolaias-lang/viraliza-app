@@ -146,9 +146,9 @@ export function AssinaturaPainel({
         </ul>
         <p className="mt-4 flex items-start gap-2 rounded-xl border border-border bg-background/50 p-3 text-xs text-muted-foreground">
           <Coins className="mt-0.5 size-4 shrink-0 text-primary" />
-          Os créditos que você compra à parte não vencem com a assinatura: eles ficam no
-          seu saldo mesmo com a assinatura inativa. A assinatura controla só a biblioteca
-          e o brinde mensal.
+          Os créditos que você compra à parte não dependem da assinatura: eles ficam no
+          seu saldo mesmo com a assinatura inativa, dentro da validade de 90 dias do
+          pacote. A assinatura controla só a biblioteca e o brinde mensal.
         </p>
       </section>
 

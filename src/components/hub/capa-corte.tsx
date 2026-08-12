@@ -55,15 +55,11 @@ export function CapaCorte({ video }: { video: ViralVideo }) {
     : video.driveId
       ? `/api/drive-video/${video.driveId}`
       : null;
-  // "Editar esse": abre o Editor com uma CÓPIA (URL mesma-origem, sem CORS).
-  const editUrl = video.driveId
-    ? `/api/drive-video/${video.driveId}`
-    : video.arquivo
-      ? midiaUrl(video.arquivo)
-      : null;
-  const editorHref = editUrl
-    ? `/painel/novo?video=${encodeURIComponent(editUrl)}&nome=${encodeURIComponent(video.titulo)}`
-    : null;
+  // "Editar esse" foi descontinuado (dono, 06/08/2026): quem quiser mexer num
+  // corte do acervo faz a edição na mão, subindo o vídeo no editor. O atalho
+  // fica desligado por aqui, com as condicionais de baixo escondendo o botão no
+  // hover do card e no player, pra voltar a existir é só devolver a URL.
+  const editorHref: string | null = null;
 
   // hover no desktop: começa a tocar (mudo, em loop); sai: pausa e volta pro início
   function tocarHover() {

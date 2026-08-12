@@ -303,18 +303,30 @@ export async function emailComprou(
 /** Este e-mail comprou o PLANO DE ENTRADA (qualquer produto pago que não seja
  *  pacote de crédito)? É o que decide, no cadastro, se a conta nasce assinante e
  *  ganha o crédito de boas-vindas. Comprar só pacote não dá biblioteca.
- *  Em caso de dúvida devolve false; quem chama trata isso (ver registro.ts). */
-export async function emailComprouEntrada(email: string, diasAtras = 14): Promise<boolean> {
+ *
+ *  Devolve `null` quando NÃO DEU pra consultar (API fora/instável, depois de 3
+ *  tentativas): "não sei" é diferente de "não comprou" (auditoria #15 - o false
+ *  no erro fazia cliente legítimo da entrada nascer sem biblioteca). Quem chama
+ *  decide o que fazer com a dúvida (ver registro.ts). */
+export async function emailComprouEntrada(
+  email: string,
+  diasAtras = 14,
+): Promise<boolean | null> {
   const e = email.trim().toLowerCase();
-  if (!e || !caktoConfigurada()) return false;
+  if (!e || !caktoConfigurada()) return null;
   const ini = new Date(Date.now() - diasAtras * 86_400_000).toISOString();
   const fim = new Date(Date.now() + 60_000).toISOString();
-  let pedidos: PedidoLista[];
-  try {
-    pedidos = await listarPedidos(ini, fim);
-  } catch {
-    return false;
+  let pedidos: PedidoLista[] | null = null;
+  for (let tentativa = 0; tentativa < 3 && pedidos === null; tentativa++) {
+    try {
+      pedidos = await listarPedidos(ini, fim);
+    } catch {
+      // instabilidade passageira: espera um pouco e tenta de novo (o cadastro
+      // aguenta esses ~2s a mais; nascer sem a biblioteca que pagou, não)
+      if (tentativa < 2) await new Promise((r) => setTimeout(r, 700 * (tentativa + 1)));
+    }
   }
+  if (pedidos === null) return null;
   return pedidos.some(
     (p) =>
       (p.customer?.email || "").toLowerCase() === e &&

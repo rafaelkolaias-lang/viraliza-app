@@ -91,9 +91,11 @@ export async function POST(req: Request) {
     );
   }
 
-  // Trava por nível da conta: o lote inteiro conta no teto diário e nos simultâneos
-  // (cada vídeo do lote vira um job na fila).
-  const trava = await travaDeGeracao(user, fontes.length);
+  // Trava de geração com `quantos = 0` (auditoria #25): job de marca não ocupa
+  // vaga de simultâneo (não usa IA nem o motor), então o lote de 12 não pode
+  // esbarrar no limite de 5 - antes `rodando + 12 > 5` falhava SEMPRE. A chamada
+  // continua aqui pela trava de dívida de reembolso.
+  const trava = await travaDeGeracao(user, 0);
   if (!trava.ok) {
     return NextResponse.json({ erro: trava.erro }, { status: trava.status });
   }

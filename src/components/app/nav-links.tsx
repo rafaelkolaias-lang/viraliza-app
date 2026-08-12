@@ -34,10 +34,14 @@ import {
   Palette,
   PenLine,
   Pickaxe,
+  Scale,
+  Scissors,
+  ShieldCheck,
   ShoppingBag,
   Sparkles,
   Stamp,
   Trash2,
+  Undo2,
   UserRound,
   Users,
   Video,
@@ -124,10 +128,10 @@ type Grupo = {
 const GRUPOS: readonly Grupo[] = [
   {
     chave: "nav_personalize_aberto",
-    // a raiz é o "Novo influenciador", e não a galeria (`/painel/meus-avatares`),
-    // pra clicar no nome cair na PORTA DE ENTRADA do grupo, igual no Viraliza Labs.
-    // O grupo continua acendendo nas outras duas telas: elas estão nos `itens`.
-    raiz: "/painel/meus-avatares/criar",
+    // a raiz é a tela de APRESENTAÇÃO, não o "Novo influenciador": clicar no nome
+    // do grupo abre a explicação das 3 telas, igual no Viraliza Labs. As três
+    // continuam a um clique nos `itens` logo abaixo e na barrinha do rodapé.
+    raiz: "/painel/meus-avatares/inicio",
     label: "Personalize com IA",
     icon: Palette,
     navegavel: true,
@@ -164,15 +168,20 @@ const GRUPOS: readonly Grupo[] = [
   },
   {
     chave: "nav_ferramentas_aberto",
-    // era `/painel/ferramentas` (uma grade de cards que repetia estes atalhos).
-    // A tela foi apagada: com o submenu aqui, ela virou um clique a mais pro
-    // mesmo lugar. A raiz é a 1ª ferramenta, que é onde clicar no nome cai.
-    raiz: "/painel/novo",
+    // a raiz voltou a ser `/painel/ferramentas` em 06/08/2026, mas a TELA é outra:
+    // a antiga era uma grade de atalhos repetidos (e foi apagada por isso, em
+    // 05/08/2026); a nova EXPLICA o que cada ferramenta faz, que é o que faltava.
+    // Quem já sabe o caminho continua indo direto pelos `itens` ou pela barrinha.
+    raiz: "/painel/ferramentas",
     label: "Ferramentas",
     icon: Wrench,
     navegavel: true,
     itens: [
       { href: "/painel/novo", label: "Editor automático", icon: Sparkles },
+      // "Criar um Corte" é o vídeo QUE JÁ ESTÁ no computador da pessoa: corta
+      // silêncio e tira pedaços, sem IA e sem copy. Não confundir com "Cortes de
+      // qualquer vídeo" logo abaixo, que baixa de um LINK e fatia em vários.
+      { href: "/painel/criar-corte", label: "Criar um Corte", icon: Scissors },
       { href: "/painel/lote", label: "Aplicar marca em lote", icon: Stamp },
       { href: "/painel/leads", label: "MapsLeads", icon: MapPin },
       { href: "/painel/cortes", label: "Cortes de qualquer vídeo", icon: Clapperboard },
@@ -189,14 +198,27 @@ export const adminItems = [
   // As antigas continuam de pé em /admin/videos, /admin/imagens e /admin/avatares,
   // só saíram do menu pra ele não crescer.
   { href: "/admin/criacoes", label: "Criação dos usuários", icon: Sparkles },
+  { href: "/admin/diagnostico", label: "Diagnóstico", icon: Activity },
   { href: "/admin/usuarios", label: "Usuários", icon: Users },
+  { href: "/admin/notificacoes", label: "Notificações", icon: Bell },
   { href: "/admin/bonus", label: "Bônus IG", icon: Camera },
   { href: "/admin/indicacoes", label: "Indicações", icon: Gift },
   { href: "/admin/chat", label: "Chat", icon: MessageCircle },
   { href: "/admin/reportes", label: "Reportes de vídeo", icon: Flag },
   { href: "/admin/excluidos", label: "Excluídos", icon: Trash2 },
-  { href: "/admin/notificacoes", label: "Notificações", icon: Bell },
-  { href: "/admin/diagnostico", label: "Diagnóstico", icon: Activity },
+] as const;
+
+/**
+ * Documentos legais, no fim da barra do admin e em vermelho.
+ *
+ * Não são tela de admin: são as páginas PÚBLICAS que o usuário final lê. Ficam
+ * aqui só pra o dono conferir rápido como estão, sem ter que digitar o endereço.
+ * O vermelho é pra não confundir com ferramenta de administração.
+ */
+export const docsLegaisItems = [
+  { href: "/termos", label: "Termos de Uso", icon: Scale },
+  { href: "/privacidade", label: "Privacidade", icon: ShieldCheck },
+  { href: "/reembolso", label: "Reembolso", icon: Undo2 },
 ] as const;
 
 /** Avisa o React quando a "última visita" muda (outra aba ou esta mesma). */
@@ -256,6 +278,7 @@ function Item({
   onNavigate,
   sub = false,
   compacto = false,
+  perigo = false,
 }: {
   href: string;
   label: string;
@@ -265,6 +288,9 @@ function Item({
   novidade?: boolean;
   onNavigate?: () => void;
   sub?: boolean;
+  /** item em vermelho: usado nos documentos legais, que são páginas públicas
+   *  e não telas de administração */
+  perigo?: boolean;
   /** barra recolhida: só o ícone, com o nome num balãozinho no hover */
   compacto?: boolean;
 }) {
@@ -277,9 +303,14 @@ function Item({
         aria-label={label}
         className={cn(
           "group relative grid h-11 place-items-center rounded-lg transition-colors",
-          active
-            ? "bg-primary/12 text-primary"
-            : "text-muted-foreground hover:bg-accent hover:text-foreground",
+          perigo
+            ? cn(
+                "border border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300",
+                active && "bg-red-500/15 text-red-300",
+              )
+            : active
+              ? "bg-primary/12 text-primary"
+              : "text-muted-foreground hover:bg-accent hover:text-foreground",
         )}
       >
         <Icon className="size-5" />
@@ -310,9 +341,14 @@ function Item({
       className={cn(
         "flex items-center gap-3 rounded-lg px-3 transition-colors",
         sub ? "py-2 text-[13px]" : "py-2.5 text-sm font-medium",
-        active
-          ? "bg-primary/12 text-primary"
-          : "text-muted-foreground hover:bg-accent hover:text-foreground",
+        perigo
+          ? cn(
+              "border border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300",
+              active && "bg-red-500/15 text-red-300",
+            )
+          : active
+            ? "bg-primary/12 text-primary"
+            : "text-muted-foreground hover:bg-accent hover:text-foreground",
       )}
     >
       <Icon className={sub ? "size-4" : "size-4.5"} />
@@ -554,6 +590,30 @@ export function NavLinks({
               compacto={compacto}
             />
           ))}
+
+          {/* documentos legais: páginas PÚBLICAS, não telas de admin. Ficam no
+              fim e em vermelho justamente pra não se misturar com as de cima. */}
+          <div className="mt-3 flex flex-col gap-1">
+            {compacto ? (
+              <span className="mx-auto mb-1 h-px w-8 bg-red-500/30" />
+            ) : (
+              <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-red-400/70">
+                Documentos legais
+              </p>
+            )}
+            {docsLegaisItems.map(({ href, label, icon: Icon }) => (
+              <Item
+                key={href}
+                href={href}
+                label={label}
+                Icon={Icon}
+                active={isActive(href)}
+                onNavigate={onNavigate}
+                compacto={compacto}
+                perigo
+              />
+            ))}
+          </div>
         </div>
       )}
     </div>

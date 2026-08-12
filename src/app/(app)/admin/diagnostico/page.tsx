@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Activity, AlertCircle, KeyRound, RefreshCw, ShieldCheck } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { classificarErro, elevenSaldo } from "@/lib/diagnostico";
+import { listarErrosApp, AREA_ROTULO } from "@/lib/erros-app";
 import { EstornarJob } from "@/components/app/estornar-job";
 import { ChavesGeracao } from "@/components/app/chaves-geracao";
 import { estadoGeracao } from "@/lib/configuracao";
@@ -44,6 +45,9 @@ export default async function DiagnosticoPage() {
     elevenSaldo(),
     estadoGeracao(),
   ]);
+
+  // falhas da montagem do Editor (não têm Job, moram em data/erros-app.json)
+  const errosApp = listarErrosApp(50);
 
   // créditos debitados e estornos já feitos nesses jobs (pro botão de estorno)
   const idsErro = jobsErro.map((j) => j.id);
@@ -180,10 +184,55 @@ export default async function DiagnosticoPage() {
         )}
       </section>
 
+      {/* ---- Erros FORA do render (montagem do Editor) ----
+           Estes acontecem ANTES de existir um Job, então não teriam onde
+           aparecer: a pessoa via um aviso vermelho na tela e o dono não ficava
+           sabendo. Como agora nenhum erro deixa o vídeo ser gerado, ficar sem
+           esta lista viraria "o site não deixa eu gerar" sem pista nenhuma. */}
+      <section className="space-y-3">
+        <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground/80">
+          <AlertCircle className="size-4" /> Erros na montagem (antes do render)
+        </h2>
+
+        {errosApp.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border p-5 text-sm text-muted-foreground">
+            Nada por aqui. Esta lista mostra o que falha na tela do Editor antes de
+            o vídeo entrar na fila (a IA que descreve as cenas e a que posiciona
+            elas na linha do tempo). <b className="text-foreground">Erro aqui
+            impede a pessoa de gerar o vídeo</b>, então vale olhar quando alguém
+            disser que o botão não libera.
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-xl border border-border">
+            <ul className="divide-y divide-border">
+              {errosApp.map((e, i) => (
+                <li key={`${e.em}-${i}`} className="space-y-1 p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Pilula texto={AREA_ROTULO[e.area] ?? e.area} forte />
+                    <span className="text-xs text-muted-foreground">
+                      {fmtData.format(new Date(e.em))}
+                    </span>
+                    {e.quem && (
+                      <span className="text-xs text-muted-foreground">· {e.quem}</span>
+                    )}
+                  </div>
+                  <p className="text-sm">{e.mensagem}</p>
+                  {e.detalhe && (
+                    <p className="whitespace-pre-wrap break-words rounded-lg bg-muted/50 p-2 font-mono text-[11px] text-muted-foreground">
+                      {e.detalhe}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </section>
+
       {/* ---- Resumo de erros ---- */}
       <section className="space-y-3">
         <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground/80">
-          <AlertCircle className="size-4" /> Erros recentes
+          <AlertCircle className="size-4" /> Erros de render (vídeo na fila)
         </h2>
 
         {classificados.length === 0 ? (

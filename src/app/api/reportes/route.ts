@@ -91,7 +91,17 @@ export async function PATCH(req: Request) {
   }
 
   if (acao === "reembolsar") {
-    if (rep.creditos > 0) {
+    // idempotência (auditoria #40): se esse vídeo já foi estornado (por aqui ou
+    // pelo estorno manual do Diagnóstico), não credita de novo. Sem isso, decidir
+    // o reporte depois de já ter estornado o mesmo job pagava o dobro.
+    const jaEstornado = rep.jobId
+      ? await prisma.creditoTransacao.findFirst({
+          where: { jobId: rep.jobId, tipo: "estorno" },
+          select: { id: true },
+        })
+      : null;
+    const creditou = rep.creditos > 0 && !jaEstornado;
+    if (creditou) {
       await lancar(rep.userId, rep.creditos, "estorno", {
         descricao: `Reembolso do vídeo "${rep.produto}" (problema reportado)`,
         jobId: rep.jobId,
@@ -104,7 +114,9 @@ export async function PATCH(req: Request) {
     await criarNotificacao({
       userId: rep.userId,
       titulo: "Créditos devolvidos! 💚",
-      mensagem: `Analisamos o problema do vídeo "${rep.produto}" e devolvemos ${rep.creditos} créditos pra você.`,
+      mensagem: creditou
+        ? `Analisamos o problema do vídeo "${rep.produto}" e devolvemos ${rep.creditos} créditos pra você.`
+        : `Analisamos o problema do vídeo "${rep.produto}". Os créditos desse vídeo já tinham sido devolvidos. 💚`,
       link: "/painel/extrato",
     }).catch(() => {});
   } else {

@@ -394,6 +394,11 @@ def montar_pasta_fabrica(job):
         linhas.append("sem_copy: 1")
     if opc.get("semMusica"):
         linhas.append("sem_musica: 1")
+    # estilo da legenda da fala: "palavra" (uma por vez, no ritmo) ou "completo"
+    # (frase inteira em até 2 linhas). Chave ausente = job antigo, e aí vale o
+    # padrão da fábrica.
+    if opc.get("legendaEstilo") in ("palavra", "completo"):
+        linhas.append(f"legenda_estilo: {opc['legendaEstilo']}")
     # volumes escolhidos na tela (0-100). Antes o controle não fazia nada
     # (`auditoria.md` #23); o de música aceita o campo antigo como reserva.
     vols = opc.get("volumes") or {}
@@ -407,8 +412,30 @@ def montar_pasta_fabrica(job):
                          ("cortar_silencio", opc.get("cortarSilencio"))):
         if valor is not None:
             linhas.append(f"{chave}: {valor}")
+    # EDIÇÃO AVANÇADA (Ken Burns nas fotos, transição entre as cenas, som do
+    # apoio com ducking e melhor pedaço do apoio). Escreve o que a tela mandou,
+    # LIGADO OU DESLIGADO: os padrões da fábrica não são todos "ligado" (o som do
+    # apoio nasce desligado), então omitir o que está ligado faria a fábrica
+    # desligar de volta o que a pessoa acabou de ligar. Chave ausente aqui é só
+    # job antigo, e aí vale o padrão do `_edicao` da fábrica.
+    ed = opc.get("edicao") or {}
+    for chave, campo in (("ed_kenburns", "kenBurns"), ("ed_transicoes", "transicoes"),
+                         ("ed_som_apoio", "somApoio"), ("ed_trecho", "trechoInteligente")):
+        if isinstance(ed.get(campo), bool):
+            linhas.append(f"{chave}: {1 if ed[campo] else 0}")
+    # roteiro da narração escrito PELA PESSOA: a IA não inventa a fala, só narra.
+    # Vai numa linha só, então as quebras viram espaço (o config é chave: valor).
+    fala_propria = str(opc.get("roteiroFala") or "").strip()
+    if fala_propria:
+        linhas.append("roteiro_fala: " + " ".join(fala_propria.split()))
     if cfg_musica:
         linhas.append(f"musica: {cfg_musica}")
+    elif opc.get("musica"):
+        # trilha ESCOLHIDA da biblioteca da plataforma (Editor, etapa 4): so o
+        # nome do arquivo, a fabrica acha em entrada/musicas. O upload da pessoa
+        # (cfg_musica) sempre manda na frente. Numa linha so: o config e chave:
+        # valor, quebra de linha viraria chave fantasma.
+        linhas.append("musica: " + " ".join(os.path.basename(str(opc["musica"])).split()))
     with open(os.path.join(prod_dir, "config.txt"), "w", encoding="utf-8") as f:
         f.write("\n".join(linhas) + "\n")
 
@@ -435,6 +462,9 @@ def render_fabrica(job, work):
         env["ELEVEN_VOICE_ID"] = job["voz_id"]
     if job.get("eleven_key"):  # BYO: usa a chave do usuário na frente das da plataforma
         env["ELEVENLABS_API_KEYS"] = job["eleven_key"]
+        # marca a chave como "do usuário" (auditoria #21): sem isso o consumo
+        # BYO era contado como gasto da CASA no rastreio (uso.add_eleven)
+        env["ELEVEN_USER_KEY"] = job["eleven_key"]
 
     # limpa saídas antigas desse nome
     for old in glob.glob(os.path.join(APP_DIR, "saida", nome + "*")):
@@ -451,6 +481,8 @@ def render_fabrica(job, work):
         # erro DETALHADO: puxa as linhas úteis (voz/cota/traceback) em vez de só cortar
         full = ((r.stdout or "") + "\n" + (r.stderr or "")).strip()
         pistas = ("[voz]", "Voz falhou", "FALHOU", "ERRO", "Error", "Traceback",
+                  "faster-whisper", "faster_whisper", "whisper", "transcricao",
+                  "transcrição", "ffmpeg",
                   "cota", "quota", "HTTP 4", "HTTP 5", "library voices")
         uteis = [ln for ln in full.splitlines() if any(p in ln for p in pistas)]
         resumo = "\n".join(uteis[-12:]) if uteis else full[-800:]
@@ -649,6 +681,12 @@ def processar(job):
         msg = f"{e}"
         log(f"!! erro no job {job_id}: {msg}")
         traceback.print_exc()
+        # o traceback vai JUNTO pra web (vira `Job.erro` e alimenta o
+        # /admin/diagnostico). A mensagem sozinha de um erro de arquivo ou de
+        # rede não diz onde quebrou, e o admin ficava sem pista nenhuma. Erro
+        # que a fábrica já explicou (RuntimeError nosso) não repete o traceback.
+        if not isinstance(e, RuntimeError):
+            msg = f"{e.__class__.__name__}: {e}\n{traceback.format_exc()[-2500:]}"
         reportar_erro(job_id, msg)
     finally:
         shutil.rmtree(work, ignore_errors=True)

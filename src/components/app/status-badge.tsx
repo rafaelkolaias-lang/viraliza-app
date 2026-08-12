@@ -11,6 +11,13 @@ const MAP: Record<
     classes: "bg-muted text-muted-foreground",
     Icon: Clock,
   },
+  // mídia já no servidor; falta a IA terminar de encaixar as cenas no navegador
+  preparando: {
+    label: "Preparando",
+    classes: "bg-amber-500/15 text-amber-400",
+    Icon: Loader2,
+    spin: true,
+  },
   na_fila: {
     label: "Na fila",
     classes: "bg-muted text-muted-foreground",

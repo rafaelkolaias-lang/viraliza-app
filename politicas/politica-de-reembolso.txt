@@ -1,0 +1,79 @@
+[AVISO INTERNO - APAGUE ESTE BLOCO ANTES DE PUBLICAR]
+Este documento ainda NAO pode ir pro ar: falta razao social, CNPJ e endereco.
+Preencha os tres campos em src/lib/legal.ts e gere este arquivo de novo:
+o aviso some sozinho e o CNPJ aparece no lugar de PENDENTE.
+[FIM DO AVISO INTERNO]
+
+Política de Reembolso
+
+Versão 1.0 | Última atualização: 6 de agosto de 2026
+
+Esta política é parte integrante dos Termos de Uso e explica quando uma compra no Viraliza pode ser devolvida, quanto volta e como pedir.
+
+1. O prazo
+
+Você tem 7 dias corridos, contados da data do pagamento, pra pedir a devolução de qualquer compra feita na plataforma. É o direito de arrependimento previsto no artigo 49 do Código de Defesa do Consumidor, e vale pra assinatura e pra pacote de créditos.
+
+Passados os 7 dias, não há devolução, salvo falha nossa na entrega do serviço.
+
+2. A condição do consumo
+
+O crédito comprado vira processamento real: cada vídeo, imagem, voz ou análise gerada tem um custo que pagamos no mesmo instante aos provedores de inteligência artificial, e esse custo não volta pra nós. Por isso a devolução considera quanto do crédito você já usou.
+
+- Consumo de até 80% do crédito da compra: devolvemos proporcionalmente ao que você não usou, na forma do item 3.
+
+- Consumo acima de 80% do crédito da compra: não há devolução. Nesse ponto o serviço já foi essencialmente prestado, e o valor residual seria menor do que o custo de processar a própria devolução (taxa da processadora e atendimento).
+
+O consumo é apurado pelo seu extrato dentro da plataforma, que registra cada débito com data, ferramenta e valor. Você pode consultar esse extrato a qualquer momento, antes de pedir a devolução.
+
+3. Quanto volta
+
+A regra é a mesma pra pacote de créditos e pra assinatura: devolvemos a parte proporcional ao crédito que você não usou. O valor correspondente ao crédito já consumido não é devolvido, porque esse processamento já aconteceu e já foi pago por nós.
+
+Exemplo com pacote de créditos. Compra de R$20,00 em créditos. Dentro dos 7 dias você usou metade do crédito e pediu a devolução: voltam R$10,00, referentes à metade não usada.
+
+Exemplo com assinatura. Você usou 50% do crédito do período: voltam 50% do valor pago naquele período. Usou 90%: passou do limite de 80% e não há devolução do período em curso, mas o cancelamento vale normalmente pras cobranças seguintes.
+
+Na assinatura, a devolução considera o período em curso. Períodos anteriores, já usados e encerrados, não são devolvidos.
+
+Crédito vencido não é devolvido. Cada pacote de crédito vale 90 dias contados da compra, como diz a seção Créditos dos Termos de Uso. Passado esse prazo, não há devolução do que sobrou, porque o prazo de arrependimento de 7 dias já terá se encerrado muito antes.
+
+4. O que acontece na sua conta
+
+Quando a devolução é concedida:
+
+- Assinatura: o acesso à biblioteca e a assinatura caem na hora, junto da devolução. Os créditos de brinde recebidos por causa da assinatura (boas-vindas e mensais) são retirados. Créditos que você tenha comprado em pacote continuam seus.
+
+- Pacote de créditos: o crédito não usado daquele pacote é retirado do saldo, e sua assinatura não é afetada.
+
+- Crédito já consumido: se o crédito consumido for maior do que o saldo disponível no momento da devolução, a diferença vira saldo devedor e novas gerações ficam bloqueadas até a regularização.
+
+- Sua conta continua existindo e você continua conseguindo entrar, para acesso ao histórico e ao que já foi gerado.
+
+5. Prazo e forma da devolução
+
+A devolução é feita pelo mesmo meio de pagamento usado na compra, pela processadora que processou o pedido. O prazo pra o valor aparecer depende do meio: em Pix costuma ser de poucos dias úteis, e em cartão de crédito o estorno costuma aparecer na fatura seguinte ou na subsequente, conforme o fechamento do seu cartão.
+
+Analisamos o pedido em até 5 dias úteis contados do recebimento e respondemos a você com a decisão e o motivo.
+
+6. Cancelamento sem pedido de devolução
+
+Cancelar a assinatura e pedir devolução são coisas diferentes. Ao cancelar sem pedir devolução, você continua com acesso até o fim do período já pago e as cobranças seguintes são interrompidas. Nada é retirado da sua conta.
+
+7. Contestação no cartão (chargeback)
+
+Se você tiver qualquer problema, fale com a gente primeiro: a devolução direta é mais rápida do que a contestação no cartão. Abrir contestação sem falar com o atendimento faz o acesso à conta ser bloqueado até a disputa ser resolvida, conforme os Termos de Uso. Se a disputa for resolvida a seu favor, aplicam-se as mesmas regras de conta do item 4.
+
+8. Como pedir
+
+Envie o pedido pelo WhatsApp oficial da plataforma ou pela aba Assinatura, dentro do painel, informando:
+
+- o e-mail cadastrado na plataforma;
+
+- a data da compra e o que foi comprado;
+
+- o motivo do pedido (opcional dentro dos 7 dias).
+
+9. Alterações
+
+Esta política pode ser atualizada. Vale sempre a versão vigente na data da sua compra, e a versão atual está nesta página, com número e data no topo.

@@ -165,28 +165,72 @@ export const GUIAS: Guia[] = [
       },
       {
         texto:
-          "sobe o vídeo que você já gravou. Pode mandar mais de um clipe, que a IA junta na ordem e monta no formato de celular. Conseguiu subir?",
+          "a tela vai em 5 etapas, e a primeira pergunta de onde o seu vídeo parte:\n\n" +
+          "- Vídeo com fala: você já tem um vídeo com alguém falando na câmera, seja você ou outra pessoa. Ele roda por baixo do começo ao fim, com o som dele, e as fotos do produto entram por cima.\n" +
+          "- Voz de IA narrando: não tem ninguém falando em vídeo. Suas fotos e vídeos tocam em sequência e uma voz de IA narra por cima. Aí você escolhe se a IA escreve a fala ou se você digita o texto.\n\n" +
+          "Qual dos dois?",
       },
       {
         texto:
-          "agora o modo, que é o que a IA vai fazer com o seu vídeo:\n\n" +
-          "- Legenda: escreve a copy e queima a legenda na tela. É o mais usado.\n" +
-          "- Voz narrada: escreve a copy e narra com voz de IA.\n" +
-          "- Transcrever fala: legenda a sua própria fala no tempo certo e mantém o áudio original.\n" +
-          "- Nenhum: só a montagem, sem IA nenhuma.\n\n" +
-          "Qual deles?",
+          "etapa 2, é um produto? Ela começa no Não, que é o caso mais comum (corte, meme, vídeo informativo), e aí a única pergunta é se você quer a fala do vídeo escrita na tela (a legenda sai da transcrição do próprio áudio, que continua ligado) ou o vídeo sem legenda nenhuma. " +
+          "No Sim aparecem o nome e o preço do produto, e o resto depende de onde o vídeo parte:\n\n" +
+          "- Vídeo com fala: a fala do vídeo já é a narração, então a escolha é só entre Transcrever fala (legenda no tempo certo da fala, som original ligado) e Nenhum (sem legenda).\n" +
+          "- Voz de IA narrando: a IA escreve a copy a partir da descrição do produto, e você escolhe o tom dela e onde vai vender (Shopee ou outro). Se na etapa 1 você marcou 'A IA escreve', o produto é obrigatório: é dele que ela tira o assunto.\n\n" +
+          "Escolheu?",
       },
       {
         texto:
-          "agora diz onde você vai vender, Shopee ou outro, que muda a chamada e as hashtags, e o tom da copy: agressivo, equilibrado ou tranquilo. Fez?",
+          "etapa 3, as mídias. No vídeo com fala, sobe primeiro esse vídeo e depois as fotos e vídeos do produto, que são as cenas de apoio. " +
+          "Na voz de IA, sobe tudo junto na ordem em que quer que apareça. Aqui também dá pra escrever textos que aparecem na tela.\n\n" +
+          "Nesta mesma etapa, embaixo de cada mídia tem um campo pra dizer o que aparece nela. É isso que faz a cena entrar no ponto certo da fala, e a que ficar sem descrição fica marcada em âmbar. " +
+          "No vídeo com fala toda cena de apoio PRECISA de descrição pra continuar. Escrever você mesmo é de graça; cada cena tem um botão de varinha (e embaixo da lista tem o botão em lote) pra IA olhar e escrever por você, a 1 crédito por cena. " +
+          "No vídeo com fala vale descrever também o vídeo principal: a IA escuta a fala, mas não enxerga a imagem, então dizer o que aparece nele ajuda ela a encaixar as cenas na hora certa. Subiu?",
       },
       {
         texto:
-          "agora escolhe a voz da narração e a música de fundo, além da posição da legenda: em cima, no meio ou embaixo. Escolheu?",
+          "etapa 4, som e acabamento: cortar as partes sem fala (já vem ligado em 0,5s), música de fundo (suba a sua, ou ligue a chave 'Usar músicas da plataforma', que vem desligada, e aí dá pra escolher a trilha da biblioteca ou deixar a IA sortear; sem nenhuma das duas o vídeo sai sem trilha), volume de cada coisa e a edição avançada, " +
+          "que é o zoom lento nas fotos, a transição entre as cenas e a IA escolhendo o melhor pedaço de cada apoio. O som das cenas de apoio vem desligado, porque o barulho delas costuma atrapalhar a fala. Fez?",
       },
       {
         texto:
-          "manda gerar e espera uns minutos. O vídeo montado aparece em Meus vídeos, no botão abaixo.",
+          "etapa 5, a aprovação. Depois de posicionar, a tela vira um editor: o vídeo fica em cima e embaixo vem a linha do tempo com duas linhas (a de cima são as cenas de apoio, cada uma com a miniatura da mídia, no segundo em que entra; a de baixo é o vídeo base, a fala, num bloco só). " +
+          "Ali dá pra ajustar sem gastar crédito: arraste a cena pra outro momento (uma nunca fica em cima da outra: o bloco encosta e para), puxe as alças das pontas pra mudar quanto tempo ela fica na tela e toque nela pra abrir os ajustes finos (segundo exato e, em vídeo com sobra de corte, qual pedaço do arquivo aparece; ali também tem o 'abrir nas mídias'). " +
+          "Tocar na régua de segundos leva a prévia praquele ponto. Confere e clica em Aprovar e gerar. Chegou aqui?",
+      },
+      {
+        texto:
+          "pronto, agora é esperar uns minutos. O vídeo montado aparece em Meus vídeos, no botão abaixo.",
+        rota: "/painel",
+        nome: "Meus vídeos",
+      },
+    ],
+  },
+  {
+    chave: "criar-corte",
+    nome: "Criar um Corte",
+    passos: [
+      {
+        texto:
+          "abra o Criar um Corte pelo botão abaixo e me diz quando estiver na tela, que a gente faz junto.",
+        rota: "/painel/criar-corte",
+        nome: "Criar um Corte",
+      },
+      {
+        texto:
+          "sobe o vídeo que está no seu computador. Aqui não entra IA nenhuma: é só pra limpar a sua gravação. Conseguiu subir?",
+      },
+      {
+        texto:
+          "agora os pedaços que saem. Ande na barra do vídeo até onde o trecho ruim começa, toque em Começar a cortar aqui, ande até onde ele acaba e feche o corte. " +
+          "O que fica vermelho na barra some, e a prévia já pula esses trechos. Pode marcar quantos quiser. Marcou?",
+      },
+      {
+        texto:
+          "se quiser, ligue o Cortar partes sem fala: todo trecho calado por mais tempo que você escolher sai fora sozinho, imagem e som juntos. Escolheu?",
+      },
+      {
+        texto:
+          "manda gerar. O corte aparece em Meus vídeos em poucos minutos, no botão abaixo.",
         rota: "/painel",
         nome: "Meus vídeos",
       },
@@ -289,6 +333,13 @@ export function caminhoEscolhido(texto: string): Guia | null {
   const casa = (re: RegExp) => re.test(t);
 
   // situação descrita > nome da ferramenta > número/ordinal
+  // Cortar o MEU arquivo (tirar pedaço ruim, tirar silêncio) é o "Criar um Corte".
+  // Vem antes das outras duas porque "cortar meu vídeo" casaria com o Editor pelo
+  // "meu video" e com os Cortes pelo "cortar", e não é nenhum dos dois.
+  if (casa(/silencio|parte ruim|pedaco ruim|trecho ruim|criar um corte/) ||
+      (casa(/cortar|corte|tirar|limpar/) &&
+       casa(/meu video|minha gravacao|meu arquivo|meu computador|que eu gravei/)))
+    return achar("criar-corte");
   if (casa(/\bja gravei\b|\bgravei\b|meu video|video que eu|montar|legendar|narra|transcrever/)) return achar("editor");
   if (casa(/youtube|cortar|\bcorte/)) return achar("cortes");
   if (casa(/historinha|historia|personagem|novela|boost/)) return achar("boost");

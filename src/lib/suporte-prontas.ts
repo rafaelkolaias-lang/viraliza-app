@@ -31,8 +31,8 @@ export function respostasProntas(garantiaDias: number): Pronta[] {
     {
       pergunta: "Comprei crédito e só entrou uma parte",
       resposta:
-        `Isso é normal e está certo! Toda compra entra em duas partes: uma cai no saldo na hora e o resto fica reservado por ${garantiaDias} dias, que é o prazo de garantia da compra.\n\n` +
-        `Passados os ${garantiaDias} dias o restante cai sozinho, você não precisa pedir nada. Pelos botões abaixo você confere o saldo e o extrato.`,
+        "Hoje toda compra cai 100% no saldo na hora da confirmação do pagamento.\n\n" +
+        `Se a sua compra foi antiga e aparece um "crédito liberando" com data, é o resto da regra antiga de garantia de ${garantiaDias} dias: ele cai sozinho na data mostrada, sem precisar pedir. Pelos botões abaixo você confere o saldo e o extrato.`,
       links: [
         { rota: "/painel/creditos", nome: "Créditos" },
         { rota: "/painel/extrato", nome: "Extrato" },

@@ -391,6 +391,7 @@ export async function getPainelGastos(inicioMs: number, fimMs: number): Promise<
       usuarios.set(g.userId, u);
     }
     for (const t of debitosPorUser) {
+      if (!t.userId) continue; // transação de conta excluída (auditoria #14): sem linha por pessoa
       const u = usuarios.get(t.userId) ?? { custoMili: 0, creditos: 0 };
       u.creditos += Math.abs(t._sum.valor ?? 0); // débitos são negativos no extrato
       usuarios.set(t.userId, u);

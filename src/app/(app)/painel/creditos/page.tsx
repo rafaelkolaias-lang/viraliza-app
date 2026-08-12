@@ -19,6 +19,7 @@ import { PlanosCreditos } from "@/components/app/planos-creditos";
 import { AdminCreditosTeste } from "@/components/app/admin-creditos-teste";
 import { ModalCompraSucesso } from "@/components/app/modal-compra-sucesso";
 import { NivelCard } from "@/components/app/nivel-card";
+import { LinksLegais } from "@/components/legal/links-legais";
 
 export const metadata: Metadata = { title: "Créditos" };
 export const dynamic = "force-dynamic";
@@ -143,6 +144,10 @@ export default async function CreditosPage({
 
       {/* ===== PLANOS ===== */}
       <PlanosCreditos email={user.email} links={linksCheckout} />
+
+      {/* documentos ANTES do pagamento: é o que sustenta a regra de reembolso
+          numa disputa de cartão (ver src/components/legal/links-legais.tsx) */}
+      <LinksLegais className="-mt-3 text-center" />
 
       {/* ===== COMO FUNCIONA ===== */}
       <section className="rounded-2xl border border-border bg-card p-6">

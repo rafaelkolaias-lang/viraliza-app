@@ -141,23 +141,19 @@ export function AjudaConta({
             a aba: o trabalho continua no servidor e o resultado aparece sozinho quando
             terminar.
           </Problema>
-          <Problema pergunta="Apareceu que já tenho um vídeo em produção">
-            É o limite do seu nível. Conta Bronze produz{" "}
-            <strong className="text-foreground">1 vídeo por vez</strong>; Prata, 2; Ouro,
-            3. Espere o atual terminar e mande o próximo.
-          </Problema>
-          <Problema pergunta="Apareceu que eu atingi os vídeos de hoje">
-            Também é o nível: Bronze faz 5 por dia, Prata 12 e Ouro 50. O limite renova à
-            meia-noite. Bater no teto{" "}
-            <strong className="text-foreground">não gasta crédito</strong>.
+          <Problema pergunta="Apareceu que atingi o limite de vídeos em produção">
+            É a regra única da plataforma: cada conta pode ter até{" "}
+            <strong className="text-foreground">5 vídeos em produção ao mesmo
+            tempo</strong>, em qualquer nível. Espere algum terminar e mande o próximo.
+            Esperar <strong className="text-foreground">não gasta crédito</strong>, e
+            limite diário de vídeos não existe.
           </Problema>
           <Problema pergunta="Não tenho créditos suficientes">
             Confira o saldo na aba{" "}
             <Link href="/painel/creditos" className="text-primary hover:underline">
               Créditos
             </Link>
-            . Lembre que parte do crédito comprado pode estar reservada pela garantia de
-            8 dias. Enquanto isso dá pra usar o que é de graça: influenciadores prontos,
+            . Enquanto isso dá pra usar o que é de graça: influenciadores prontos,
             textos da IA e o gerador de prompt.
           </Problema>
           <Problema pergunta="A conta parou de gerar por causa de saldo pendente">

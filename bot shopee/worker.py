@@ -24,6 +24,7 @@ import json
 import time
 import shutil
 import subprocess
+import traceback
 
 import requests
 from dotenv import load_dotenv
@@ -256,6 +257,11 @@ def montar_pasta(base, headers, job):
         linhas.append("sem_copy: 1")
     if opc.get("semMusica"):
         linhas.append("sem_musica: 1")
+    # estilo da legenda da fala: "palavra" (uma por vez, no ritmo) ou "completo"
+    # (frase inteira em ate 2 linhas). Chave ausente = job antigo, e ai vale o
+    # padrao da fabrica.
+    if opc.get("legendaEstilo") in ("palavra", "completo"):
+        linhas.append(f"legenda_estilo: {opc['legendaEstilo']}")
     vols = opc.get("volumes") or {}
     for chave, valor in (("vol_musica", vols.get("musica", opc.get("volumeMusica"))),
                          ("vol_original", vols.get("original")),
@@ -264,11 +270,33 @@ def montar_pasta(base, headers, job):
                          ("cortar_silencio", opc.get("cortarSilencio"))):
         if valor is not None:
             linhas.append(f"{chave}: {valor}")
+    # EDIÇÃO AVANÇADA (Ken Burns nas fotos, transição entre as cenas, som do
+    # apoio com ducking e melhor pedaço do apoio). Escreve o que a tela mandou,
+    # LIGADO OU DESLIGADO: os padrões da fábrica não são todos "ligado" (o som do
+    # apoio nasce desligado), então omitir o que está ligado faria a fábrica
+    # desligar de volta o que a pessoa acabou de ligar. Chave ausente aqui é só
+    # job antigo, e aí vale o padrão do `_edicao` da fábrica.
+    ed = opc.get("edicao") or {}
+    for chave, campo in (("ed_kenburns", "kenBurns"), ("ed_transicoes", "transicoes"),
+                         ("ed_som_apoio", "somApoio"), ("ed_trecho", "trechoInteligente")):
+        if isinstance(ed.get(campo), bool):
+            linhas.append(f"{chave}: {1 if ed[campo] else 0}")
+    # roteiro da narração escrito PELA PESSOA: a IA não inventa a fala, só narra.
+    # Vai numa linha só, então as quebras viram espaço (o config é chave: valor).
+    fala = str(opc.get("roteiroFala") or "").strip()
+    if fala:
+        linhas.append("roteiro_fala: " + " ".join(fala.split()))
     voz_id = (job.get("voz_id") or "").strip()
     if voz_id:
         linhas.append(f"voz_id: {voz_id}")
     if cfg_musica:
         linhas.append(f"musica: {cfg_musica}")
+    elif opc.get("musica"):
+        # trilha ESCOLHIDA da biblioteca da plataforma (Editor, etapa 4): so o
+        # nome do arquivo, a fabrica acha em entrada/musicas. O upload da pessoa
+        # (cfg_musica) sempre manda na frente. Numa linha so: o config e chave:
+        # valor, quebra de linha viraria chave fantasma.
+        linhas.append("musica: " + " ".join(os.path.basename(str(opc["musica"])).split()))
     with open(os.path.join(prod_dir, "config.txt"), "w", encoding="utf-8") as f:
         f.write("\n".join(linhas) + "\n")
 
@@ -616,11 +644,40 @@ def concluir_finalizar(base, headers, job_id, dur, consumo=None):
             time.sleep(8 * t)
 
 
+# Linhas que valem ouro no log da fábrica: é por elas que o /admin/diagnostico
+# descobre QUEM falhou (voz, cota, ffmpeg, transcrição...).
+PISTAS_ERRO = ("[voz]", "Voz falhou", "FALHOU", "ERRO", "Error", "Traceback",
+               "faster-whisper", "faster_whisper", "whisper", "transcricao",
+               "transcrição", "cota", "quota", "HTTP 4", "HTTP 5",
+               "library voices", "ffmpeg")
+
+
+def resumo_erro(texto):
+    """Puxa do log da fábrica só o que explica a falha.
+
+    O log inteiro tem centenas de linhas de ffmpeg e não cabe no campo do banco;
+    cortar o fim cru costuma pegar justamente o rodapé sem informação. Aqui as
+    linhas com pista vão na frente e o fim do log vai junto como contexto."""
+    full = (texto or "").strip()
+    uteis = [ln for ln in full.splitlines() if any(p in ln for p in PISTAS_ERRO)]
+    if not uteis:
+        return full[-1500:]
+    resumo = "\n".join(uteis[-15:])
+    cauda = full[-600:]
+    return resumo if cauda in resumo else f"{resumo}\n---\n...{cauda}"
+
+
 def reportar_erro(base, headers, job_id, msg):
+    """Manda a falha pra web (vira `Job.erro` e aparece no /admin/diagnostico).
+
+    Vai `form-encoded` e com 4000 caracteres (o tamanho que a rota guarda): antes
+    ia como JSON cortado em 500, e o pedaço que sobrava quase nunca continha a
+    causa real da falha."""
+    texto = (msg or "Falha no render").strip()[:4000]
     try:
         requests.post(
             f"{base}/api/worker/erro/{job_id}",
-            headers=headers, json={"erro": msg[-500:]}, timeout=30,
+            headers=headers, data={"erro": texto}, timeout=30,
         )
     except Exception as e:
         log(f"   (não consegui reportar o erro: {e})")
@@ -687,7 +744,13 @@ def processar(base, headers, job):
                 nome, job.get("eleven_key", ""), base, token, job_id)
         if not saidas:
             log("   ✗ não gerou vídeo")
-            reportar_erro(base, headers, job_id, motivo or "Não gerou vídeo.")
+            # o `motivo` da fábrica é o log inteiro dela: manda o que EXPLICA a
+            # falha, não os últimos 500 caracteres de saída do ffmpeg
+            aviso = "A fábrica não gerou vídeo."
+            detalhe = resumo_erro(motivo) if motivo else ""
+            if detalhe:
+                aviso += "\n" + detalhe
+            reportar_erro(base, headers, job_id, aviso)
             return
         log(f"   ✓ {len(saidas)} vídeo(s) — subindo pro Drive...")
         reportar_progresso(base, headers, job_id, "Subindo o vídeo")
@@ -697,7 +760,11 @@ def processar(base, headers, job):
         limpar(nome, job_id, saidas)
     except Exception as e:
         log(f"   ✗ erro: {e}")
-        reportar_erro(base, headers, job_id, str(e))
+        traceback.print_exc()
+        # o traceback vai JUNTO pra web: sozinha, a mensagem de um erro de
+        # arquivo/rede costuma não dizer onde quebrou, e o admin fica no escuro
+        reportar_erro(base, headers, job_id,
+                      f"{e.__class__.__name__}: {e}\n{traceback.format_exc()[-2500:]}")
         limpar(nome, job_id, saidas)
 
 

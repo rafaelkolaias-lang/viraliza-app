@@ -17,8 +17,10 @@ export const dynamic = "force-dynamic";
 
 /**
  * Webhook da Kiwify. Só os PACOTES DE CRÉDITO ("Editor automatico N") creditam;
- * o plano de entrada (R$ 19,90) e outros produtos são ignorados (o acesso vem do
- * cadastro, que já dá 1.000 créditos de boas-vindas).
+ * o plano de entrada e outros produtos são ignorados (eles liberam o acesso, não
+ * crédito). Nota: o crédito de boas-vindas do cadastro foi DESLIGADO em
+ * 06/08/2026 (`CREDITO_INICIAL` em `lib/registro.ts`), e o valor de R$ 19,90 que
+ * aparecia aqui era o preço antigo da entrada: hoje a assinatura é R$ 98,90.
  *
  * A gente confirma o pedido NA API da Kiwify (valor + status reais) antes de
  * creditar - ninguém forja crédito. Idempotente por pedido. Sempre responde 200

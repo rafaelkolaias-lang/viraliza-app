@@ -2,28 +2,20 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { existeTransacaoOrder, lancar } from "@/lib/creditos";
-import { JANELA_GARANTIA_DIAS, NIVEIS, nivelValido } from "@/lib/niveis";
 
 /**
- * Quarentena de crédito comprado (antifraude de reembolso).
+ * Crédito comprado - a QUARENTENA FOI DESATIVADA (reforma dos níveis, 08/2026).
  *
- * Toda compra de PACOTE passa por aqui: conforme o nível da conta, só uma parte
- * cai no saldo na hora; o resto vira uma CreditoLiberacao que destrava sozinha
- * no 8º dia da compra (garantia da Cakto/Kiwify já expirada). Se o pedido for
- * reembolsado antes, a liberação é cancelada - o crédito preso nunca entrou,
- * então não tem como "gastar tudo e pedir o dinheiro de volta".
+ * Antes, parte da compra ficava presa numa CreditoLiberacao até o 8º dia
+ * (garantia da Cakto/Kiwify), conforme o nível da conta. Hoje TODA compra cai
+ * 100% no saldo na hora, pra qualquer nível.
  *
- * Regras por nível (ver NIVEIS em niveis.ts):
- * - bronze: até R$20 comprados na janela de 8 dias liberam integral; acima disso
- *   libera 50%; teto de R$50 liberados na janela.
- * - prata: mesma mecânica, teto de R$100.
- * - ouro: 75% na hora de qualquer valor, sem teto.
- *
- * O saldo do usuário SÓ contém crédito liberado - todas as travas de gasto que
- * já existem continuam funcionando sem mudança.
+ * O que continua vivo aqui é o LEGADO: liberações criadas antes da mudança
+ * seguem caindo sozinhas na data (aplicarLiberacoesVencidas), reembolso de
+ * pedido antigo ainda cancela o que estava preso (cancelarLiberacoesDoPedido)
+ * e a UI segue mostrando o "crédito liberando" enquanto existir linha pendente
+ * (presoCentavos). Quando o legado zerar, nada disso tem mais efeito.
  */
-
-const DIA_MS = 86_400_000;
 
 export type ResultadoCompra = {
   liberadoCentavos: number;
@@ -40,69 +32,19 @@ export async function creditarCompraComQuarentena(
   const valor = Math.max(0, Math.round(valorCentavos));
   const u = await prisma.user.findUnique({
     where: { id: userId },
-    select: { nivel: true, role: true, dividaCentavos: true },
+    select: { dividaCentavos: true },
   });
   if (!u) throw new Error("Usuário não encontrado.");
 
-  const nivel = u.role === "admin" || u.role === "demo" ? "ouro" : nivelValido(u.nivel);
-  const cfg = NIVEIS[nivel];
-  const admin = u.role === "admin" || u.role === "demo";
-
-  let liberado = valor;
-  let preso = 0;
-
-  if (!admin) {
-    const janelaIni = new Date(Date.now() - JANELA_GARANTIA_DIAS * DIA_MS);
-    // quanto essa conta já COMPROU e quanto foi LIBERADO na janela (a transação
-    // "compra" guarda só a parte liberada; o preso fica nas CreditoLiberacao)
-    const [liberadoAgg, presoAgg] = await Promise.all([
-      prisma.creditoTransacao.aggregate({
-        where: { userId, tipo: "compra", valor: { gt: 0 }, criadoEm: { gte: janelaIni } },
-        _sum: { valor: true },
-      }),
-      prisma.creditoLiberacao.aggregate({
-        where: { userId, criadoEm: { gte: janelaIni } },
-        _sum: { valor: true },
-      }),
-    ]);
-    const liberadoJanela = liberadoAgg._sum.valor ?? 0;
-    const compradoJanela = liberadoJanela + (presoAgg._sum.valor ?? 0);
-
-    const franquiaRestante = Math.max(0, cfg.franquiaCentavos - compradoJanela);
-    const integral = Math.min(valor, franquiaRestante);
-    const acima = Math.floor((valor - integral) * cfg.pctAcimaFranquia);
-    let bruto = integral + acima;
-
-    if (cfg.tetoLiberacaoJanela !== null) {
-      bruto = Math.min(bruto, Math.max(0, cfg.tetoLiberacaoJanela - liberadoJanela));
-    }
-    liberado = bruto;
-    preso = valor - liberado;
-  }
-
-  if (preso > 0) {
-    await prisma.creditoLiberacao.create({
-      data: {
-        userId,
-        valor: preso,
-        liberaEm: new Date(Date.now() + JANELA_GARANTIA_DIAS * DIA_MS),
-        orderId: opts.orderId,
-        descricao: opts.descricao?.slice(0, 255),
-      },
-    });
-  }
+  // libera tudo na hora; o nome da função ficou pelo histórico dos chamadores
+  const liberado = valor;
 
   // registra a compra mesmo com liberado = 0 (é o marcador de idempotência do
   // pedido). O lancar já quita o saldo devedor de reembolso com qualquer entrada
   // e devolve o saldo final líquido.
   const dividaAntes = u.dividaCentavos;
-  const descricao =
-    (opts.descricao ?? "Compra de créditos") +
-    (preso > 0
-      ? ` (${preso.toLocaleString("pt-BR")} créditos liberam em ${JANELA_GARANTIA_DIAS} dias - garantia da compra)`
-      : "");
   const saldoApos = await lancar(userId, liberado, "compra", {
-    descricao,
+    descricao: opts.descricao ?? "Compra de créditos",
     kiwifyOrderId: opts.orderId,
   });
 
@@ -117,7 +59,7 @@ export async function creditarCompraComQuarentena(
 
   return {
     liberadoCentavos: liberado,
-    presoCentavos: preso,
+    presoCentavos: 0,
     saldoApos,
     dividaQuitada,
   };

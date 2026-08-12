@@ -7,11 +7,13 @@ import { prisma } from "@/lib/prisma";
  * O crédito é guardado SEMPRE em CENTAVOS de R$ (Int), pra não ter erro de float.
  */
 
-// Crédito mensal de brinde da assinatura. Oferta atual: 2.000 créditos = R$ 20,00/mês
-// (~20 a 30 vídeos), generoso de propósito pra atrair assinantes no lançamento.
-// ⚠️ VALOR PROVISÓRIO - calibrar com o preço real do Gemini/ElevenLabs + o worker
-//    (ver lembrete em reminder.md).
-export const CREDITO_MENSAL_CENTAVOS = 2000;
+// Crédito mensal de brinde da assinatura. Definido pelo dono em 06/08/2026:
+// 3.000 créditos = R$ 30,00/mês de custo de API, numa mensalidade de R$ 98,90.
+// Os brindes que existem hoje são DOIS: este mensal e o bônus de seguir o
+// Instagram (`BONUS_IG_CREDITOS` em `lib/promos.ts`, 300, uma vez por conta).
+// O crédito de boas-vindas do cadastro foi desligado na mesma data
+// (`CREDITO_INICIAL` em `lib/registro.ts`).
+export const CREDITO_MENSAL_CENTAVOS = 3000;
 
 // Quanto tempo cada pagamento (entrada + cada renovação paga) libera a biblioteca.
 // A assinatura NÃO é mais permanente: se a cobrança mensal não for repaga, ela vence
@@ -117,7 +119,12 @@ export async function getCarteira(userId: string): Promise<Carteira> {
 /** Aplica um delta no saldo e registra no extrato - atômico (1 transação).
  *  TODA entrada (valor > 0) quita o saldo devedor de reembolso primeiro:
  *  compra, brinde mensal, bônus, liberação de quarentena, ajuste do admin.
- *  Retorna o saldo final (já descontada a quitação, se houve). */
+ *  Retorna o saldo final (já descontada a quitação, se houve).
+ *
+ *  O saldo muda por `increment` com a guarda de saldo DENTRO do próprio UPDATE
+ *  (auditoria #9): o jeito antigo lia o saldo, somava e gravava o número
+ *  absoluto, então dois lançamentos do mesmo usuário no mesmo instante se
+ *  atropelavam e um deles sumia do saldo (lost update). */
 export async function lancar(
   userId: string,
   valorCentavos: number, // + entrada, − saída
@@ -125,17 +132,27 @@ export async function lancar(
   opts: { descricao?: string; jobId?: string; kiwifyOrderId?: string } = {},
 ) {
   const saldoApos = await prisma.$transaction(async (tx) => {
+    const r = await tx.user.updateMany({
+      where: {
+        id: userId,
+        // débito só passa se o saldo cobre; o banco confere na hora do UPDATE
+        ...(valorCentavos < 0 ? { saldoCentavos: { gte: -valorCentavos } } : {}),
+      },
+      data: { saldoCentavos: { increment: valorCentavos } },
+    });
+    if (r.count === 0) {
+      const existe = await tx.user.findUnique({
+        where: { id: userId },
+        select: { id: true },
+      });
+      if (!existe) throw new Error("Usuário não encontrado.");
+      throw new Error("Saldo insuficiente.");
+    }
     const u = await tx.user.findUnique({
       where: { id: userId },
       select: { saldoCentavos: true },
     });
-    if (!u) throw new Error("Usuário não encontrado.");
-    const saldoApos = u.saldoCentavos + valorCentavos;
-    if (saldoApos < 0) throw new Error("Saldo insuficiente.");
-    await tx.user.update({
-      where: { id: userId },
-      data: { saldoCentavos: saldoApos },
-    });
+    const saldoApos = u?.saldoCentavos ?? 0;
     await tx.creditoTransacao.create({
       data: {
         userId,
@@ -197,41 +214,107 @@ export function debitar(
 }
 
 /** Débito pós-pago que NUNCA deixa o saldo negativo (clampa em 0). Registra no
- *  extrato só o que foi efetivamente debitado. Retorna o valor debitado (centavos). */
+ *  extrato só o que foi efetivamente debitado. Retorna o valor debitado (centavos).
+ *
+ *  Concorrência (auditoria #9): o UPDATE é condicional ao saldo que foi lido
+ *  (update otimista); se outro lançamento mexeu no meio, a rodada repete com o
+ *  saldo novo em vez de gravar um número velho por cima.
+ *
+ *  `faltaViraDivida` (auditoria #8): quando o alvo não coube no saldo, a
+ *  diferença vira saldo devedor (`dividaCentavos`) em vez de sumir - é o que
+ *  fecha o golpe de disparar vários vídeos em paralelo com saldo pra um só. A
+ *  dívida bloqueia geração nova (travaDeGeracao) e é quitada pela próxima
+ *  entrada de crédito (lancar/quitarDivida). */
 export async function debitarClamp(
   userId: string,
   centavos: number,
   tipo: TipoTransacao,
-  opts: { descricao?: string; jobId?: string; kiwifyOrderId?: string } = {},
+  opts: {
+    descricao?: string;
+    jobId?: string;
+    kiwifyOrderId?: string;
+    faltaViraDivida?: boolean;
+  } = {},
 ): Promise<number> {
   const alvo = Math.abs(centavos);
   if (alvo <= 0) return 0;
-  return prisma.$transaction(async (tx) => {
-    const u = await tx.user.findUnique({
+  for (let tentativa = 0; tentativa < 5; tentativa++) {
+    const u = await prisma.user.findUnique({
       where: { id: userId },
       select: { saldoCentavos: true },
     });
     if (!u) return 0;
     const valor = Math.min(u.saldoCentavos, alvo); // nunca passa do saldo
-    if (valor <= 0) return 0;
+    const faltou = opts.faltaViraDivida ? alvo - valor : 0;
+    if (valor <= 0 && faltou <= 0) return 0;
     const saldoApos = u.saldoCentavos - valor;
-    await tx.user.update({
-      where: { id: userId },
-      data: { saldoCentavos: saldoApos },
+    const gravou = await prisma.$transaction(async (tx) => {
+      const r = await tx.user.updateMany({
+        // o `saldoCentavos` no where é a trava otimista: só grava se ninguém
+        // mexeu no saldo desde a leitura ali de cima
+        where: { id: userId, saldoCentavos: u.saldoCentavos },
+        data: {
+          saldoCentavos: saldoApos,
+          ...(faltou > 0 ? { dividaCentavos: { increment: faltou } } : {}),
+        },
+      });
+      if (r.count === 0) return false;
+      await tx.creditoTransacao.create({
+        data: {
+          userId,
+          tipo,
+          valor: -valor,
+          saldoApos,
+          descricao:
+            faltou > 0
+              ? `${opts.descricao ?? "Débito"} — faltaram ${faltou} créditos, que viraram saldo devedor`
+              : opts.descricao,
+          jobId: opts.jobId,
+          kiwifyOrderId: opts.kiwifyOrderId,
+        },
+      });
+      return true;
     });
-    await tx.creditoTransacao.create({
-      data: {
-        userId,
-        tipo,
-        valor: -valor,
-        saldoApos,
-        descricao: opts.descricao,
-        jobId: opts.jobId,
-        kiwifyOrderId: opts.kiwifyOrderId,
-      },
-    });
-    return valor;
+    if (gravou) return valor;
+  }
+  // 5 colisões seguidas (grau de concorrência irreal): não cobra nada em vez de
+  // arriscar cobrar em cima de um saldo velho
+  return 0;
+}
+
+/**
+ * Soma dos custos AINDA NÃO COBRADOS dos vídeos de IA em andamento (auditoria #8).
+ *
+ * O débito dos vídeos de IA acontece só no FIM (falha não cobra), então a
+ * checagem de saldo da criação precisa descontar o que os vídeos já disparados
+ * vão cobrar quando saírem - sem isso, N pedidos em paralelo enxergavam todos o
+ * mesmo saldo e só o primeiro pagava inteiro. As rotas gravam `custoPrevisto`
+ * nas opções do job na criação; a janela de 30 min descarta job travado
+ * (a geração real dura no máximo ~25 min), pra reserva não prender o saldo
+ * de ninguém pra sempre.
+ */
+export async function custoReservado(userId: string): Promise<number> {
+  const jobs = await prisma.job.findMany({
+    where: {
+      userId,
+      status: { in: ["na_fila", "renderizando"] },
+      criadoEm: { gte: new Date(Date.now() - 30 * 60_000) },
+      opcoes: { contains: '"custoPrevisto"' },
+    },
+    select: { opcoes: true },
   });
+  let soma = 0;
+  for (const j of jobs) {
+    try {
+      const o = JSON.parse(j.opcoes ?? "{}") as { custoPrevisto?: number };
+      if (typeof o.custoPrevisto === "number" && o.custoPrevisto > 0) {
+        soma += o.custoPrevisto;
+      }
+    } catch {
+      // opções ilegíveis: não reserva nada por esse job
+    }
+  }
+  return soma;
 }
 
 /** Já existe um débito registrado pra esse job? (idempotência) */
@@ -272,23 +355,27 @@ export async function garantirCreditoMensal(userId: string) {
   if (u.creditoMensalEm) return; // já recebeu o do primeiro mês
 
   await prisma.$transaction(async (tx) => {
-    const cur = await tx.user.findUnique({
-      where: { id: userId },
-      select: { saldoCentavos: true, creditoMensalEm: true },
+    // `creditoMensalEm: null` no where é a trava: só UMA execução consegue virar
+    // o campo, então duas abas no mesmo instante não creditam 2x nem se
+    // atropelam com outro lançamento (o saldo muda por increment - auditoria #9)
+    const r = await tx.user.updateMany({
+      where: { id: userId, creditoMensalEm: null },
+      data: {
+        saldoCentavos: { increment: CREDITO_MENSAL_CENTAVOS },
+        creditoMensalEm: new Date(),
+      },
     });
-    // re-checa DENTRO da transação: duas abas no mesmo instante não creditam 2x
-    if (cur?.creditoMensalEm) return;
-    const saldoApos = (cur?.saldoCentavos ?? 0) + CREDITO_MENSAL_CENTAVOS;
-    await tx.user.update({
+    if (r.count === 0) return; // outra execução chegou primeiro
+    const u = await tx.user.findUnique({
       where: { id: userId },
-      data: { saldoCentavos: saldoApos, creditoMensalEm: new Date() },
+      select: { saldoCentavos: true },
     });
     await tx.creditoTransacao.create({
       data: {
         userId,
         tipo: "bonus_assinatura",
         valor: CREDITO_MENSAL_CENTAVOS,
-        saldoApos,
+        saldoApos: u?.saldoCentavos ?? CREDITO_MENSAL_CENTAVOS,
         descricao: "Crédito do primeiro mês da assinatura",
       },
     });

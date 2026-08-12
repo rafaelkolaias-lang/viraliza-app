@@ -8,7 +8,7 @@ import { duracaoBoost } from "@/lib/viral-boost";
 import { custoVideoLab } from "@/lib/lab-custos";
 import { baixarImagemEntrada, ehImagemNossa } from "@/lib/imagem-entrada";
 import { gerarVideoGrok, type ArquivoImagem } from "@/lib/video-robot";
-import { getCarteira, debitarClamp } from "@/lib/creditos";
+import { getCarteira, debitarClamp, custoReservado } from "@/lib/creditos";
 import { registrarGrokVideo } from "@/lib/gastos-api";
 import { travaDeGeracao } from "@/lib/niveis";
 import { criarNotificacao } from "@/lib/notificacoes";
@@ -76,15 +76,8 @@ export async function POST(req: Request) {
   const duracao = duracaoBoost(arquivos.length);
   const custo = custoVideoLab(duracao === 15 ? "15s" : "10s");
   const isAdmin = user.role === "admin" || user.role === "demo";
-  if (!isAdmin) {
-    const { saldoCentavos } = await getCarteira(user.id);
-    if (saldoCentavos < custo) {
-      return NextResponse.json(
-        { erro: "Créditos insuficientes.", faltaCreditos: true, custo },
-        { status: 402 },
-      );
-    }
-  }
+  // (a checagem de saldo desceu pra DEPOIS da trava de pedido repetido: clique
+  // duplo tem que reconectar no vídeo que já roda, não esbarrar em "sem saldo")
 
   const prompt = montarPromptVideoFruta({ h, frutas, cenario, formato, comCena, duracaoSeg: duracao });
 
@@ -122,6 +115,26 @@ export async function POST(req: Request) {
     if (!trava.ok) {
       return NextResponse.json({ erro: trava.erro }, { status: trava.status });
     }
+    // Saldo: desconta o que os vídeos JÁ DISPARADOS ainda vão cobrar quando
+    // saírem (auditoria #8) - sem isso, N pedidos em paralelo passavam todos
+    // na checagem e só o primeiro pagava inteiro.
+    const [{ saldoCentavos }, reservado] = await Promise.all([
+      getCarteira(user.id),
+      custoReservado(user.id),
+    ]);
+    if (saldoCentavos - reservado < custo) {
+      return NextResponse.json(
+        {
+          erro:
+            saldoCentavos >= custo
+              ? "Créditos insuficientes: os vídeos que ainda estão gerando vão usar o saldo que sobrou."
+              : "Créditos insuficientes.",
+          faltaCreditos: true,
+          custo,
+        },
+        { status: 402 },
+      );
+    }
   }
 
   const nomeVideo = `${h.nome} (${frutas.map((f) => f.nome).join(" e ")})`.slice(0, 255);
@@ -137,6 +150,8 @@ export async function POST(req: Request) {
       duracao,
       opcoes: JSON.stringify({
         boost: true,
+        // reserva de saldo enquanto gera (ver custoReservado); admin não paga
+        ...(isAdmin ? {} : { custoPrevisto: custo }),
         entrada: {
           imagem: body.imagem ?? null,
           formato,
@@ -177,10 +192,12 @@ export async function POST(req: Request) {
         return;
       }
 
+      // se o saldo mudou no meio, o que faltar vira saldo devedor (auditoria #8)
       if (!isAdmin) {
         await debitarClamp(userId, custo, "debito_geracao", {
           descricao: `Historinha de fruta (${h.nome})`,
           jobId: job.id,
+          faltaViraDivida: true,
         }).catch(() => {});
       }
 

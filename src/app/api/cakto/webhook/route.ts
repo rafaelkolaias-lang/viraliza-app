@@ -189,8 +189,8 @@ export async function POST(req: Request) {
     const user = email ? await prisma.user.findUnique({ where: { email } }) : null;
 
     if (user) {
-      // passa pela QUARENTENA do nível da conta: bronze/prata só recebem parte
-      // na hora, o resto libera no 8º dia (antifraude de reembolso)
+      // credita a compra inteira na hora (a quarentena por nível foi desativada
+      // na reforma dos níveis; a função ficou pelo legado e pela idempotência)
       const { saldoApos } = await creditarCompraComQuarentena(user.id, creditos, {
         descricao: desc,
         orderId,

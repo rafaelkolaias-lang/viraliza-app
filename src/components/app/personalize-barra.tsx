@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { Image as ImageIcon, Sparkles, UserRound } from "lucide-react";
 import { BarraFerramentas } from "@/components/app/barra-ferramentas";
 import type { ItemDock } from "@/components/app/lab-dock";
@@ -11,6 +12,9 @@ import type { ItemDock } from "@/components/app/lab-dock";
  * troca de tela com um toque sem abrir o menu, e no computador é um caminho a
  * mais pro mesmo lugar. A ordem é a do submenu, de propósito.
  */
+
+/** tela de apresentação do grupo (a porta de entrada, que explica as 3). */
+export const PERSONALIZE_INICIO = "/painel/meus-avatares/inicio";
 
 const FERRAMENTAS: ItemDock[] = [
   {
@@ -37,5 +41,12 @@ const FERRAMENTAS: ItemDock[] = [
 ];
 
 export function PersonalizeBarra() {
+  const pathname = usePathname();
+
+  // Na tela de apresentação do grupo a barrinha some: aquela tela JÁ é esta
+  // lista, só que grande e com a explicação de cada uma. Ter as duas na mesma
+  // página seria o mesmo menu duas vezes (mesma regra da do Labs).
+  if (pathname === PERSONALIZE_INICIO) return null;
+
   return <BarraFerramentas itens={FERRAMENTAS} />;
 }

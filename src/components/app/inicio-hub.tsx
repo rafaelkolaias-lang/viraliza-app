@@ -19,6 +19,7 @@ import {
   PenLine,
   Pickaxe,
   Receipt,
+  Scissors,
   Sparkles,
   Stamp,
   User,
@@ -222,6 +223,13 @@ function ferramentas(bibliotecaLiberada: boolean): Cartao[] {
       descricao:
         "Suba os seus vídeos e a plataforma monta um só: corte, legenda, voz, música e a copy escrita pela IA.",
       destaque: true,
+    },
+    {
+      href: "/painel/criar-corte",
+      titulo: "Criar um Corte",
+      Icone: Scissors,
+      descricao:
+        "Suba um vídeo do seu computador, tire os pedaços que não presta e o silêncio entre as falas. Sem IA, sai na hora.",
     },
     {
       href: "/painel/cortes",
