@@ -282,8 +282,11 @@ model Aviso {
 // Extrato da carteira: cada entrada/saída de crédito do usuário.
 model CreditoTransacao {
   id            String   @id @default(cuid())
-  userId        String
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // NULL = usuário excluído (auditoria #14): o histórico financeiro (compras,
+  // débitos, estornos) NUNCA some em cascata - os totais do painel e a trilha
+  // de auditoria das vendas continuam de pé mesmo sem a conta.
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   tipo          String // compra | debito_geracao | debito_processamento | bonus_assinatura | ajuste_admin | estorno
   valor         Int // centavos; positivo = entrada, negativo = saída
   saldoApos     Int // saldo depois desta transação (centavos)

@@ -116,24 +116,28 @@ export async function restaurarSuspensao(orderId: string) {
     where: { kiwifyOrderId: orderId, tipo: "suspensao_reembolso" },
   });
   if (!susp) return false;
+  // userId nulo = a conta foi excluída depois da suspensão (auditoria #14): a
+  // transação continua no histórico, mas não há mais saldo pra devolver
+  const donoId = susp.userId;
+  if (!donoId) return false;
   if (await existeTransacaoOrder(orderId, "reversao_suspensao")) return false;
 
   const info = parseInfo(susp.descricao);
   const devolver = Math.abs(susp.valor);
   await prisma.$transaction(async (tx) => {
     const u = await tx.user.findUnique({
-      where: { id: susp.userId },
+      where: { id: donoId },
       select: { saldoCentavos: true },
     });
     if (!u) return;
     const saldoApos = u.saldoCentavos + devolver;
     await tx.user.update({
-      where: { id: susp.userId },
+      where: { id: donoId },
       data: { saldoCentavos: saldoApos, assinante: info.assinanteAntes ?? true },
     });
     await tx.creditoTransacao.create({
       data: {
-        userId: susp.userId,
+        userId: donoId,
         tipo: "reversao_suspensao",
         valor: devolver,
         saldoApos,

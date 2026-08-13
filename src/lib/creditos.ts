@@ -295,6 +295,41 @@ export async function debitarClamp(
   });
 }
 
+/**
+ * Soma dos custos AINDA NÃO COBRADOS dos vídeos de IA em andamento (auditoria #8).
+ *
+ * O débito dos vídeos de IA acontece só no FIM (falha não cobra), então a
+ * checagem de saldo da criação precisa descontar o que os vídeos já disparados
+ * vão cobrar quando saírem - sem isso, N pedidos em paralelo enxergavam todos o
+ * mesmo saldo e só o primeiro pagava inteiro. As rotas gravam `custoPrevisto`
+ * nas opções do job na criação; a janela de 30 min descarta job travado
+ * (a geração real dura no máximo ~25 min), pra reserva não prender o saldo
+ * de ninguém pra sempre.
+ */
+export async function custoReservado(userId: string): Promise<number> {
+  const jobs = await prisma.job.findMany({
+    where: {
+      userId,
+      status: { in: ["na_fila", "renderizando"] },
+      criadoEm: { gte: new Date(Date.now() - 30 * 60_000) },
+      opcoes: { contains: '"custoPrevisto"' },
+    },
+    select: { opcoes: true },
+  });
+  let soma = 0;
+  for (const j of jobs) {
+    try {
+      const o = JSON.parse(j.opcoes ?? "{}") as { custoPrevisto?: number };
+      if (typeof o.custoPrevisto === "number" && o.custoPrevisto > 0) {
+        soma += o.custoPrevisto;
+      }
+    } catch {
+      // opções ilegíveis: não reserva nada por esse job
+    }
+  }
+  return soma;
+}
+
 /** Já existe um débito registrado pra esse job? (idempotência) */
 export async function jobJaDebitado(jobId: string): Promise<boolean> {
   const t = await prisma.creditoTransacao.findFirst({
