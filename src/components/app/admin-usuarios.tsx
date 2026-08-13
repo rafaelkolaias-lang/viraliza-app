@@ -191,7 +191,7 @@ export function AdminUsuarios({ usuarios }: { usuarios: LinhaUsuario[] }) {
             </TableHead>
             <TableHead
               className="hidden text-right lg:table-cell"
-              title="Editor automático, marca em lote, cortes, influenciador, MapsLeads e gerador de prompt"
+              title="Editor automático PRO, marca em lote, cortes, influenciador, MapsLeads e gerador de prompt"
             >
               Outros
             </TableHead>
@@ -390,7 +390,7 @@ export function AdminUsuarios({ usuarios }: { usuarios: LinhaUsuario[] }) {
                           )}
                           disabled={salvando}
                           onClick={() => toggleFerramentas(u)}
-                          title="Editor automático, cortes, em lote e leads"
+                          title="Editor automático PRO, cortes, em lote e leads"
                         >
                           <Wrench className="size-4" />
                           {u.ferramentasLiberadas ? "Tirar ferramentas" : "Liberar ferramentas"}

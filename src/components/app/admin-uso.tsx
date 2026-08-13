@@ -2,7 +2,9 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, ChevronUp, Search, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { CalendarRange, ChevronDown, ChevronUp, Search, X } from "lucide-react";
+import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -38,13 +40,46 @@ const fmt = (n: number) => Math.round(n).toLocaleString("pt-BR");
 const GRUPOS: GrupoUso[] = ["imagem", "videoIa", "outro"];
 type OrdemChave = "nome" | "total" | ChaveFerramenta;
 
-export function AdminUso({ linhas, dias }: { linhas: LinhaUso[]; dias: number }) {
+export function AdminUso({
+  linhas,
+  dias,
+  inicio,
+  fim,
+}: {
+  linhas: LinhaUso[];
+  /** período fixo em dias, ou -1 quando o admin escolheu um intervalo próprio */
+  dias: number;
+  /** pontas do período personalizado, no formato do input de data (AAAA-MM-DD) */
+  inicio?: string;
+  fim?: string;
+}) {
+  const router = useRouter();
   const [ordem, setOrdem] = useState<{ k: OrdemChave; desc: boolean }>({
     k: "total",
     desc: true,
   });
   const [esconderParados, setEsconderParados] = useState(true);
   const [busca, setBusca] = useState("");
+  const [dataInicio, setDataInicio] = useState(inicio ?? "");
+  const [dataFim, setDataFim] = useState(fim ?? "");
+
+  const personalizado = dias === -1;
+
+  /** Manda a página buscar de novo com o intervalo digitado. */
+  function filtrarPeriodo() {
+    if (!dataInicio && !dataFim) {
+      toast.info("Escolha ao menos uma das datas.");
+      return;
+    }
+    if (dataInicio && dataFim && dataInicio > dataFim) {
+      toast.error("A data de início é depois da data final. Confira as duas.");
+      return;
+    }
+    const q = new URLSearchParams();
+    if (dataInicio) q.set("inicio", dataInicio);
+    if (dataFim) q.set("fim", dataFim);
+    router.push(`/admin/uso?${q.toString()}`);
+  }
 
   const valor = (l: LinhaUso, k: OrdemChave) =>
     k === "nome" ? l.nome : k === "total" ? totalUso(l.uso) : l.uso[k];
@@ -116,7 +151,7 @@ export function AdminUso({ linhas, dias }: { linhas: LinhaUso[]; dias: number })
 
   return (
     <div className="space-y-3">
-      {/* Período + filtro de quem não usou nada */}
+      {/* Período: atalhos fixos + intervalo escolhido na mão */}
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs font-medium text-muted-foreground">Período:</span>
         {PERIODOS_USO.map((p) => (
@@ -125,6 +160,8 @@ export function AdminUso({ linhas, dias }: { linhas: LinhaUso[]; dias: number })
             href={`/admin/uso?dias=${p.v}`}
             className={cn(
               "rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors",
+              // com o intervalo próprio ligado (dias = -1) nenhum atalho acende,
+              // senão pareceria que a tela está mostrando dois períodos ao mesmo tempo
               p.v === dias
                 ? "border-primary bg-primary/10 text-primary"
                 : "border-border text-muted-foreground hover:bg-muted",
@@ -133,7 +170,61 @@ export function AdminUso({ linhas, dias }: { linhas: LinhaUso[]; dias: number })
             {p.label}
           </Link>
         ))}
-        <div className="relative ml-auto w-full min-w-[200px] sm:w-auto sm:max-w-xs sm:flex-1">
+
+        <span className="mx-1 hidden h-5 w-px bg-border sm:block" />
+
+        <div
+          className={cn(
+            "flex flex-wrap items-center gap-1.5 rounded-lg border px-2 py-1 transition-colors",
+            personalizado ? "border-primary bg-primary/5" : "border-border",
+          )}
+        >
+          <CalendarRange
+            className={cn("size-3.5", personalizado ? "text-primary" : "text-muted-foreground")}
+          />
+          <input
+            type="date"
+            value={dataInicio}
+            onChange={(e) => setDataInicio(e.target.value)}
+            aria-label="Data de início"
+            className="rounded-md border border-border bg-background px-1.5 py-0.5 text-xs outline-none focus:border-primary"
+          />
+          <span className="text-xs text-muted-foreground">até</span>
+          <input
+            type="date"
+            value={dataFim}
+            onChange={(e) => setDataFim(e.target.value)}
+            aria-label="Data final"
+            className="rounded-md border border-border bg-background px-1.5 py-0.5 text-xs outline-none focus:border-primary"
+          />
+          <button
+            type="button"
+            onClick={filtrarPeriodo}
+            className="rounded-md bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+          >
+            Filtrar
+          </button>
+          {personalizado && (
+            <button
+              type="button"
+              onClick={() => {
+                setDataInicio("");
+                setDataFim("");
+                router.push("/admin/uso");
+              }}
+              aria-label="Limpar o período personalizado"
+              title="Voltar ao período padrão"
+              className="text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Busca + filtro de quem não usou nada */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative w-full min-w-[200px] sm:w-auto sm:max-w-xs sm:flex-1">
           <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={busca}
@@ -170,7 +261,13 @@ export function AdminUso({ linhas, dias }: { linhas: LinhaUso[]; dias: number })
           <TableHeader>
             {/* linha 1: os 3 grupos; linha 2: ferramenta por ferramenta */}
             <TableRow className="hover:bg-transparent">
-              <TableHead rowSpan={2} className="align-bottom">
+              {/* largura travada: nome quilométrico não pode empurrar as
+                  colunas de número pra fora da tela (o truncate da célula só
+                  funciona com esse teto) */}
+              <TableHead
+                rowSpan={2}
+                className="max-w-[180px] truncate align-bottom sm:max-w-[240px]"
+              >
                 Usuário
               </TableHead>
               {GRUPOS.map((g) => (
@@ -222,8 +319,10 @@ export function AdminUso({ linhas, dias }: { linhas: LinhaUso[]; dias: number })
             ) : (
               visiveis.map((l) => (
                 <TableRow key={l.id}>
-                  <TableCell>
-                    <p className="truncate text-sm font-medium">
+                  <TableCell className="max-w-[180px] sm:max-w-[240px]">
+                    {/* o title mostra o nome/e-mail inteiros no hover, já que o
+                        texto cortado com "..." esconde o resto */}
+                    <p className="truncate text-sm font-medium" title={l.nome}>
                       {l.nome}
                       {l.role === "admin" && (
                         <span className="ml-1.5 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
@@ -231,7 +330,9 @@ export function AdminUso({ linhas, dias }: { linhas: LinhaUso[]; dias: number })
                         </span>
                       )}
                     </p>
-                    <p className="truncate text-xs text-muted-foreground">{l.email}</p>
+                    <p className="truncate text-xs text-muted-foreground" title={l.email}>
+                      {l.email}
+                    </p>
                   </TableCell>
                   {FERRAMENTAS.map((f, i) => (
                     <TableCell

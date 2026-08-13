@@ -31,7 +31,18 @@ const PRECOS = {
   grokCentavos10s: Number(process.env.GROK_CUSTO_10S_CENTAVOS || "") || 61,
   // Grok imagem: centavos por imagem (0 = coberto pela assinatura, ajustar se quiser)
   grokCentavosImg: Number(process.env.GROK_CUSTO_IMAGEM_CENTAVOS || "") || 0,
+  // OpenAI gpt-5-mini (robô de suporte): US$ por 1M tokens, SEPARADO por tipo.
+  // Aqui não dá pra usar a taxa média do `openaiTxtUsdMTok`: a conversa do
+  // suporte é 85% prompt fixo, que a OpenAI serve do cache por 1/10 do preço.
+  // Uma taxa média cobraria ~10x a mais do que sai de verdade.
+  openaiMiniEntradaUsdMTok: Number(process.env.OPENAI_MINI_IN_USD_MTOK || "") || 0.25,
+  openaiMiniCacheUsdMTok: Number(process.env.OPENAI_MINI_CACHE_USD_MTOK || "") || 0.025,
+  openaiMiniSaidaUsdMTok: Number(process.env.OPENAI_MINI_OUT_USD_MTOK || "") || 2.0,
 };
+
+/** Marca de origem do robô de suporte na tabela GastoApi. Mora aqui pra rota que
+ *  grava e painel que soma usarem a MESMA string (o campo tem 32 caracteres). */
+export const ORIGEM_SUPORTE = "suporte-chat";
 
 const miliDeUsd = (usd: number) => Math.max(0, Math.round(usd * CAMBIO * 100_000));
 const miliDeCentavos = (c: number) => Math.max(0, Math.round(c * 1000));
@@ -142,6 +153,29 @@ export async function registrarOpenAITokens(
   await registrarGasto({
     userId, api: "openai", recurso: "tokens", quantidade: totalTokens,
     custoMili: miliDeUsd((totalTokens / 1_000_000) * PRECOS.openaiTxtUsdMTok), origem,
+  });
+}
+
+/**
+ * Uma resposta do robô de suporte (gpt-5-mini), com os três tipos de token
+ * cobrados por preços diferentes. Grava UMA linha, com a quantidade somada e o
+ * custo já calculado direito - a tabela só tem um campo de quantidade, e o que
+ * interessa no painel é o dinheiro.
+ */
+export async function registrarOpenAIChat(
+  userId: string | null,
+  uso: { entrada: number; entradaCache: number; saida: number },
+  origem: string,
+): Promise<void> {
+  const total = uso.entrada + uso.entradaCache + uso.saida;
+  if (total <= 0) return;
+  const usd =
+    (uso.entrada / 1_000_000) * PRECOS.openaiMiniEntradaUsdMTok +
+    (uso.entradaCache / 1_000_000) * PRECOS.openaiMiniCacheUsdMTok +
+    (uso.saida / 1_000_000) * PRECOS.openaiMiniSaidaUsdMTok;
+  await registrarGasto({
+    userId, api: "openai", recurso: "tokens", quantidade: total,
+    custoMili: miliDeUsd(usd), origem,
   });
 }
 
@@ -261,6 +295,21 @@ export type GastoUsuarioLinha = {
   margemCentavos: number; // créditos - custo (negativo = dá prejuízo)
 };
 
+/**
+ * Recorte do robô de suporte dentro do gasto da OpenAI.
+ *
+ * É uma FATIA, não uma parcela nova: estas linhas já estão somadas no card da
+ * OpenAI e no total. Existe separado porque o suporte é o único gasto de API que
+ * não tem contrapartida em crédito (a conversa é de graça pro usuário), então o
+ * dono precisa ver o número sozinho pra saber se vale o que custa.
+ */
+export type GastoSuporte = {
+  custoCentavos: number;
+  tokens: number;
+  /** quantas respostas o robô deu no período (1 linha = 1 chamada ao modelo) */
+  respostas: number;
+};
+
 export type PainelGastos = {
   /** desde quando existe registro interno (as linhas começam no deploy desta feature) */
   registroDesde: string | null;
@@ -269,6 +318,7 @@ export type PainelGastos = {
   totalCentavos: number;
   porUsuario: GastoUsuarioLinha[];
   sistemaCentavos: number; // gastos sem usuário (rotinas internas)
+  suporte: GastoSuporte; // fatia do robô de suporte (JÁ dentro de porApi/total)
 };
 
 const LABELS: Record<ApiPaga, string> = {
@@ -301,13 +351,14 @@ export async function getPainelGastos(inicioMs: number, fimMs: number): Promise<
     totalCentavos: 0,
     porUsuario: [],
     sistemaCentavos: 0,
+    suporte: { custoCentavos: 0, tokens: 0, respostas: 0 },
   };
 
   try {
     const de = new Date(inicioMs);
     const ate = new Date(fimMs);
 
-    const [linhas, primeiro, custoOpenAIReal] = await Promise.all([
+    const [linhas, primeiro, custoOpenAIReal, suporteBruto] = await Promise.all([
       prisma.gastoApi.groupBy({
         by: ["api", "recurso"],
         where: { criadoEm: { gte: de, lte: ate } },
@@ -316,7 +367,19 @@ export async function getPainelGastos(inicioMs: number, fimMs: number): Promise<
       }),
       prisma.gastoApi.findFirst({ orderBy: { criadoEm: "asc" }, select: { criadoEm: true } }),
       custoOpenAIRealCentavos(inicioMs, fimMs),
+      // fatia do robô de suporte: mesma janela, filtrada pela marca de origem
+      prisma.gastoApi.aggregate({
+        where: { criadoEm: { gte: de, lte: ate }, origem: ORIGEM_SUPORTE },
+        _sum: { custoMili: true, quantidade: true },
+        _count: { _all: true },
+      }),
     ]);
+
+    const suporte: GastoSuporte = {
+      custoCentavos: Math.round((suporteBruto._sum.custoMili ?? 0) / 1000),
+      tokens: Math.round(suporteBruto._sum.quantidade ?? 0),
+      respostas: suporteBruto._count._all,
+    };
 
     // soma por API + partes pro texto do card
     const porApiMap = new Map<ApiPaga, { custoMili: number; partes: string[] }>();
@@ -391,6 +454,7 @@ export async function getPainelGastos(inicioMs: number, fimMs: number): Promise<
       usuarios.set(g.userId, u);
     }
     for (const t of debitosPorUser) {
+      if (!t.userId) continue; // transação de conta excluída (auditoria #14): sem linha por pessoa
       const u = usuarios.get(t.userId) ?? { custoMili: 0, creditos: 0 };
       u.creditos += Math.abs(t._sum.valor ?? 0); // débitos são negativos no extrato
       usuarios.set(t.userId, u);
@@ -429,6 +493,7 @@ export async function getPainelGastos(inicioMs: number, fimMs: number): Promise<
       totalCentavos: total,
       porUsuario,
       sistemaCentavos,
+      suporte,
     };
   } catch (e) {
     console.error("[gastos-api] falhou ao montar painel de gastos", e);

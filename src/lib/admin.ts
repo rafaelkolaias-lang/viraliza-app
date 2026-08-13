@@ -60,6 +60,11 @@ export type PainelAdmin = {
     prontos: number;
     erros: number;
     creditosGastos: number; // total de créditos já consumidos em produção
+    // recorrência da assinatura (ver comentário no getPainelAdmin)
+    assinantesRecorrentes: number; // renovaram a assinatura pelo menos 1 vez
+    totalJaAssinantes: number; // todo mundo que é ou já foi assinante
+    pctRecorrencia: number; // recorrentes / jáAssinantes * 100 (0 a 100)
+    reembolsosAssinatura: number; // usuários distintos com estorno do plano
   };
   // pendências que precisam de ação do admin (viram atalhos na visão geral)
   pendencias: {
@@ -81,15 +86,28 @@ export type PainelAdmin = {
 };
 
 /**
- * Conta o uso de todo mundo, ferramenta por ferramenta. `desde` = null pega a
- * plataforma inteira. Vídeo excluído e vídeo com erro CONTAM: a pessoa usou a
- * ferramenta (e o crédito saiu na hora), então o número mede uso, não acervo.
+ * Conta o uso de todo mundo, ferramenta por ferramenta. `desde` e `ate` são as
+ * pontas do período; os dois em null pegam a plataforma inteira, e dá pra passar
+ * só um deles (ex.: `ate` sozinho = tudo até aquela data). Vídeo excluído e
+ * vídeo com erro CONTAM: a pessoa usou a ferramenta (e o crédito saiu na hora),
+ * então o número mede uso, não acervo.
  * Ver `lib/uso-ferramentas.ts` pra origem de cada número e as ressalvas.
  */
 export async function contarUsoPorUsuario(
   desde?: Date | null,
+  ate?: Date | null,
 ): Promise<Map<string, UsoFerramentas>> {
-  const janela = desde ? { criadoEm: { gte: desde } } : {};
+  // `criadoEm` só entra no where quando existe alguma ponta: objeto vazio faria
+  // o Prisma filtrar por "criadoEm: {}" à toa em 11 consultas.
+  const janela =
+    desde || ate
+      ? {
+          criadoEm: {
+            ...(desde ? { gte: desde } : {}),
+            ...(ate ? { lte: ate } : {}),
+          },
+        }
+      : {};
   const soProduto = { ...janela, tipo: "produto" };
 
   const [
@@ -178,7 +196,9 @@ export async function contarUsoPorUsuario(
   for (const a of influenciadores) linha(a.userId).influenciador += a._count._all;
   for (const j of lote) linha(j.userId).vidLote += j._count._all;
   for (const j of cortes) linha(j.userId).vidCortes += j._count._all;
-  for (const t of leads) linha(t.userId).leads += t._count._all;
+  // userId nulo = transação de conta excluída (auditoria #14): fica fora da
+  // tabela por pessoa (não tem mais linha pra mostrar), mas segue nos totais
+  for (const t of leads) if (t.userId) linha(t.userId).leads += t._count._all;
   for (const g of prompts) if (g.userId) linha(g.userId).prompt += g._count._all;
 
   const idsLab = new Set(marcadosLab.map((j) => j.id));
@@ -200,7 +220,7 @@ export async function getPainelAdmin(): Promise<PainelAdmin> {
   const agora = Date.now();
   const online5min = new Date(agora - ONLINE_MS);
   const desdeGrafico = new Date(agora - (DIAS_GRAFICO - 1) * 86_400_000);
-  const producao = ["na_fila", "renderizando", "processando"];
+  const producao = ["preparando", "na_fila", "renderizando", "processando"];
 
   const [
     usuarios,
@@ -218,6 +238,9 @@ export async function getPainelAdmin(): Promise<PainelAdmin> {
     pendSugestoes,
     pendBonus,
     usoPor,
+    renovacoesPagas,
+    bonusAssinaturaTodos,
+    estornosPlataforma,
   ] = await Promise.all([
     prisma.user.count(),
     prisma.job.count({ where: { status: { not: "excluido" } } }),
@@ -271,6 +294,31 @@ export async function getPainelAdmin(): Promise<PainelAdmin> {
     prisma.sugestao.count({ where: { status: "nova" } }),
     prisma.bonusInstagram.count({ where: { status: "pendente" } }),
     contarUsoPorUsuario(),
+    // RENOVAÇÃO PAGA de assinatura: o webhook lança "bonus_assinatura" COM o id
+    // do pedido (kiwifyOrderId) a cada cobrança recorrente confirmada na
+    // processadora; o crédito do 1º mês (garantirCreditoMensal) nasce SEM pedido.
+    // Logo, quem tem pelo menos uma dessas linhas renovou pelo menos uma vez.
+    // É o mesmo critério que a promoção de nível Ouro já usava (histórico de
+    // pagamento real, não inferência) - a "abordagem B" preferida pelo dono.
+    prisma.creditoTransacao.findMany({
+      where: { tipo: "bonus_assinatura", kiwifyOrderId: { not: null } },
+      distinct: ["userId"],
+      select: { userId: true },
+    }),
+    // qualquer bonus_assinatura (1º mês ou renovação) marca quem JÁ FOI assinante
+    prisma.creditoTransacao.findMany({
+      where: { tipo: "bonus_assinatura" },
+      distinct: ["userId"],
+      select: { userId: true },
+    }),
+    // reembolso de ASSINATURA: o estorno do plano é lançado com a descrição
+    // "Reembolso da plataforma..." (ver aplicarReembolsoAceito em reembolsos.ts);
+    // estorno de pacote de crédito sai como "Estorno: <produto>" e fica de fora
+    prisma.creditoTransacao.findMany({
+      where: { tipo: "estorno", descricao: { startsWith: "Reembolso da plataforma" } },
+      distinct: ["userId"],
+      select: { userId: true },
+    }),
   ]);
 
   // --- gráfico: últimos N dias, buckets por dia (fuso de SP) ---
@@ -325,8 +373,38 @@ export async function getPainelAdmin(): Promise<PainelAdmin> {
   // total de créditos consumidos em produção (todas as pessoas somadas)
   const creditosGastos = gastos.reduce((s, g) => s + Math.abs(g._sum.valor ?? 0), 0);
 
+  // --- recorrência e reembolso de assinatura (só contas de usuário comum) ---
+  // admin/demo têm assinatura de cortesia e entortariam a taxa.
+  const rolePor = new Map(listaUsuarios.map((u) => [u.id, u.role]));
+  // type guard: descarta o userId nulo (transação de conta excluída, auditoria #14)
+  const soUser = (id: string | null): id is string => !!id && rolePor.get(id) === "user";
+  const idsRecorrentes = new Set(renovacoesPagas.map((r) => r.userId).filter(soUser));
+  // "é ou já foi assinante" = tem qualquer bonus_assinatura no extrato OU está
+  // com a flag assinante hoje (cobre concessão manual que ainda não ganhou bônus)
+  const idsJaAssinantes = new Set(bonusAssinaturaTodos.map((b) => b.userId).filter(soUser));
+  for (const u of listaUsuarios) if (u.assinante && u.role === "user") idsJaAssinantes.add(u.id);
+  const assinantesRecorrentes = idsRecorrentes.size;
+  const totalJaAssinantes = idsJaAssinantes.size;
+  const pctRecorrencia =
+    totalJaAssinantes > 0 ? (assinantesRecorrentes / totalJaAssinantes) * 100 : 0;
+  const reembolsosAssinatura = new Set(
+    estornosPlataforma.map((e) => e.userId).filter(soUser),
+  ).size;
+
   return {
-    stats: { usuarios, online, videos, emProducao, prontos, erros, creditosGastos },
+    stats: {
+      usuarios,
+      online,
+      videos,
+      emProducao,
+      prontos,
+      erros,
+      creditosGastos,
+      assinantesRecorrentes,
+      totalJaAssinantes,
+      pctRecorrencia,
+      reembolsosAssinatura,
+    },
     pendencias: { reportes: pendReportes, sugestoes: pendSugestoes, bonus: pendBonus },
     grafico,
     usuarios: linhas,

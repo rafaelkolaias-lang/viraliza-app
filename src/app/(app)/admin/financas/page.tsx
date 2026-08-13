@@ -11,6 +11,9 @@ import {
   Cpu,
   PiggyBank,
   Megaphone,
+  Crown,
+  Coins,
+  MessageCircleMore,
 } from "lucide-react";
 import {
   Table,
@@ -138,6 +141,18 @@ export default async function FinancasPage({
         />
         <StatCard label={`Vendas · ${labelPeriodo}`} value={f.periodo.vendasPagas} icon={Receipt} />
         <StatCard
+          label={`Assinaturas · ${labelPeriodo}`}
+          value={brl(f.periodo.receitaLiquidaAssinaturaCentavos)}
+          icon={Crown}
+          sub={`${f.periodo.vendasPagasAssinatura} venda${f.periodo.vendasPagasAssinatura === 1 ? "" : "s"} · bruto ${brl(f.periodo.receitaAssinaturaCentavos)}`}
+        />
+        <StatCard
+          label={`Créditos · ${labelPeriodo}`}
+          value={brl(f.periodo.receitaLiquidaCreditoCentavos)}
+          icon={Coins}
+          sub={`${f.periodo.vendasPagasCredito} venda${f.periodo.vendasPagasCredito === 1 ? "" : "s"} · bruto ${brl(f.periodo.receitaCreditoCentavos)}`}
+        />
+        <StatCard
           label="Reembolsos"
           value={`− ${brl(f.periodo.reembolsoLiquidoCentavos)}`}
           icon={Undo2}
@@ -185,6 +200,9 @@ export default async function FinancasPage({
             {f.gastos.registroDesde && (
               <> Registrando o consumo interno desde <b className="text-foreground">{f.gastos.registroDesde}</b>.</>
             )}{" "}
+            O card <b className="text-foreground">Suporte (chat bot)</b> é um recorte de dentro
+            da OpenAI, não uma despesa a mais: o robô responde de graça pro usuário, então é o
+            único gasto de API sem crédito entrando do outro lado.{" "}
             O gasto com anúncios vem direto da conta de anúncios da Meta e ainda{" "}
             <b className="text-foreground">não entra no Lucro real</b>. A Meta fecha o dia no fuso
             da própria conta de anúncios, então o corte do período pode diferir algumas horas do
@@ -228,6 +246,20 @@ export default async function FinancasPage({
               f.gastos.sistemaCentavos > 0
                 ? `inclui ${brl(f.gastos.sistemaCentavos)} de rotinas sem usuário`
                 : undefined
+            }
+          />
+          {/* Fatia do robô de suporte DENTRO da OpenAI - não soma no total, senão
+              contaria duas vezes. Ganhou card próprio porque é o único gasto de
+              API sem contrapartida em crédito: a conversa é de graça pro usuário,
+              então o dono precisa ver o número sozinho pra saber se compensa. */}
+          <StatCard
+            label={`Suporte (chat bot) · ${labelPeriodo}`}
+            value={`− ${brl(f.gastos.suporte.custoCentavos)}`}
+            icon={MessageCircleMore}
+            sub={
+              f.gastos.suporte.respostas > 0
+                ? `${f.gastos.suporte.respostas} resposta(s) · já dentro da OpenAI`
+                : "nenhuma conversa no período"
             }
           />
           <StatCard
@@ -290,6 +322,7 @@ export default async function FinancasPage({
               <TableHeader>
                 <TableRow>
                   <TableHead>Cliente</TableHead>
+                  <TableHead className="hidden md:table-cell">Produto</TableHead>
                   <TableHead className="hidden sm:table-cell">Quando</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Você recebe</TableHead>
@@ -303,6 +336,25 @@ export default async function FinancasPage({
                       <TableCell>
                         <p className="text-sm font-medium">{c.nome}</p>
                         <p className="text-xs text-muted-foreground">{c.email}</p>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        <span
+                          className={`rounded px-2 py-0.5 text-xs font-medium ${
+                            c.ehCredito
+                              ? "bg-violet-500/15 text-violet-600"
+                              : "bg-emerald-500/15 text-emerald-600"
+                          }`}
+                        >
+                          {c.ehCredito ? "Crédito" : "Assinatura"}
+                        </span>
+                        {c.produtoNome && (
+                          <p
+                            className="mt-0.5 max-w-[180px] truncate text-[11px] text-muted-foreground/70"
+                            title={c.produtoNome}
+                          >
+                            {c.produtoNome}
+                          </p>
+                        )}
                       </TableCell>
                       <TableCell className="hidden text-sm text-muted-foreground sm:table-cell">
                         {c.quando}

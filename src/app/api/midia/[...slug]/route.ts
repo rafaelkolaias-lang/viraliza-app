@@ -1,6 +1,8 @@
 import { createReadStream, existsSync, statSync } from "node:fs";
 import { Readable } from "node:stream";
 import path from "node:path";
+import { getCurrentUser, assinaturaAtiva } from "@/lib/dal";
+import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,6 +43,30 @@ export async function GET(
     slug.some((s) => !s || s === "." || s === ".." || s.includes("/") || s.includes("\\"))
   ) {
     return new Response("inválido", { status: 400 });
+  }
+
+  // ---- trava de acesso (auditoria #31) ----
+  // Nada daqui é público: vídeo gerado é do DONO (admin vê tudo, pras telas
+  // dele); virais, produtos e downloads são a biblioteca que justifica a
+  // assinatura; voice-previews é interno das telas logadas. Antes qualquer
+  // pessoa com o link (compartilhado, histórico, print) baixava sem conta.
+  const user = await getCurrentUser();
+  if (!user) {
+    return new Response("faça login", { status: 401 });
+  }
+  if (slug[0] === "videos") {
+    if (user.role !== "admin") {
+      const dono = await prisma.job.findFirst({
+        where: { id: slug[1] ?? "", userId: user.id },
+        select: { id: true },
+      });
+      if (!dono) return new Response("sem permissão", { status: 403 });
+    }
+  } else if (slug[0] !== "voice-previews") {
+    // biblioteca (admin e demo passam dentro de assinaturaAtiva)
+    if (!(await assinaturaAtiva(user))) {
+      return new Response("assinatura necessária", { status: 403 });
+    }
   }
 
   const alvo = path.join(PUBLIC, ...slug);
@@ -89,7 +115,8 @@ export async function GET(
         "content-range": `bytes ${start}-${end}/${size}`,
         "accept-ranges": "bytes",
         "content-length": String(end - start + 1),
-        "cache-control": "public, max-age=3600",
+        // private: mídia autenticada não pode parar em cache compartilhado
+        "cache-control": "private, max-age=3600",
         ...(disposition ? { "content-disposition": disposition } : {}),
       },
     });
@@ -101,7 +128,8 @@ export async function GET(
       "content-type": contentType,
       "content-length": String(size),
       "accept-ranges": "bytes",
-      "cache-control": "public, max-age=3600",
+      // private: mídia autenticada não pode parar em cache compartilhado
+      "cache-control": "private, max-age=3600",
       ...(disposition ? { "content-disposition": disposition } : {}),
     },
   });

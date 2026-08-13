@@ -12,6 +12,9 @@ import {
   MessageSquarePlus,
   Camera,
   ChevronRight,
+  Repeat,
+  Percent,
+  Undo2,
 } from "lucide-react";
 import {
   Table,
@@ -139,7 +142,31 @@ export default async function AdminPage() {
         />
       </div>
 
-      {/* Stats: linha 2 = produção de vídeos */}
+      {/* Stats: linha 2 = assinatura (retenção e reembolso) */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <StatCard
+          label="Assinantes recorrentes"
+          value={stats.assinantesRecorrentes}
+          icon={Repeat}
+          sub="renovaram a assinatura pelo menos 1 vez"
+        />
+        <StatCard
+          label="Taxa de recorrência"
+          value={`${stats.pctRecorrencia.toLocaleString("pt-BR", {
+            maximumFractionDigits: 1,
+          })}%`}
+          icon={Percent}
+          sub={`de ${stats.totalJaAssinantes.toLocaleString("pt-BR")} contas que são ou já foram assinantes`}
+        />
+        <StatCard
+          label="Reembolsos de assinatura"
+          value={stats.reembolsosAssinatura}
+          icon={Undo2}
+          sub="usuários que reembolsaram o plano"
+        />
+      </div>
+
+      {/* Stats: linha 3 = produção de vídeos */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="Vídeos gerados" value={stats.videos} icon={Film} />
         <StatCard label="Em produção" value={stats.emProducao} icon={Clock} />

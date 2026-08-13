@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/dal";
 import { getCarteira } from "@/lib/creditos";
 import { prisma } from "@/lib/prisma";
 import { AssinaturaPainel } from "@/components/app/assinatura-painel";
+import { LinksLegais } from "@/components/legal/links-legais";
 
 export const metadata: Metadata = { title: "Assinatura" };
 export const dynamic = "force-dynamic";
@@ -50,27 +51,35 @@ export default async function AssinaturaPage() {
   const urlCakto = (process.env.CAKTO_CHECKOUT_ASSINATURA || "").trim() || null;
 
   return (
-    <AssinaturaPainel
-      ativa={ativa}
-      permanente={permanente}
-      diasRestantes={diasRestantes}
-      venceEm={carteira.assinaturaAte ? fmtData.format(carteira.assinaturaAte) : null}
-      membroDesde={conta?.criadoEm ? fmtData.format(conta.criadoEm) : null}
-      renovadaEm={ultimaRenovacao?.criadoEm ? fmtData.format(ultimaRenovacao.criadoEm) : null}
-      urlAssinatura={urlCakto}
-      mpPublicKey={
-        // a public key tem que ser da MESMA aplicação do token de assinatura,
-        // senão o MP não acha o cartão tokenizado ("Card token service not found")
-        !urlCakto && process.env.MP_ACCESS_TOKEN
-          ? process.env.MP_ASSINATURA_PUBLIC_KEY || process.env.MP_PUBLIC_KEY
-          : undefined
-      }
-      valorMensal={parseFloat(process.env.MP_ASSINATURA_REAIS || "98.90")}
-      podeCancelar={!!conta?.mpAssinaturaId}
-      // acesso ativo que NÃO nasceu no Mercado Pago = cliente antigo (Cakto ou
-      // concessão permanente). Não oferecemos assinatura pra ele: seria cobrar
-      // de novo por algo que ele já tem.
-      acessoAntigo={ativa && !conta?.mpAssinaturaId}
-    />
+    <div className="space-y-5">
+      <AssinaturaPainel
+        ativa={ativa}
+        permanente={permanente}
+        diasRestantes={diasRestantes}
+        venceEm={carteira.assinaturaAte ? fmtData.format(carteira.assinaturaAte) : null}
+        membroDesde={conta?.criadoEm ? fmtData.format(conta.criadoEm) : null}
+        renovadaEm={ultimaRenovacao?.criadoEm ? fmtData.format(ultimaRenovacao.criadoEm) : null}
+        urlAssinatura={urlCakto}
+        mpPublicKey={
+          // a public key tem que ser da MESMA aplicação do token de assinatura,
+          // senão o MP não acha o cartão tokenizado ("Card token service not found")
+          !urlCakto && process.env.MP_ACCESS_TOKEN
+            ? process.env.MP_ASSINATURA_PUBLIC_KEY || process.env.MP_PUBLIC_KEY
+            : undefined
+        }
+        valorMensal={parseFloat(process.env.MP_ASSINATURA_REAIS || "98.90")}
+        podeCancelar={!!conta?.mpAssinaturaId}
+        // acesso ativo que NÃO nasceu no Mercado Pago = cliente antigo (Cakto ou
+        // concessão permanente). Não oferecemos assinatura pra ele: seria cobrar
+        // de novo por algo que ele já tem.
+        acessoAntigo={ativa && !conta?.mpAssinaturaId}
+      />
+      {/* assinatura é cobrança recorrente: os documentos precisam estar
+          alcançáveis ANTES de a pessoa contratar, não só depois */}
+      <LinksLegais
+        aviso="Ao assinar, você concorda com os documentos abaixo."
+        className="text-center"
+      />
+    </div>
   );
 }
