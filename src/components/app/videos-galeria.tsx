@@ -11,6 +11,7 @@ import {
   Pencil,
   RotateCcw,
   Stamp,
+  Scissors,
   MoreHorizontal,
   Film,
 } from "lucide-react";
@@ -94,10 +95,22 @@ function Card({ video }: { video: VideoJob }) {
 
   // mesmas regras do card antigo: vídeo do editor já tem voz e legenda queimadas,
   // então ele refaz em vez de reeditar; o de avatar não faz nem um nem outro
-  const ehAvatar = !!primeiraSrc && primeiraSrc.includes("/avatares/");
+  const ehAvatar = video.ehAvatar || (!!primeiraSrc && primeiraSrc.includes("/avatares/"));
   const podeEditar = !!primeiraSrc && video.tipo !== "produto";
   const podeRefazer = video.tipo === "produto" && !ehAvatar;
+  // "Tentar Novamente" (tarefa 21): vídeo do EDITOR que falhou reabre o funil com
+  // os ajustes e, dentro das 24h de retenção, com as mídias originais também.
+  // Lab/Boost/avatar têm fluxo próprio e ficam de fora.
+  const podeTentarDeNovo =
+    video.status === "erro" &&
+    video.tipo === "produto" &&
+    video.origem === "editor" &&
+    !video.ehAvatar;
   const podeMarca = pronto && podeColocarMarca(primeiraSrc);
+  // "Cortar": leva o vídeo pronto direto pro cortador, sem baixar e subir de
+  // novo. Vale pra qualquer vídeo finalizado com arquivo (o lote de cortes tem
+  // tela própria e já é barrado antes, no menu).
+  const podeCortar = pronto && !!primeiraSrc;
 
   function colocarMarca() {
     if (!primeiraSrc) return;
@@ -261,6 +274,15 @@ function Card({ video }: { video: VideoJob }) {
           )}
 
           <div className="flex items-center gap-1.5 pt-0.5">
+            {podeTentarDeNovo && (
+              <Link
+                href={`/painel/novo?reutilizar=${video.id}`}
+                className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+              >
+                <RotateCcw className="size-3.5" />
+                Tentar Novamente
+              </Link>
+            )}
             {baixar && (
               <a
                 href={baixar}
@@ -314,10 +336,20 @@ function Card({ video }: { video: VideoJob }) {
                       {podeRefazer && (
                         <Link
                           href={`/painel/novo?reutilizar=${video.id}`}
+                          title="Editar e re-gerar: reabre o funil com os ajustes deste vídeo (e as mídias, dentro de 24h)"
                           className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs transition-colors hover:bg-accent"
                         >
-                          <RotateCcw className="size-3.5" />
-                          Refazer
+                          <Pencil className="size-3.5" />
+                          Editar novamente
+                        </Link>
+                      )}
+                      {podeCortar && (
+                        <Link
+                          href={`/painel/criar-corte?job=${video.id}`}
+                          className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs transition-colors hover:bg-accent"
+                        >
+                          <Scissors className="size-3.5" />
+                          Cortar
                         </Link>
                       )}
                       {podeMarca && (

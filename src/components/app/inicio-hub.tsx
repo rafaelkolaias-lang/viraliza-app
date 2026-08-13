@@ -19,6 +19,8 @@ import {
   PenLine,
   Pickaxe,
   Receipt,
+  Scissors,
+  SlidersHorizontal,
   Sparkles,
   Stamp,
   User,
@@ -217,11 +219,27 @@ function ferramentas(bibliotecaLiberada: boolean): Cartao[] {
   return [
     {
       href: "/painel/novo",
-      titulo: "Editor automático",
+      titulo: "Editor automático PRO",
       Icone: Wand2,
       descricao:
-        "Suba os seus vídeos e a plataforma monta um só: corte, legenda, voz, música e a copy escrita pela IA.",
+        "Suba os seus vídeos e a plataforma monta um só: corte, legenda, voz, música e a copy escrita pela IA. Vai em 5 etapas.",
       destaque: true,
+    },
+    // Mesma ferramenta, tela diferente (12/08/2026): o Basic é a versão de
+    // página única. Sem `destaque`, porque o caminho recomendado é o PRO.
+    {
+      href: "/painel/editor-basico",
+      titulo: "Editor automático BASIC",
+      Icone: SlidersHorizontal,
+      descricao:
+        "O mesmo editor numa tela só, sem passo a passo. Pra quem já sabe o que quer e prefere mexer em tudo de uma vez.",
+    },
+    {
+      href: "/painel/criar-corte",
+      titulo: "Criar um Corte",
+      Icone: Scissors,
+      descricao:
+        "Suba um vídeo do seu computador, tire os pedaços que não presta e o silêncio entre as falas. Sem IA, sai na hora.",
     },
     {
       href: "/painel/cortes",

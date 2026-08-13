@@ -1,6 +1,8 @@
 /** Status de um pedido de vídeo na fila de render. */
 export type VideoStatus =
   | "recebendo"
+  /** mídia já no servidor, esperando o navegador terminar o encaixe das cenas */
+  | "preparando"
   | "na_fila"
   | "renderizando"
   | "processando"
@@ -46,6 +48,9 @@ export interface VideoJob {
   creditosGastos?: number;
   /** de onde o vídeo saiu: "lab" | "boost" | "cortes" | "editor" (etiqueta do card) */
   origem?: OrigemVideo;
+  /** true = job do "Novo influenciador" (marca {"avatar":true} nas opções): tem
+   *  fluxo próprio, então o "Tentar Novamente" do editor não se aplica a ele */
+  ehAvatar?: boolean;
   /**
    * O render guardou as faixas de áudio separadas, então dá pra refazer só a
    * mistura depois (botão "Reajustar áudio"), em segundos e sem gastar crédito.
@@ -63,7 +68,7 @@ export const ROTULO_ORIGEM_VIDEO: Record<OrigemVideo, string> = {
   lab: "Viraliza Labs",
   boost: "Viral Boost",
   cortes: "Cortes",
-  editor: "Editor automático",
+  editor: "Editor automático PRO",
 };
 
 /** Vídeo viral baixado do Telegram (feed da página "Vídeos virais"). */

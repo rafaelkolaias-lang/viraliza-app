@@ -20,6 +20,7 @@ export default async function PainelPage() {
   const prontos = videos.filter((v) => v.status === "pronto").length;
   const emProducao = videos.filter(
     (v) =>
+      v.status === "preparando" ||
       v.status === "na_fila" ||
       v.status === "renderizando" ||
       v.status === "processando",

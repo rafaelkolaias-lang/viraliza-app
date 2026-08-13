@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { prisma } from "@/lib/prisma";
 import { workerAutorizado } from "@/lib/worker-auth";
-import { pastaSaida, pastaEntrada } from "@/lib/jobs";
+import { pastaSaida } from "@/lib/jobs";
 import { custoCreditos, CREDITOS_FIXO, type Consumo } from "@/lib/precos";
 import { debitarClamp, jobJaDebitado } from "@/lib/creditos";
 import { registrarConsumoJob } from "@/lib/gastos-api";
@@ -109,9 +109,14 @@ async function debitarJob(
           ? "Marca em lote (processamento)"
           : "Edição (processamento)";
     }
+    // o que não couber no saldo vira saldo devedor (auditoria #8/#36): sem isso,
+    // gerar vários vídeos da fábrica com 1 crédito fazia o excedente sumir. As
+    // rotas de vídeo do Grok já usavam faltaViraDivida; a fábrica/editor/cortes
+    // (que fecham por aqui) tinham ficado de fora.
     await debitarClamp(job.userId, creditos, tipo, {
       descricao: desc,
       jobId: job.id,
+      faltaViraDivida: true,
     });
   } catch {
     /* débito nunca derruba a entrega */
@@ -133,6 +138,13 @@ export async function POST(
   const { id } = await params;
   const job = await prisma.job.findUnique({ where: { id } });
   if (!job) return NextResponse.json({ erro: "job não existe" }, { status: 404 });
+
+  // Excluído durante a geração (auditoria #28): a pessoa apagou o card e o robô
+  // terminou depois. Aceita o resultado e descarta - gravar "pronto" por cima
+  // faria o vídeo apagado reaparecer na lista, com notificação e cobrança.
+  if (job.status === "excluido") {
+    return NextResponse.json({ ok: true, ignorado: "excluido" });
+  }
 
   const form = await req.formData();
 
@@ -162,8 +174,10 @@ export async function POST(
     // no mesmo refresh em que o vídeo fica pronto (sem precisar de F5).
     await debitarJob(job, form.get("consumo"));
     const opcoesFinal = opcoesAtualizadas(job, form);
-    await prisma.job.update({
-      where: { id },
+    // condicional no status (auditoria #28): se a pessoa excluiu o job entre a
+    // leitura lá em cima e agora, o "pronto" não pode ressuscitar o card
+    const r = await prisma.job.updateMany({
+      where: { id, status: { not: "excluido" } },
       data: {
         status: "pronto",
         duracao,
@@ -172,8 +186,9 @@ export async function POST(
         ...(opcoesFinal ? { opcoes: opcoesFinal } : {}),
       },
     });
-    await notificarJobPronto(job).catch(() => {});
-    await fs.rm(pastaEntrada(id), { recursive: true, force: true }).catch(() => {});
+    if (r.count > 0) await notificarJobPronto(job).catch(() => {});
+    // a mídia de entrada NÃO é mais apagada aqui: fica 24h no servidor pro
+    // "Editar novamente" reusar (tarefa 21; limpeza no instrumentation.ts)
     return NextResponse.json({ ok: true, total: validas.length, final: true });
   }
 
@@ -248,9 +263,15 @@ export async function POST(
 
     const duracao = Number(form.get("duracao") ?? 0) || job.duracao || null;
     const final = total > 0 && parte + 1 >= total;
+    // fechar pelo `total` também COBRA (auditoria #12): esse caminho marcava
+    // "pronto" direto e entregava o vídeo de graça - o worker atual fecha pelo
+    // "finalizar", mas qualquer variante que use `total` caía no buraco. Sem
+    // consumo no form, o debitarJob cobra o preço fixo de processamento.
+    if (final) await debitarJob(job, form.get("consumo"));
     const opcoesParte = final ? opcoesAtualizadas(job, form) : undefined;
-    await prisma.job.update({
-      where: { id },
+    // condicional no status (auditoria #28): job excluído não volta pra lista
+    const r = await prisma.job.updateMany({
+      where: { id, status: { not: "excluido" } },
       data: {
         status: final ? "pronto" : "processando",
         duracao,
@@ -260,9 +281,9 @@ export async function POST(
         ...(opcoesParte ? { opcoes: opcoesParte } : {}),
       },
     });
-    if (final) {
+    if (final && r.count > 0) {
       await notificarJobPronto(job).catch(() => {});
-      await fs.rm(pastaEntrada(id), { recursive: true, force: true }).catch(() => {});
+      // entrada retida por 24h pro reuso (tarefa 21; limpeza no instrumentation.ts)
     }
     return NextResponse.json({ ok: true, parte, total, final });
   }
@@ -321,8 +342,9 @@ export async function POST(
   // debita ANTES de marcar "pronto" (crédito visível no mesmo refresh do pronto)
   await debitarJob(job, form.get("consumo"));
   const opcoesBatch = opcoesAtualizadas(job, form);
-  await prisma.job.update({
-    where: { id },
+  // condicional no status (auditoria #28): job excluído não volta pra lista
+  const rBatch = await prisma.job.updateMany({
+    where: { id, status: { not: "excluido" } },
     data: {
       status: "pronto",
       duracao,
@@ -333,10 +355,10 @@ export async function POST(
       ...(opcoesBatch ? { opcoes: opcoesBatch } : {}),
     },
   });
-  await notificarJobPronto(job).catch(() => {});
+  if (rBatch.count > 0) await notificarJobPronto(job).catch(() => {});
 
-  // limpa a mídia de entrada (não precisa mais - economiza disco)
-  await fs.rm(pastaEntrada(id), { recursive: true, force: true }).catch(() => {});
+  // a mídia de entrada fica 24h no servidor pro "Editar novamente" reusar
+  // (tarefa 21); quem apaga é a varredura periódica do instrumentation.ts
 
   return NextResponse.json({ ok: true, saidas });
 }

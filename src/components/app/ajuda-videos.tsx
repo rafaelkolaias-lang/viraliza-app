@@ -31,6 +31,7 @@ import {
   Titulinho,
 } from "@/components/app/ajuda-blocos";
 import { CUSTO_PROMPT_LAB } from "@/lib/lab-custos";
+import { CREDITOS_FIXO } from "@/lib/precos";
 
 /**
  * Grupo "Criar vídeos": os quatro caminhos que geram vídeo, do mais novo
@@ -174,10 +175,10 @@ export function AjudaVideos() {
         <Atalho href="/painel/viral-boost">Abrir o Viral Boost</Atalho>
       </Secao>
 
-      {/* ================= EDITOR AUTOMÁTICO ================= */}
+      {/* ================= EDITOR AUTOMÁTICO PRO ================= */}
       <Secao
         id="editor"
-        titulo="Editor automático"
+        titulo="Editor automático PRO"
         subtitulo="Pra quem JÁ tem o vídeo gravado e quer montar, legendar e narrar."
       >
         <Texto>
@@ -186,22 +187,87 @@ export function AjudaVideos() {
           caminho certo quando você já tem material gravado ou baixado do acervo.
         </Texto>
 
-        <Titulinho>Os 4 modos</Titulinho>
+        <Titulinho>O que sai de cada caminho</Titulinho>
         <Tabela
-          colunas={["Modo", "O que acontece"]}
+          colunas={["Caminho", "O que acontece"]}
           linhas={[
-            ["Legenda", "A IA escreve a copy e queima a legenda no vídeo."],
-            ["Voz narrada", "A IA escreve a copy e narra com voz de IA."],
             [
-              "Transcrever fala",
-              "Seu vídeo já tem alguém falando: a legenda entra no tempo certo da fala e o som original continua.",
+              "Vídeo com fala + Transcrever fala",
+              "A gente transcreve o áudio do seu vídeo e a legenda entra no tempo certo da fala. O som original continua.",
             ],
             [
-              "Nenhum",
+              "Vídeo com fala + Nenhum",
               "Sai só a sua montagem, com o áudio e a música que você escolher. Sem legenda e sem voz de IA.",
+            ],
+            [
+              "Voz de IA narrando",
+              "Uma voz de IA narra por cima das suas mídias: lendo o texto que você escreveu, ou a copy que a IA escreve quando é um produto.",
             ],
           ]}
         />
+
+        <Titulinho>A tela vai em 5 etapas</Titulinho>
+        <Passo n={1} titulo="De onde parte o seu vídeo">
+          <strong className="text-foreground">Vídeo com fala:</strong> você já tem um vídeo
+          com alguém falando na câmera, seja você ou outra pessoa. Ele roda por baixo do
+          começo ao fim, com o som dele, e as outras mídias entram por cima mostrando o
+          produto. <strong className="text-foreground">Voz de IA narrando:</strong> não tem
+          ninguém falando em vídeo; suas fotos e vídeos tocam em sequência e uma voz de IA
+          narra por cima, com o texto escrito pela IA ou digitado por você.
+        </Passo>
+        <Passo n={2} titulo="É um produto?">
+          Começa no <strong className="text-foreground">Não</strong>, que é o caso mais
+          comum: corte, meme ou vídeo informativo, e aí a única pergunta é se você quer a
+          fala do vídeo escrita na tela (a legenda sai da transcrição do próprio áudio) ou
+          o vídeo sem legenda nenhuma. No{" "}
+          <strong className="text-foreground">Sim</strong> aparecem o nome e o preço do
+          produto; no caminho da voz de IA entram também a descrição, onde você vai vender
+          (Shopee ou outro, o que muda a chamada e as hashtags) e o tom da copy. No vídeo
+          com fala esses campos de copy não existem: a fala do seu vídeo já é a narração, e
+          a escolha fica só entre transcrever a fala ou nada.
+        </Passo>
+        <Passo n={3} titulo="As mídias e o que tem em cada uma">
+          Primeiro o vídeo com a fala, depois as cenas de apoio (fotos e vídeos do
+          produto). Aqui também dá pra escrever textos que aparecem na tela, cada um no seu
+          tempo e na sua posição.
+          <br />
+          <br />
+          Embaixo de cada mídia tem um campo pra dizer{" "}
+          <strong className="text-foreground">o que aparece nela</strong>, e a que ficar sem
+          descrição aparece marcada em âmbar. É a descrição que faz a cena entrar no ponto
+          certo da fala, e por isso{" "}
+          <strong className="text-foreground">
+            no vídeo com fala toda cena de apoio precisa de descrição pra continuar
+          </strong>
+          : escrever você mesmo é de graça, e cada cena tem um botão de varinha (além do
+          botão em lote embaixo da lista) pra IA olhar e escrever por você, a 1 crédito por
+          cena. Vale descrever também o vídeo principal (ex: &quot;ela segura o tênis e
+          depois mostra a etiqueta&quot;): a IA escuta a fala, mas não enxerga a imagem.
+        </Passo>
+        <Passo n={4} titulo="Ajustes e áudio">
+          Cortar as partes sem fala (já vem ligado em 0,5s, porque quase toda gravação tem
+          pausa demais), música de fundo (suba a sua ou ligue{" "}
+          <strong className="text-foreground">Usar músicas da plataforma</strong>, que vem
+          desligada e deixa escolher a trilha da biblioteca ou uma sorteada pela IA; sem
+          nenhuma das duas o vídeo sai sem trilha) e a{" "}
+          <strong className="text-foreground">edição avançada</strong>: zoom lento nas
+          fotos, transição suave entre as cenas e a IA escolhendo o melhor pedaço de cada
+          vídeo de apoio. O som das cenas de apoio vem desligado, porque o barulho de fundo
+          delas costuma atrapalhar a fala; ligue se quiser ouvir as duas coisas.
+        </Passo>
+        <Passo n={5} titulo="Aprovar as cenas">
+          Depois de posicionar, a tela vira um editor: o vídeo fica em cima e, embaixo
+          dele, a linha do tempo com duas linhas - a de cima são as cenas de apoio, cada
+          uma com a miniatura da mídia, no segundo em que entra; a de baixo é o seu vídeo
+          base (a fala), num bloco só.
+          Ali mesmo dá pra ajustar tudo sem gastar crédito: arrastar a cena pra outro
+          momento (uma nunca entra em cima da outra: o bloco encosta e para), puxar as
+          alças das pontas pra mudar quanto tempo ela fica na tela e tocar nela pra abrir
+          os ajustes finos (o segundo exato e, no vídeo com sobra de corte, qual pedaço do
+          arquivo aparece). Tocar na régua de segundos leva a prévia praquele ponto do
+          vídeo. Depois é só{" "}
+          <strong className="text-foreground">Aprovar e gerar</strong>.
+        </Passo>
 
         <Titulinho>O que mais aparece na tela</Titulinho>
         <div className="grid gap-3 sm:grid-cols-3">
@@ -212,7 +278,10 @@ export function AjudaVideos() {
             Agressivo, equilibrado ou tranquilo. Agressivo puxa mais urgência.
           </Cartao>
           <Cartao Icone={Music} titulo="Música e voz">
-            Dá pra escolher a voz da narração e subir uma música de fundo.
+            Dá pra escolher a voz da narração e subir uma música de fundo. Sem arquivo
+            seu, dá pra ligar a chave “Usar músicas da plataforma” e escolher a trilha
+            (com botão de ouvir antes) ou deixar sorteada; com tudo de fora, o vídeo sai
+            sem trilha.
           </Cartao>
         </div>
 
@@ -222,10 +291,53 @@ export function AjudaVideos() {
           tela mostra só uma <strong className="text-foreground">estimativa</strong>{" "}
           antes de gerar, e o valor certo aparece no extrato quando o vídeo fica pronto.
           No modo &quot;Nenhum&quot;, que não usa IA, a cobrança é um valor fixo de
-          processamento.
+          processamento. Mandar a IA descrever as cenas, na etapa das mídias, custa{" "}
+          {CREDITOS_FIXO.analiseCena} crédito por cena, e é opcional: escrever você mesmo é
+          de graça.
         </Aviso>
 
-        <Atalho href="/painel/novo">Abrir o Editor automático</Atalho>
+        <Atalho href="/painel/novo">Abrir o Editor automático PRO</Atalho>
+      </Secao>
+
+      {/* ================= CRIAR UM CORTE ================= */}
+      <Secao
+        id="criar-corte"
+        titulo="Criar um Corte"
+        subtitulo="Limpar um vídeo que já está no seu computador, sem IA nenhuma."
+      >
+        <Texto>
+          É a ferramenta mais simples da casa: você sobe um vídeo, tira os pedaços que não
+          presta e manda tirar o silêncio entre as falas. Sai o seu vídeo limpo, no formato
+          de celular, com o áudio original. Nada de copy, legenda inventada ou voz de IA.
+        </Texto>
+
+        <Passo n={1} titulo="Suba o vídeo">
+          Um arquivo do seu computador, de até 10 minutos.
+        </Passo>
+        <Passo n={2} titulo="Marque os pedaços que saem">
+          Ande na barra até onde o trecho ruim começa, toque em{" "}
+          <strong className="text-foreground">Começar a cortar aqui</strong>, ande até onde
+          ele acaba e feche o corte. O que fica vermelho some do vídeo, e a prévia já pula
+          esses trechos. Pode marcar quantos quiser.
+        </Passo>
+        <Passo n={3} titulo="Corte o silêncio (opcional)">
+          Todo trecho calado por mais tempo que você escolher sai fora sozinho, imagem e som
+          juntos, com uma folga pra não engolir a respiração.
+        </Passo>
+
+        <Aviso tom="dica" titulo="Não confunda com os Cortes">
+          Esta ferramenta é pro arquivo que <strong className="text-foreground">você já
+          tem</strong>. Pra pegar um vídeo do YouTube por link e a IA escolher os melhores
+          trechos, é o <strong className="text-foreground">Cortes de qualquer vídeo</strong>,
+          logo abaixo.
+        </Aviso>
+
+        <Aviso tom="atencao" titulo="Quanto custa">
+          {CREDITOS_FIXO.editorManual} créditos fixos por corte. O corte final sai com no
+          máximo 2 minutos.
+        </Aviso>
+
+        <Atalho href="/painel/criar-corte">Abrir o Criar um Corte</Atalho>
       </Secao>
 
       {/* ================= CORTES ================= */}

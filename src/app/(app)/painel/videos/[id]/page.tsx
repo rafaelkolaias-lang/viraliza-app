@@ -30,8 +30,12 @@ export default async function CortesDetalhePage({
   const arquivos = midias
     .map((m) => (m.driveId ? driveDownload(m.driveId) : m.arquivo))
     .filter(Boolean);
-  const processando =
-    video.status === "na_fila" || video.status === "renderizando";
+  // os QUATRO status ativos (auditoria #1): "processando" é a fase em que o
+  // worker sobe cada corte e "preparando" é o Editor esperando a IA encaixar as
+  // cenas - sem eles a página parava de atualizar justo na reta final
+  const processando = ["preparando", "na_fila", "renderizando", "processando"].includes(
+    video.status,
+  );
 
   return (
     <div className="space-y-6">

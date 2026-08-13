@@ -7,12 +7,15 @@ import { pipeline } from "node:stream/promises";
 import { getCurrentUser } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { pastaEntrada } from "@/lib/jobs";
+import { MAX_ARQUIVO_MB } from "@/lib/montagem";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const SUBS = new Set(["videos", "imagens", "musica", "template"]);
-const MAX_ARQUIVO = 1024 * 1024 * 1024; // teto por arquivo: 1GB (anti-encher-disco)
+// mesmo teto da tela e do caminho antigo (auditoria #30): a plataforma promete
+// 300 MB por arquivo e este caminho aceitava 1 GB por trás
+const MAX_ARQUIVO = MAX_ARQUIVO_MB * 1024 * 1024;
 
 function nomeSeguro(nome: string) {
   return path.basename(nome).replace(/[^\w.\- ]+/g, "_").slice(0, 120) || "arquivo";
@@ -85,7 +88,10 @@ export async function POST(
     const { size } = await fs.stat(alvo);
     if (size > MAX_ARQUIVO) {
       await fs.rm(alvo, { force: true });
-      return NextResponse.json({ erro: "Arquivo grande demais (máx 1GB)." }, { status: 413 });
+      return NextResponse.json(
+        { erro: `Arquivo grande demais (máx ${MAX_ARQUIVO_MB} MB).` },
+        { status: 413 },
+      );
     }
   } catch {
     /* ignora erro de stat */

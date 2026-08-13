@@ -63,7 +63,11 @@ sem introdução."""
     for _ in range(len(_KEYS)):
         try:
             client = genai.Client(api_key=next(_ciclo))
-            resp = client.models.generate_content(model="gemini-2.5-flash",
+            # Modelo trocado DIRETO no serverrk (achado em 12/08/2026 ao comparar
+            # o servidor com o repo): o 2.5-flash esta aposentado pra chave nova e
+            # devolve 404. A troca estava so la, fora do git; trazida pra ca pra o
+            # proximo deploy nao reverter o conserto.
+            resp = client.models.generate_content(model="gemini-3.1-flash-lite",
                                                   contents=prompt)
             texto = (resp.text or "").strip()
             if texto:

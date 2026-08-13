@@ -13,12 +13,27 @@ import { quitarDivida } from "@/lib/creditos";
  * O que saiu, e por quê:
  *  - quarentena de crédito comprado (parte na hora, resto no 8º dia): era
  *    antifraude de reembolso e saiu com a entrada do Mercado Pago;
- *  - teto diário e simultâneos: viraram atrito em cima de cliente pagante;
+ *  - teto diário por nível: virou atrito em cima de cliente pagante;
  *  - promoção por tempo de casa, dias de login e "análise interna" de risco:
  *    a régua agora é uma só, o número de vídeos, que a pessoa entende sozinha.
  *
+ * O QUE NÃO É NÍVEL E POR ISSO FICOU (12/08/2026): o teto de vídeos em produção
+ * ao mesmo tempo (SIMULTANEOS_UNIVERSAL) continua valendo, IGUAL pra toda conta.
+ * Ele não é vantagem de Bronze/Prata/Ouro nem régua de mérito: é proteção da
+ * fila de renderização, que é um recurso finito e compartilhado. Mora aqui por
+ * ficar junto da `travaDeGeracao`, que é quem barra, e não porque seja nível.
+ *
  * O admin ainda fixa o nível na mão (nivelManual) quando quiser.
  */
+
+/** Vídeos que uma conta pode ter em produção ao mesmo tempo. Igual pra todo
+ *  mundo: é fila, não é nível (ver o bloco acima). */
+export const SIMULTANEOS_UNIVERSAL = 5;
+
+/** Status que contam como "ocupando uma vaga de produção". `preparando` entra
+ *  porque o job já existe e já vai virar vídeo: é o Editor esperando a IA
+ *  terminar de encaixar as cenas no navegador da pessoa. */
+const EM_PRODUCAO = ["preparando", "na_fila", "renderizando", "processando"];
 
 export type Nivel = "bronze" | "prata" | "ouro";
 
@@ -100,15 +115,19 @@ export type ResultadoTrava =
   | { ok: false; status: number; erro: string; divida?: boolean };
 
 /**
- * Pode criar vídeo agora? Chamada em TODO endpoint que cria Job de vídeo
- * (editor, cortes, lote, lab, boost, avatar).
+ * Pode criar `quantos` vídeos agora? Chamada em TODO endpoint que cria Job de
+ * vídeo (editor, cortes, lote, lab, boost, avatar). Admin e demo passam direto
+ * (demo tem regras próprias em cada rota).
  *
- * Sobrou UMA trava: saldo devedor de reembolso. Nível não limita mais nada, e
- * quem não tem crédito já é barrado pelo próprio crédito. Admin e demo passam
- * direto (demo tem regras próprias em cada rota).
+ * São DUAS travas, e nenhuma das duas é nível:
+ *  1. saldo devedor de reembolso (quem não tem crédito já é barrado pelo crédito);
+ *  2. vídeos em produção ao mesmo tempo (SIMULTANEOS_UNIVERSAL), que é regra de
+ *     FILA e não vantagem de conta: sem ela uma pessoa sozinha enfileira
+ *     centenas de vídeos e trava a renderização de todo mundo.
  */
 export async function travaDeGeracao(
   user: { id: string; role: string },
+  quantos = 1,
 ): Promise<ResultadoTrava> {
   if (user.role === "admin" || user.role === "demo") return { ok: true };
 
@@ -126,6 +145,26 @@ export async function travaDeGeracao(
       erro:
         `Sua conta tem um saldo pendente de ${u.dividaCentavos.toLocaleString("pt-BR")} créditos ` +
         `referente a um reembolso. Adquira créditos pra regularizar e voltar a gerar.`,
+    };
+  }
+
+  // simultâneos: quantos jobs dele já estão em produção agora. "marca" fica de
+  // fora: carimbar logo não usa IA nem a cota do motor, então o lote não ocupa
+  // vaga nem tranca as outras ferramentas (quem chama pra job de marca passa
+  // `quantos = 0`, mantendo só a trava de dívida acima).
+  const rodando = await prisma.job.count({
+    where: { userId: user.id, status: { in: EM_PRODUCAO }, tipo: { not: "marca" } },
+  });
+  if (rodando + quantos > SIMULTANEOS_UNIVERSAL) {
+    const livres = Math.max(0, SIMULTANEOS_UNIVERSAL - rodando);
+    return {
+      ok: false,
+      status: 429,
+      erro:
+        `Você já tem ${rodando} vídeo${rodando > 1 ? "s" : ""} em produção. O limite é de ` +
+        `${SIMULTANEOS_UNIVERSAL} vídeos ao mesmo tempo por conta` +
+        (quantos > 1 && livres > 0 ? ` (dá pra mandar ${livres} agora)` : "") +
+        ". Espere algum terminar pra gerar mais.",
     };
   }
 

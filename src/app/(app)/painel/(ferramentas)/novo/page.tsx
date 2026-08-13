@@ -4,20 +4,27 @@ import { getCurrentUser } from "@/lib/dal";
 import { getConfigReuso } from "@/lib/jobs";
 
 export const metadata: Metadata = {
-  title: "Editor",
+  title: "Editor automático PRO",
 };
 
 export default async function NovoVideoPage({
   searchParams,
 }: {
-  searchParams: Promise<{ video?: string; nome?: string; reutilizar?: string }>;
+  searchParams: Promise<{
+    video?: string;
+    nome?: string;
+    reutilizar?: string;
+    shopee?: string;
+  }>;
 }) {
   const user = await getCurrentUser();
   const bloqueado = user?.role === "demo";
 
   const sp = await searchParams;
+  // `shopee=1` = veio de um vídeo de produto da Shopee: o editor abre com o
+  // fluxo de produto pré-selecionado (narração por IA, produto Sim, etc.)
   const videoInicial = sp.video
-    ? { url: sp.video, nome: sp.nome ?? "" }
+    ? { url: sp.video, nome: sp.nome ?? "", shopee: sp.shopee === "1" }
     : undefined;
 
   // "Reutilizar": reabre o editor com os mesmos ajustes de um vídeo já feito.
@@ -36,7 +43,7 @@ export default async function NovoVideoPage({
             ? "Editar vídeo"
             : reusando
               ? "Reutilizar vídeo"
-              : "Editor de vídeo"}
+              : "Editor automático PRO"}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {videoInicial

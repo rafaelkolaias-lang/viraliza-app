@@ -79,3 +79,6 @@ __pycache__/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# backup local do serverrk (nao versionar)
+bot shopee/backup-serverrk-*/

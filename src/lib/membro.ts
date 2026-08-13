@@ -31,7 +31,7 @@ export const EBOOKS: Ebook[] = [
         titulo: "2. Transforme o produto em vídeo",
         paragrafos: [
           "Produto bom sem vídeo não vende. Você precisa de um vídeo curto, com gancho e legenda que chama atenção.",
-          "Use o Editor automático: você joga as fotos/clipes do produto, a IA escreve a copy e monta o vídeo 9:16 pronto pra postar. E olhe a aba Vídeos virais Shopee pra se inspirar no que está dando certo.",
+          "Use o Editor automático PRO: você joga as fotos/clipes do produto, a IA escreve a copy e monta o vídeo 9:16 pronto pra postar. E olhe a aba Vídeos virais Shopee pra se inspirar no que está dando certo.",
         ],
       },
       {
@@ -79,7 +79,7 @@ export const EBOOKS: Ebook[] = [
       {
         titulo: "3. Monte rápido com IA",
         paragrafos: [
-          "Velocidade é vantagem. No Editor automático você monta o vídeo, corta os clipes, escolhe a posição da legenda e a IA escreve a copy - tudo em minutos.",
+          "Velocidade é vantagem. No Editor automático PRO você monta o vídeo, corta os clipes, escolhe a posição da legenda e a IA escreve a copy - tudo em minutos.",
           "Quanto mais rápido você produz, mais testa. Mais testes = mais chances de viralizar.",
         ],
       },
@@ -121,7 +121,7 @@ export const EBOOKS: Ebook[] = [
       {
         titulo: "3. Deixe a IA escrever",
         paragrafos: [
-          "No Editor automático, a IA gera a copy e a legenda no tom que você escolher (agressivo, equilibrado ou tranquilo), já com gancho e CTA.",
+          "No Editor automático PRO, a IA gera a copy e a legenda no tom que você escolher (agressivo, equilibrado ou tranquilo), já com gancho e CTA.",
           "Gere 2 ou 3 variações e teste qual prende mais. Copy é teste, não adivinhação.",
         ],
       },

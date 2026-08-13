@@ -7,7 +7,7 @@
  * - imagens: tabela ImagemGerada, campo "origem" (lab | boost | avatar)
  * - vídeos: tabela Job. Lab, Viral Boost e Novo influenciador gravam a marca de origem
  *   no campo "opcoes" (ex.: {"lab":true}); marca em lote e cortes têm "tipo"
- *   próprio; o que sobra de "produto" é Editor automático.
+ *   próprio; o que sobra de "produto" é Editor automático PRO.
  * - vídeo do Novo influenciador ANTIGO: não nascia marcado, então cai no plano B de
  *   olhar se o arquivo final foi parar na pasta /avatares/. Isso só pega os que
  *   ficaram prontos: os que deram erro naquela época contam como Editor.
@@ -51,11 +51,11 @@ export const FERRAMENTAS: {
     curto: "Víd IA",
     grupo: "videoIa",
     ajuda:
-      "Vídeo do Novo influenciador que deu erro antes de 05/08/2026 aparece no Editor automático.",
+      "Vídeo do Novo influenciador que deu erro antes de 05/08/2026 aparece no Editor automático PRO.",
   },
   { chave: "vidLab", rotulo: "Vídeo do Viraliza Labs", curto: "Víd Labs", grupo: "videoIa" },
   { chave: "vidBoost", rotulo: "Vídeo do Viral Boost", curto: "Víd Boost", grupo: "videoIa" },
-  { chave: "vidEditor", rotulo: "Editor automático", curto: "Editor", grupo: "outro" },
+  { chave: "vidEditor", rotulo: "Editor automático PRO", curto: "Editor PRO", grupo: "outro" },
   { chave: "vidLote", rotulo: "Aplicar marca em lote", curto: "Lote", grupo: "outro" },
   { chave: "vidCortes", rotulo: "Cortes de vídeo", curto: "Cortes", grupo: "outro" },
   { chave: "influenciador", rotulo: "Influenciador criado", curto: "Influ", grupo: "outro" },

@@ -73,7 +73,7 @@ export function ferramentaDoVideo(j: {
   if (o.includes('"avatar":true')) return "Novo influenciador";
   if ((j.midias ?? "").includes("/avatares/") || (j.saidas ?? "").includes("/avatares/"))
     return "Novo influenciador";
-  return "Editor automático";
+  return "Editor automático PRO";
 }
 
 export const FERRAMENTA_IMAGEM: Record<string, string> = {

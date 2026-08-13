@@ -34,7 +34,8 @@ export const GRUPOS_AJUDA: GrupoAjuda[] = [
     itens: [
       { id: "labs", titulo: "Viraliza Labs" },
       { id: "boost", titulo: "Viral Boost" },
-      { id: "editor", titulo: "Editor automático" },
+      { id: "editor", titulo: "Editor automático PRO" },
+      { id: "criar-corte", titulo: "Criar um Corte" },
       { id: "cortes", titulo: "Cortes de qualquer vídeo" },
     ],
   },

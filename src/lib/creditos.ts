@@ -239,12 +239,25 @@ export function debitar(
 }
 
 /** Débito pós-pago que NUNCA deixa o saldo negativo (clampa em 0). Registra no
- *  extrato só o que foi efetivamente debitado. Retorna o valor debitado (centavos). */
+ *  extrato só o que foi efetivamente debitado. Retorna o valor debitado (centavos).
+ *
+ *  `faltaViraDivida` (auditoria #36): quando o custo não coube no saldo, a
+ *  diferença vira saldo devedor (`dividaCentavos`) em vez de simplesmente sumir.
+ *  Sem isso, disparar vários vídeos em paralelo com saldo pra um só sai de graça:
+ *  cada um cobra o que acha e o resto evapora. A dívida bloqueia geração nova
+ *  (travaDeGeracao) e é quitada pela próxima entrada de crédito (quitarDivida).
+ *  Quem cobra POR CONSUMO REAL passa a opção (fábrica, editor, cortes); quem
+ *  cobra preço fixo checa o saldo antes e não precisa. */
 export async function debitarClamp(
   userId: string,
   centavos: number,
   tipo: TipoTransacao,
-  opts: { descricao?: string; jobId?: string; kiwifyOrderId?: string } = {},
+  opts: {
+    descricao?: string;
+    jobId?: string;
+    kiwifyOrderId?: string;
+    faltaViraDivida?: boolean;
+  } = {},
 ): Promise<number> {
   const alvo = Math.abs(centavos);
   if (alvo <= 0) return 0;
@@ -255,23 +268,29 @@ export async function debitarClamp(
     });
     if (!u) return 0;
     const valor = Math.min(u.saldoCentavos, alvo); // nunca passa do saldo
-    if (valor <= 0) return 0;
+    const faltou = opts.faltaViraDivida ? alvo - valor : 0;
+    if (valor <= 0 && faltou <= 0) return 0;
     const saldoApos = u.saldoCentavos - valor;
     await tx.user.update({
       where: { id: userId },
-      data: { saldoCentavos: saldoApos },
-    });
-    await tx.creditoTransacao.create({
       data: {
-        userId,
-        tipo,
-        valor: -valor,
-        saldoApos,
-        descricao: opts.descricao,
-        jobId: opts.jobId,
-        kiwifyOrderId: opts.kiwifyOrderId,
+        saldoCentavos: saldoApos,
+        ...(faltou > 0 ? { dividaCentavos: { increment: faltou } } : {}),
       },
     });
+    if (valor > 0) {
+      await tx.creditoTransacao.create({
+        data: {
+          userId,
+          tipo,
+          valor: -valor,
+          saldoApos,
+          descricao: opts.descricao,
+          jobId: opts.jobId,
+          kiwifyOrderId: opts.kiwifyOrderId,
+        },
+      });
+    }
     return valor;
   });
 }
