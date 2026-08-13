@@ -5,6 +5,16 @@
  * cada seção saem daqui. Pra criar uma seção nova, adicione o id na ordem certa
  * e escreva o <Secao id="..."> no componente do grupo - a numeração se ajusta
  * sozinha e nunca fica fora de ordem.
+ *
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ REGRA: MEXEU NA AJUDA, ATUALIZE O ROBÔ DE SUPORTE.                        │
+ * │                                                                          │
+ * │ O robô do chat (boia do painel) NÃO lê esta tela: ele responde por uma   │
+ * │ CÓPIA do conteúdo em `lib/suporte-base.ts` (BASE_CONHECIMENTO). Os dois  │
+ * │ não se puxam. Então, ao criar/editar/remover uma seção aqui ou nos       │
+ * │ componentes `ajuda-*.tsx`, leve a MESMA mudança pro `suporte-base.ts`,   │
+ * │ senão o robô passa a dizer uma coisa e a tela outra.                     │
+ * └─────────────────────────────────────────────────────────────────────────┘
  */
 
 export type ItemAjuda = { id: string; titulo: string };

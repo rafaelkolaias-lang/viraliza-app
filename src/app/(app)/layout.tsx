@@ -1,6 +1,5 @@
 import { AppFrame } from "@/components/app/app-frame";
-import { ChatWidget } from "@/components/app/chat-widget";
-import { SuporteChat } from "@/components/app/suporte-chat";
+import { ChatBoia } from "@/components/app/chat-boia";
 import { requireUser } from "@/lib/dal";
 import { tocarPresenca } from "@/lib/presenca";
 import {
@@ -59,13 +58,12 @@ export default async function AppLayout({
       dividaCentavos={divida}
     >
       {children}
-      {/* robô de ajuda: sempre disponível, é o botão de baixo no canto. A janela
-          de garantia vem daqui porque `lib/niveis` é server-only e as respostas
-          prontas do chat citam esse prazo */}
-      <SuporteChat garantiaDias={JANELA_GARANTIA_DIAS} />
-      {/* caixinha do chat com a equipe: só aparece se o admin abriu conversa.
-          Quando aparece, fica LOGO ACIMA do robô (ver chat-widget.tsx). */}
-      {user.role !== "admin" && <ChatWidget />}
+      {/* UMA boia no canto de baixo pros dois chats: o robô de ajuda (sempre) e
+          a conversa com a equipe (só se o admin abriu). Eram dois botões
+          empilhados até 12/08/2026 - o porquê da junção está no chat-boia.tsx.
+          A janela de garantia vem daqui porque `lib/niveis` é server-only e as
+          respostas prontas do robô citam esse prazo. */}
+      <ChatBoia garantiaDias={JANELA_GARANTIA_DIAS} comEquipe={user.role !== "admin"} />
     </AppFrame>
   );
 }

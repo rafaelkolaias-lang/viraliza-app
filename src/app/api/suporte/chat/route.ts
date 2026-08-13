@@ -1,24 +1,29 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/dal";
-import { chat, llmConfigurado } from "@/lib/llm";
+import { ORIGEM_SUPORTE, registrarOpenAIChat } from "@/lib/gastos-api";
+import { responderSuporte, suporteIaConfigurado, type MsgIa } from "@/lib/suporte-ia";
 import { PROMPT_SISTEMA, nomeDaRota, separarLinks } from "@/lib/suporte-base";
+import { contextoDoUsuario } from "@/lib/suporte-usuario";
 import { contextoDoPasso, respostaGuiada, type FalaBot } from "@/lib/suporte-guia";
 
 export const runtime = "nodejs";
-// O LLM roda na máquina do dono, não numa nuvem: carregar o modelo do zero leva
-// uns 45s e, quente, responde em ~10s. Limite curto aqui reprovava SEMPRE a
-// primeira pergunta do dia. Melhor esperar do que devolver erro.
-export const maxDuration = 300;
+// Antes eram 300s por causa do cold start de ~45s do modelo da casa. Na OpenAI a
+// resposta vem em poucos segundos; 60 é folga de sobra pra um pico de rede.
+export const maxDuration = 60;
 
 /**
- * Robô de suporte da plataforma (widget flutuante do painel).
+ * Robô de suporte da plataforma (boia flutuante do painel).
  *
- * Roda no NOSSO LLM (qwen, `lib/llm.ts`): é servidor da casa, não tem custo por
- * chamada e por isso a conversa NÃO desconta crédito do usuário. Ele só responde
- * com o material da Central de Ajuda (`lib/suporte-base.ts`) e devolve as telas
- * pra onde a pessoa deve ir; inventar preço aqui seria pior que não responder.
+ * Roda no **gpt-5-mini** (`lib/suporte-ia.ts`) desde 12/08/2026 - antes era o
+ * LLM da casa (qwen). O porquê da troca está no cabeçalho do `suporte-ia.ts`.
+ * A conversa continua **de graça pro usuário** (não desconta crédito); o custo
+ * fica com o dono e aparece em Finanças pela marca `ORIGEM_SUPORTE`.
  *
- * POST { mensagens: [{ autor: "user" | "bot", texto }] } -> { texto, links }
+ * Ele só responde com o material da Central de Ajuda (`lib/suporte-base.ts`) e
+ * devolve as telas pra onde a pessoa deve ir; inventar preço aqui seria pior que
+ * não responder.
+ *
+ * POST { mensagens: [{ autor: "user" | "bot", texto }], rota? } -> { texto, links }
  */
 
 const MAX_PERGUNTA = 500; // caracteres por fala
@@ -26,14 +31,14 @@ const MAX_PERGUNTA = 500; // caracteres por fala
  * Quantas falas do histórico voltam pro modelo (o widget já junta os balões
  * seguidos do robô numa fala só, então isto são ~5 idas e voltas). Segura o
  * "não entendi, explica melhor" e o "e o outro?" sem inchar o prompt, que já
- * tem 14 mil caracteres de material.
+ * tem ~30 mil caracteres de material.
  */
 const HISTORICO = 10;
-const ESPERA_MS = 240_000; // paciência com a máquina de casa (ver maxDuration)
 
-// Freio simples por usuário: o servidor do LLM é um só e responde devagar, então
-// não dá pra deixar uma aba aberta martelando. Some quando o processo reinicia,
-// o que é aceitável pra um limite anti-abuso.
+// Freio simples por usuário. Antes existia porque o servidor do LLM era um só e
+// respondia devagar; agora o motivo é a CONTA: cada resposta custa dinheiro do
+// dono e ninguém precisa de 12 respostas por minuto. Some quando o processo
+// reinicia, o que é aceitável pra um limite anti-abuso.
 const JANELA_MS = 60_000;
 const MAX_NA_JANELA = 12;
 const usos = new Map<string, number[]>();
@@ -55,34 +60,14 @@ function passouDoLimite(userId: string): boolean {
 type MsgCliente = { autor?: string; texto?: string };
 
 /**
- * Acorda o modelo (o widget chama isto ao ABRIR a conversa).
+ * O widget ainda chama isto ao abrir a conversa e ao focar o campo de escrever.
  *
- * O Ollama descarrega o modelo da memória depois de alguns minutos parado, e
- * carregar de volta leva ~45s. Como a pessoa demora pra digitar a primeira
- * pergunta, aquecer nesse intervalo faz a resposta chegar como se estivesse
- * sempre quente. Responde 204 na hora: quem chamou não espera nada.
+ * Não faz mais nada: existia pra acordar o modelo da casa, que o Ollama
+ * descarregava depois de uns minutos parado e levava ~45s pra recarregar. Na
+ * OpenAI não há o que aquecer. A rota continua de pé respondendo 204 pra não
+ * quebrar aba que ficou aberta com a versão velha do JavaScript carregada.
  */
-const aquecidos = new Map<string, number>();
-const AQUECIMENTO_MS = 4 * 60_000;
-
 export async function GET() {
-  const user = await getCurrentUser();
-  if (!user || !llmConfigurado()) return new Response(null, { status: 204 });
-
-  const agora = Date.now();
-  const ultimo = aquecidos.get(user.id) ?? 0;
-  if (agora - ultimo < AQUECIMENTO_MS) return new Response(null, { status: 204 });
-  aquecidos.set(user.id, agora);
-  // limpeza preguiçosa: sem isto o mapa guardaria um registro por usuário pra
-  // sempre, e num servidor que fica meses de pé isso só cresce
-  if (aquecidos.size > 500) {
-    for (const [id, quando] of aquecidos) {
-      if (agora - quando >= AQUECIMENTO_MS) aquecidos.delete(id);
-    }
-  }
-
-  // de propósito sem await: a resposta volta agora, o modelo carrega em paz
-  chat([{ role: "user", content: "oi" }], { maxTokens: 1, timeoutMs: ESPERA_MS }).catch(() => {});
   return new Response(null, { status: 204 });
 }
 
@@ -90,7 +75,7 @@ export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ erro: "Faça login." }, { status: 401 });
 
-  if (!llmConfigurado()) {
+  if (!suporteIaConfigurado()) {
     return NextResponse.json(
       { erro: "O assistente está fora do ar agora. Tente a Central de Ajuda." },
       { status: 503 },
@@ -104,7 +89,10 @@ export async function POST(req: Request) {
     );
   }
 
-  const body = (await req.json().catch(() => ({}))) as { mensagens?: MsgCliente[] };
+  const body = (await req.json().catch(() => ({}))) as {
+    mensagens?: MsgCliente[];
+    rota?: string;
+  };
   const historico = Array.isArray(body.mensagens) ? body.mensagens.slice(-HISTORICO) : [];
   const ultima = historico[historico.length - 1];
 
@@ -115,7 +103,11 @@ export async function POST(req: Request) {
   /**
    * Passo a passo: quem responde é o CÓDIGO, não o modelo (ver `suporte-guia.ts`).
    * Vale só pra "escolhi o caminho 1" e "pode seguir"; qualquer pergunta de
-   * verdade continua indo pro LLM logo abaixo. Sai na hora, sem espera.
+   * verdade continua indo pro modelo logo abaixo. Sai na hora, de graça.
+   *
+   * Continua valendo com o gpt-5-mini: passo a passo determinístico é o que
+   * garante que "Passo 3 de 9" seja sempre o mesmo texto, por melhor que o
+   * modelo seja.
    */
   const falas = historico
     .filter((m) => m.texto?.trim())
@@ -128,15 +120,25 @@ export async function POST(req: Request) {
   if (guiada) return NextResponse.json({ texto: guiada.texto, links: guiada.links });
 
   /**
-   * Quando a guia não assume mas um passo a passo está rolando, o modelo recebe
-   * onde a conversa parou. Sem isso ele responde no vácuo e pula pro fim (num
-   * teste real mandou "clique em gerar" com a pessoa parada no passo 1).
-   * Vai no FIM do prompt de sistema porque é o que o qwen mais respeita.
+   * O que muda a cada pergunta vai no FIM do prompt de sistema, nesta ordem:
+   * onde o passo a passo parou e quem está perguntando (saldo, assinatura,
+   * vídeos, dívida, tela aberta).
+   *
+   * **A ordem não é estética.** O cache de prompt da OpenAI casa por PREFIXO:
+   * com o material fixo na frente, os ~8 mil tokens dele são servidos por 1/10
+   * do preço e só esta cauda paga cheio. Jogar o contexto pro começo fura o
+   * cache em toda chamada e multiplica a conta por dez.
    */
-  const contexto = contextoDoPasso(falas);
+  const contextoPasso = contextoDoPasso(falas);
+  // dado de apoio: se a consulta falhar, responde sem ele em vez de dar erro
+  const contextoUser = await contextoDoUsuario(user, body.rota).catch(() => "");
 
-  const mensagens = [
-    { role: "system" as const, content: contexto ? `${PROMPT_SISTEMA}\n\n${contexto}` : PROMPT_SISTEMA },
+  const sistema = [PROMPT_SISTEMA, contextoPasso, contextoUser]
+    .filter(Boolean)
+    .join("\n\n");
+
+  const mensagens: MsgIa[] = [
+    { role: "system", content: sistema },
     ...historico
       .filter((m) => m.texto?.trim())
       .map((m) => ({
@@ -146,16 +148,12 @@ export async function POST(req: Request) {
   ];
 
   try {
-    const bruto = await chat(mensagens, {
-      temperature: 0.2, // suporte não é lugar de criatividade
-      // Teto só pra não existir resposta infinita, NÃO pra encurtar: quem cuida
-      // do tamanho é a regra 1 do prompt. Com 280 a resposta boa era a que
-      // saía cortada, porque passo de tela com opções ("são 5 estilos de
-      // câmera, cada um serve pra...") não cabe em 35 palavras. O widget quebra
-      // texto comprido em balões, então tamanho aqui não vira parede de texto.
-      maxTokens: 700,
-      timeoutMs: ESPERA_MS,
-    });
+    const { texto: bruto, uso } = await responderSuporte(mensagens);
+
+    // contabilidade do dono (aba Finanças). Nunca derruba a resposta: se o
+    // registro falhar, a pessoa recebe o que perguntou e o dono perde a linha.
+    await registrarOpenAIChat(user.id, uso, ORIGEM_SUPORTE).catch(() => {});
+
     if (!bruto.trim()) throw new Error("resposta vazia");
 
     const { texto, rotas } = separarLinks(bruto);

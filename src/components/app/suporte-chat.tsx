@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   ArrowRight,
   Check,
@@ -34,7 +35,7 @@ import {
 } from "@/lib/suporte-conversas";
 
 /**
- * Suporte flutuante do painel (canto de baixo, à direita).
+ * Painel do robô de suporte (canto de baixo, à direita).
  *
  * Responde com o conteúdo da Central de Ajuda e aponta a tela certa. Roda no
  * nosso próprio LLM (ver `api/suporte/chat`), então NÃO desconta crédito.
@@ -50,8 +51,10 @@ import {
  * widget, nunca durante a renderização: ler localStorage no meio da pintura
  * daria diferença entre servidor e navegador.
  *
- * Fica ao lado da caixinha do admin (`chat-widget.tsx`), que sobe pra não cobrir
- * este botão quando existe conversa aberta.
+ * Quem tem o botão flutuante é a boia única (`chat-boia.tsx`): este componente
+ * fica SEMPRE montado e só obedece ao `aberto`. Desmontar ao fechar jogaria fora
+ * a resposta em andamento — e ela demora (o modelo mora na máquina do dono),
+ * então fechar a caixinha no meio da espera é caso comum, não exceção.
  */
 
 /**
@@ -94,17 +97,13 @@ const PASSO_MS = 28;
 const espera = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
- * Pede pro servidor deixar o modelo carregado.
+ * NÃO existe mais aquecimento (12/08/2026).
  *
- * O Ollama descarrega o modelo depois de ~5 min parado, então NÃO basta aquecer
- * ao abrir a caixa: quem deixa a conversa aberta e volta 10 minutos depois
- * pegaria os ~45s de carregamento na próxima pergunta. Por isso a gente aquece
- * de novo quando a pessoa clica no campo pra escrever. Chamar à toa é barato: o
- * servidor ignora pedidos repetidos dentro de 4 minutos.
+ * O robô rodava no Ollama da máquina do dono, que descarregava o modelo depois
+ * de uns minutos parado e levava ~45s pra recarregar; por isso a tela pingava a
+ * rota ao abrir a conversa E a cada foco no campo de escrever. Com o gpt-5-mini
+ * não há o que acordar, e os dois pings viraram viagem perdida.
  */
-function aquecer() {
-  fetch("/api/suporte/chat", { method: "GET", cache: "no-store" }).catch(() => {});
-}
 
 function agora(): string {
   const d = new Date();
@@ -139,9 +138,19 @@ function Digitando() {
   );
 }
 
-export function SuporteChat({ garantiaDias }: { garantiaDias: number }) {
+export function SuporteChat({
+  garantiaDias,
+  aberto,
+  onFechar,
+}: {
+  garantiaDias: number;
+  aberto: boolean;
+  onFechar: () => void;
+}) {
   const prontas = respostasProntas(garantiaDias);
-  const [aberto, setAberto] = useState(false);
+  /** a tela em que a pessoa está: vai junto da pergunta pro robô saber responder
+   *  "como faço isso aqui?" (ver `lib/suporte-usuario.ts`) */
+  const pathname = usePathname();
   const [vendoLista, setVendoLista] = useState(false);
   const [conversas, setConversas] = useState<Conversa[]>([]);
   const [atualId, setAtualId] = useState<string | null>(null);
@@ -160,6 +169,9 @@ export function SuporteChat({ garantiaDias }: { garantiaDias: number }) {
   /** espelho das conversas pra calcular o próximo estado fora do React */
   const espelho = useRef<Conversa[]>([]);
   const proximoId = useRef(1);
+  /** trava do efeito de abertura: no modo estrito o efeito roda duas vezes, e
+   *  `carregarAoAbrir` pode disparar a retomada de uma pergunta (um POST) */
+  const jaAbriu = useRef(false);
 
   const atual = conversas.find((c) => c.id === atualId) ?? null;
   const mensagens = atual?.mensagens ?? [];
@@ -173,14 +185,6 @@ export function SuporteChat({ garantiaDias }: { garantiaDias: number }) {
     // `atualId` entra na lista: trocando pra uma conversa com a MESMA quantidade
     // de mensagens, sem ele o efeito não rodava e a conversa abria no meio
   }, [mensagens.length, digitando, parcial, aberto, vendoLista, atualId]);
-
-  // Ao ABRIR, avisa o servidor pra carregar o modelo. Ele mora na máquina do
-  // dono e demora ~45s pra subir depois de um tempo parado; aquecendo enquanto
-  // a pessoa digita, a primeira resposta chega rápido igual às outras.
-  useEffect(() => {
-    if (!aberto) return;
-    aquecer();
-  }, [aberto]);
 
   /** Grava e reflete de uma vez (evita efeito colateral dentro do setState). */
   function aplicar(proximas: Conversa[]) {
@@ -231,51 +235,12 @@ export function SuporteChat({ garantiaDias }: { garantiaDias: number }) {
   }
 
   /**
-   * Abre o widget carregando o histórico. É AQUI que o localStorage é lido (num
-   * clique, nunca na renderização), e é aqui que as conversas velhas somem.
-   */
-  function abrirWidget() {
-    const ligado = somLigado();
-    somRef.current = ligado;
-    setComSom(ligado);
-    const guardadas = carregarConversas();
-    // os ids das mensagens continuam de onde pararam pra não repetir key
-    proximoId.current =
-      guardadas.reduce((maior, c) => Math.max(maior, ...c.mensagens.map((m) => m.id)), 0) + 1;
-    if (guardadas.length === 0) {
-      const nova = conversaNova();
-      aplicar([nova]);
-      setAtualId(nova.id);
-    } else {
-      espelho.current = guardadas;
-      setConversas(guardadas);
-      setAtualId(guardadas[0].id);
-    }
-    setVendoLista(false);
-    setAberto(true);
-
-    /**
-     * Pergunta que ficou sem resposta (a pessoa fechou a aba durante a espera)
-     * é retomada sozinha ao voltar. Sem isso ela reabria o chat, via a própria
-     * pergunta com um risco só e nada embaixo, e tinha que perguntar de novo.
-     *
-     * Não vira laço infinito: se a retomada falhar, o erro entra como mensagem
-     * do robô, então a última mensagem deixa de ser dela.
-     */
-    const aberta = guardadas[0];
-    const ultima = aberta?.mensagens[aberta.mensagens.length - 1];
-    if (ultima?.autor === "user") {
-      perguntar(ultima.texto, { conversa: aberta.id, retomar: true });
-    }
-  }
-
-  /**
    * `retomar` é o caso de quem fechou a aba no meio da espera: a pergunta já
    * está guardada, então NÃO se cria outra mensagem nem toca o som de enviar;
    * só refazemos o pedido em cima da mensagem que ficou sem resposta.
    *
-   * `conversa` existe porque a retomada acontece dentro do `abrirWidget`, antes
-   * do React aplicar o `setAtualId`, e aí `atualId` ainda estaria desatualizado.
+   * `conversa` existe porque a retomada acontece dentro do `carregarAoAbrir`,
+   * antes do React aplicar o `setAtualId`, e aí `atualId` estaria desatualizado.
    */
   async function perguntar(
     pergunta: string,
@@ -332,7 +297,7 @@ export function SuporteChat({ garantiaDias }: { garantiaDias: number }) {
       : fetch("/api/suporte/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mensagens: historico }),
+          body: JSON.stringify({ mensagens: historico, rota: pathname }),
         })
           .then((r) => r.json())
           .catch(() => ({ erro: "Sem conexão. Tente de novo em instantes." }));
@@ -430,12 +395,70 @@ export function SuporteChat({ garantiaDias }: { garantiaDias: number }) {
     }
   }
 
+  /**
+   * Roda quando a caixa ABRE, carregando o histórico. É AQUI que o localStorage
+   * é lido (na abertura, nunca na renderização), e é aqui que as conversas
+   * velhas somem.
+   *
+   * Fica DEPOIS do `perguntar` de propósito: ela chama a retomada logo abaixo, e
+   * como agora quem dispara tudo isso é um efeito, o lint das regras de hooks
+   * passa a valer no caminho inteiro e proíbe usar a função antes da declaração
+   * (o hoisting do JS não conta).
+   */
+  function carregarAoAbrir() {
+    const ligado = somLigado();
+    somRef.current = ligado;
+    setComSom(ligado);
+    const guardadas = carregarConversas();
+    // os ids das mensagens continuam de onde pararam pra não repetir key
+    proximoId.current =
+      guardadas.reduce((maior, c) => Math.max(maior, ...c.mensagens.map((m) => m.id)), 0) + 1;
+    if (guardadas.length === 0) {
+      const nova = conversaNova();
+      aplicar([nova]);
+      setAtualId(nova.id);
+    } else {
+      espelho.current = guardadas;
+      setConversas(guardadas);
+      setAtualId(guardadas[0].id);
+    }
+    setVendoLista(false);
+
+    /**
+     * Pergunta que ficou sem resposta (a pessoa fechou a aba durante a espera)
+     * é retomada sozinha ao voltar. Sem isso ela reabria o chat, via a própria
+     * pergunta com um risco só e nada embaixo, e tinha que perguntar de novo.
+     *
+     * Não vira laço infinito: se a retomada falhar, o erro entra como mensagem
+     * do robô, então a última mensagem deixa de ser dela.
+     */
+    const aberta = guardadas[0];
+    const ultima = aberta?.mensagens[aberta.mensagens.length - 1];
+    if (ultima?.autor === "user") {
+      perguntar(ultima.texto, { conversa: aberta.id, retomar: true });
+    }
+  }
+
+  // Ao ABRIR: carrega o histórico e aquece o modelo. Quem manda no `aberto` é a
+  // boia (`chat-boia.tsx`), então o que antes ficava no onClick do botão virou
+  // efeito. `jaAbriu` trava a segunda passada do modo estrito, que refaria o
+  // POST da retomada.
+  useEffect(() => {
+    if (!aberto) {
+      jaAbriu.current = false;
+      return;
+    }
+    if (jaAbriu.current) return;
+    jaAbriu.current = true;
+    carregarAoAbrir();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aberto]);
+
   return (
     <>
-      {/* z acima dos botões: aberta, a caixa passa por cima da boia do chat da
-          equipe em vez de ficar recortada por ele. O `max-h` manda em tela
-          baixa: sem ele a caixa alta passaria por cima do cabeçalho do painel
-          num notebook de tela pequena. */}
+      {/* z acima da boia: aberta, a caixa passa por cima dela em vez de ficar
+          recortada. O `max-h` manda em tela baixa: sem ele a caixa alta passaria
+          por cima do cabeçalho do painel num notebook de tela pequena. */}
       {aberto && (
         <div className="fixed bottom-28 right-6 z-[60] flex h-[38rem] max-h-[calc(100vh-9rem)] w-[calc(100vw-3rem)] max-w-sm flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl sm:bottom-36 sm:right-20 sm:max-h-[calc(100vh-11rem)]">
           <div className="flex items-center gap-2.5 border-b border-border bg-primary/10 px-3.5 py-2.5">
@@ -483,7 +506,7 @@ export function SuporteChat({ garantiaDias }: { garantiaDias: number }) {
             </button>
             <button
               type="button"
-              onClick={() => setAberto(false)}
+              onClick={onFechar}
               aria-label="Fechar conversa"
               className="grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground"
             >
@@ -571,7 +594,7 @@ export function SuporteChat({ garantiaDias }: { garantiaDias: number }) {
                             <Link
                               key={l.rota}
                               href={l.rota}
-                              onClick={() => setAberto(false)}
+                              onClick={onFechar}
                               className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/20"
                             >
                               {l.nome}
@@ -638,7 +661,6 @@ export function SuporteChat({ garantiaDias }: { garantiaDias: number }) {
                 ref={entradaRef}
                 value={texto}
                 onChange={(e) => setTexto(e.target.value)}
-                onFocus={aquecer}
                 maxLength={500}
                 placeholder="Escreva sua mensagem"
                 className="min-w-0 flex-1 rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none transition-colors focus:border-primary/60"
@@ -655,32 +677,6 @@ export function SuporteChat({ garantiaDias }: { garantiaDias: number }) {
           )}
         </div>
       )}
-
-      <button
-        type="button"
-        onClick={() => (aberto ? setAberto(false) : abrirWidget())}
-        aria-label={aberto ? "Fechar conversa com o suporte" : "Falar com o suporte"}
-        // a folga horizontal dobra só no desktop (`sm:`): no celular ela comeria
-        // a largura útil da caixa de conversa
-        // z-40 e NÃO z-50: as telas cheias do painel (player de vídeo, modais de
-        // compra e bônus, gaveta do menu no celular) ficam no z-50, e no empate
-        // o botão vencia por ser renderizado depois, aparecendo flutuando por
-        // cima do vídeo. Abaixo delas, o botão some enquanto o modal está aberto.
-        // no desktop a folga de baixo é IGUAL à da direita (5rem nas duas), que é
-        // o que faz o botão parecer bem posicionado no canto. No celular ela
-        // continua menor, senão come a largura e a altura úteis da conversa.
-        className="fixed bottom-12 right-6 z-40 grid size-14 place-items-center rounded-full border border-primary/40 bg-card text-primary shadow-xl ring-4 ring-primary/10 transition-transform hover:scale-105 sm:bottom-20 sm:right-20"
-      >
-        {aberto ? (
-          <X className="size-6" />
-        ) : (
-          <>
-            <MessageCircleMore className="size-6" />
-            {/* bolinha verde: dá a entender que tem alguém do outro lado agora */}
-            <span className="absolute right-1 top-1 size-3.5 rounded-full border-2 border-card bg-emerald-500" />
-          </>
-        )}
-      </button>
     </>
   );
 }
