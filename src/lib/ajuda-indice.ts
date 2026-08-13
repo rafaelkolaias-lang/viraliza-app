@@ -44,6 +44,9 @@ export const GRUPOS_AJUDA: GrupoAjuda[] = [
     itens: [
       { id: "labs", titulo: "Viraliza Labs" },
       { id: "boost", titulo: "Viral Boost" },
+      // BASIC antes do PRO, igual ao menu lateral, à barrinha do rodapé e à tela
+      // de Ferramentas (dono, 12/08/2026). As quatro precisam bater.
+      { id: "editor-basico", titulo: "Editor automático BASIC" },
       { id: "editor", titulo: "Editor automático PRO" },
       { id: "criar-corte", titulo: "Criar um Corte" },
       { id: "cortes", titulo: "Cortes de qualquer vídeo" },

@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PaginaLegal, Secao } from "@/components/legal/pagina-legal";
 import {
-  CREDITO_VALIDADE_DIAS,
   EMPRESA,
   REEMBOLSO_CONSUMO_MAXIMO_PCT,
   REEMBOLSO_PRAZO_DIAS,
@@ -99,15 +98,14 @@ export default function ReembolsoPage() {
           anteriores, já usados e encerrados, não são devolvidos.
         </p>
         <p>
-          <b>Crédito vencido não é devolvido.</b> Cada pacote de crédito vale{" "}
-          {CREDITO_VALIDADE_DIAS} dias contados da compra, como diz a seção
+          <b>O crédito comprado não tem prazo de validade</b>, como diz a seção
           Créditos dos{" "}
           <Link href="/termos" className={linkClasse}>
             Termos de Uso
           </Link>
-          . Passado esse prazo, não há devolução do que sobrou, porque o prazo de
-          arrependimento de {REEMBOLSO_PRAZO_DIAS} dias já terá se encerrado
-          muito antes.
+          . O que existe é o prazo de {REEMBOLSO_PRAZO_DIAS} dias pra pedir a
+          devolução do dinheiro: passado ele, o crédito continua na sua conta e
+          continua podendo ser usado, mas não vira mais dinheiro de volta.
         </p>
       </Secao>
 

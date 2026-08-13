@@ -29,9 +29,9 @@ export function PaginaLegal({
         <div className="mb-8 flex gap-3 rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm">
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
           <p>
-            <b>Documento ainda não publicável.</b> Falta preencher razão social,
-            CNPJ e endereço em <code>src/lib/legal.ts</code>. Este aviso some
-            sozinho quando os três campos forem preenchidos.
+            <b>Documento ainda não publicável.</b> Falta preencher razão social
+            ou CNPJ em <code>src/lib/legal.ts</code>. Este aviso some sozinho
+            quando os dois campos forem preenchidos.
           </p>
         </div>
       )}

@@ -5,7 +5,9 @@ import {
   Download,
   Flag,
   Gift,
+  GraduationCap,
   LayoutGrid,
+  MessageCircle,
   MessageSquarePlus,
   Trash2,
   UserRound,
@@ -20,6 +22,7 @@ import {
   Texto,
   Titulinho,
 } from "@/components/app/ajuda-blocos";
+import { SIMULTANEOS_UNIVERSAL } from "@/lib/niveis";
 
 /**
  * Grupo "Sua conta": onde os vídeos caem, o que dá pra mexer na conta e a
@@ -106,6 +109,15 @@ export function AjudaConta({
           <Cartao Icone={Bell} titulo="Sininho">
             Avisos da plataforma: vídeo pronto, mudança de nível, resposta do suporte.
           </Cartao>
+          <Cartao Icone={MessageCircle} titulo="Balão do canto da tela">
+            É o atendimento, e não gasta crédito nenhum. Ele responde na hora as dúvidas
+            da plataforma e vai te conduzindo passo a passo. Quem já tem conversa aberta
+            com a equipe escolhe ali mesmo entre falar com o robô ou com a gente.
+          </Cartao>
+          <Cartao Icone={GraduationCap} titulo="Academy e Blog">
+            As duas telas de conteúdo escrito. Quando ainda não tem material publicado,
+            elas mostram um aviso de &quot;em breve&quot;, e é isso mesmo: não é erro.
+          </Cartao>
         </div>
 
         <Aviso tom="atencao" titulo="Se afiliou e não apareceu no ranking?">
@@ -141,24 +153,28 @@ export function AjudaConta({
             a aba: o trabalho continua no servidor e o resultado aparece sozinho quando
             terminar.
           </Problema>
-          <Problema pergunta="Apareceu que já tenho um vídeo em produção">
-            É o limite do seu nível. Conta Bronze produz{" "}
-            <strong className="text-foreground">1 vídeo por vez</strong>; Prata, 2; Ouro,
-            3. Espere o atual terminar e mande o próximo.
-          </Problema>
-          <Problema pergunta="Apareceu que eu atingi os vídeos de hoje">
-            Também é o nível: Bronze faz 5 por dia, Prata 12 e Ouro 50. O limite renova à
-            meia-noite. Bater no teto{" "}
+          <Problema pergunta="Apareceu que eu já tenho vídeos em produção">
+            É o teto de{" "}
+            <strong className="text-foreground">
+              {SIMULTANEOS_UNIVERSAL} vídeos sendo produzidos ao mesmo tempo
+            </strong>
+            , igual pra toda conta, porque a fila de produção é compartilhada. Espere
+            algum terminar e mande o próximo. Não tem nada a ver com o seu nível, e
+            esbarrar nesse aviso{" "}
             <strong className="text-foreground">não gasta crédito</strong>.
+          </Problema>
+          <Problema pergunta="Tem limite de vídeos por dia?">
+            Não. Limite diário não existe mais: você produz o quanto o seu crédito
+            aguentar.
           </Problema>
           <Problema pergunta="Não tenho créditos suficientes">
             Confira o saldo na aba{" "}
             <Link href="/painel/creditos" className="text-primary hover:underline">
               Créditos
             </Link>
-            . Lembre que parte do crédito comprado pode estar reservada pela garantia de
-            8 dias. Enquanto isso dá pra usar o que é de graça: influenciadores prontos,
-            textos da IA e o gerador de prompt.
+            . Compra nova cai inteira no saldo assim que o pagamento é confirmado, sem
+            nada reservado. Enquanto isso dá pra usar o que é de graça: influenciadores
+            prontos da plataforma e os textos escritos pela IA dentro dos funis.
           </Problema>
           <Problema pergunta="A conta parou de gerar por causa de saldo pendente">
             Isso acontece quando um reembolso foi feito depois dos créditos já terem sido
@@ -201,7 +217,19 @@ export function AjudaConta({
           <Problema pergunta="Não acho uma tela que me falaram">
             No computador o menu fica sempre na esquerda e pode estar recolhido (só
             ícones): clique na setinha pra abrir. No celular, toque nas três listrinhas no
-            canto de cima.
+            canto de cima. As ferramentas ficam dentro de três grupos que abrem e fecham
+            (Personalize com IA, Viraliza Labs e Ferramentas): clicando no{" "}
+            <strong className="text-foreground">nome do grupo</strong> você cai numa tela
+            que apresenta cada ferramenta dele com um botão pra abrir.
+          </Problema>
+          <Problema pergunta="Quero ver tudo que a plataforma tem">
+            A tela{" "}
+            <Link href="/painel/inicio" className="text-primary hover:underline">
+              Início
+            </Link>{" "}
+            é o mapa completo: todas as ferramentas, a biblioteca e a sua conta, em
+            cartões separados por assunto. O que está travado aparece com etiqueta, em vez
+            de sumir.
           </Problema>
           <Problema pergunta="Esqueci a senha">
             Na tela de login tem o link de recuperar senha. O e-mail chega com um link que

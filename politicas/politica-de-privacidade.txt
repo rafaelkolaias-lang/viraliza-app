@@ -1,16 +1,10 @@
-[AVISO INTERNO - APAGUE ESTE BLOCO ANTES DE PUBLICAR]
-Este documento ainda NAO pode ir pro ar: falta razao social, CNPJ e endereco.
-Preencha os tres campos em src/lib/legal.ts e gere este arquivo de novo:
-o aviso some sozinho e o CNPJ aparece no lugar de PENDENTE.
-[FIM DO AVISO INTERNO]
-
 Política de Privacidade
 
-Versão 2.0 | Última atualização: 6 de agosto de 2026
+Versão 2.1 | Última atualização: 13 de agosto de 2026
 
 1. Quem é o controlador dos seus dados
 
-O Viraliza é uma plataforma web de criação de conteúdo com inteligência artificial, operada por PENDENTE, CNPJ PENDENTE, com endereço em PENDENTE ("nós"). Somos o controlador dos dados tratados aqui, nos termos da Lei Geral de Proteção de Dados (Lei 13.709/2018).
+O Viraliza é uma plataforma web de criação de conteúdo com inteligência artificial, operada por RK Producoes Digitais LTDA, CNPJ 32.868.571/0001-39 ("nós"). Somos o controlador dos dados tratados aqui, nos termos da Lei Geral de Proteção de Dados (Lei 13.709/2018).
 
 2. Dados que coletamos
 
@@ -24,7 +18,7 @@ O Viraliza é uma plataforma web de criação de conteúdo com inteligência art
 
 - Registros de acesso: endereço de rede (IP), data e hora de acesso, guardados por 6 meses, como exige o artigo 15 do Marco Civil da Internet.
 
-- Atendimento: as mensagens trocadas com o suporte, no WhatsApp ou dentro da plataforma.
+- Atendimento: as mensagens trocadas com o suporte, no WhatsApp ou dentro da plataforma. A conversa com o atendente automático (o balão no canto da tela) fica guardada no seu próprio navegador por 24 horas, não no nosso banco de dados.
 
 3. Por que tratamos (base legal)
 
@@ -32,7 +26,7 @@ O Viraliza é uma plataforma web de criação de conteúdo com inteligência art
 
 - Obrigação legal: guarda dos registros de acesso, documentos fiscais e resposta a autoridades.
 
-- Legítimo interesse: prevenção a fraude, abuso e estorno indevido (é o que sustenta o sistema de níveis da conta), segurança da plataforma e mensuração de anúncios.
+- Legítimo interesse: prevenção a fraude, abuso e estorno indevido, segurança da plataforma, controle da fila de produção e mensuração de anúncios.
 
 - Consentimento: usado somente quando pedimos de forma separada e específica, por exemplo pra comunicação promocional ou pra usar o seu conteúdo como exemplo. Você pode retirar o consentimento a qualquer momento, sem prejuízo do serviço contratado.
 
@@ -54,7 +48,9 @@ Não vendemos os seus dados. Compartilhamos só com quem é necessário pra o se
 
 - Processadoras de pagamento (Cakto e Mercado Pago): dados da compra.
 
-- Provedores de inteligência artificial (Google, OpenAI, ElevenLabs e outros usados pelas ferramentas): recebem o conteúdo que você mandou processar. Eles não recebem os seus dados de cadastro nem sabem quem você é.
+- Provedores de inteligência artificial (hoje Google, xAI, OpenAI e ElevenLabs, além de outros que venham a ser usados pelas ferramentas): recebem o conteúdo que você mandou processar, como a foto do produto, a imagem do personagem, o áudio e o texto do pedido. Eles não recebem os seus dados de cadastro e não sabem quem você é.
+
+- Exceção do atendente automático: pra responder sobre a sua conta, o robô do chat manda pro provedor de inteligência artificial o seu primeiro nome, o saldo de créditos, a situação da assinatura, a quantidade de vídeos prontos e em produção, eventual saldo devedor e a tela em que você está. Não mandamos e-mail, telefone, senha nem o identificador da sua conta.
 
 - Infraestrutura: hospedagem, banco de dados e armazenamento dos arquivos.
 
@@ -74,7 +70,9 @@ Usamos um cookie de sessão (httpOnly) exclusivamente pra manter você logado co
 
 - Conta e histórico de uso: enquanto a conta existir.
 
-- Arquivos que você enviou e conteúdo gerado: enquanto a conta existir ou até você apagar dentro da plataforma, o que vier antes.
+- Arquivos enviados pra um trabalho de edição (os vídeos e fotos que você sobe pra montar um vídeo): ficam no servidor por até 24 horas depois do trabalho terminar, só pra permitir refazer ou ajustar o mesmo vídeo sem subir tudo de novo. Depois disso são apagados sozinhos. Excluir o vídeo apaga na hora.
+
+- O que você salva na plataforma (personagens, cenários, imagens e vídeos gerados): enquanto a conta existir ou até você apagar dentro da plataforma, o que vier antes.
 
 - Registros de acesso: 6 meses (Marco Civil da Internet).
 

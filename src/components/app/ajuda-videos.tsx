@@ -13,10 +13,14 @@ import {
   Music,
   PenLine,
   Scissors,
+  SlidersHorizontal,
   Sparkles,
+  Star,
   Timer,
+  Upload,
   Users,
   Video,
+  Wand2,
 } from "lucide-react";
 import {
   Atalho,
@@ -30,13 +34,18 @@ import {
   Texto,
   Titulinho,
 } from "@/components/app/ajuda-blocos";
-import { CUSTO_PROMPT_LAB } from "@/lib/lab-custos";
+import { CUSTO_IMAGEM_LAB, CUSTO_PROMPT_LAB, custoVideoLab } from "@/lib/lab-custos";
 import { CREDITOS_FIXO } from "@/lib/precos";
+import { MAX_APOIO_SEG, MAX_ARQUIVO_MB, MAX_VIDEO_SEG } from "@/lib/montagem";
 
 /**
- * Grupo "Criar vídeos": os quatro caminhos que geram vídeo, do mais novo
- * (Viraliza Labs, IA) pro mais antigo (Editor e Cortes, que montam em cima de
- * vídeo que já existe).
+ * Grupo "Criar vídeos": os caminhos que geram vídeo, do mais novo (Viraliza
+ * Labs, IA) pro mais antigo (editores e Cortes, que montam em cima de vídeo que
+ * já existe).
+ *
+ * A ordem dos dois editores segue a do menu, da barrinha do rodapé e da tela de
+ * Ferramentas: BASIC antes do PRO (pedido do dono, 12/08/2026). Quem vê o cartão
+ * procura o item na mesma posição nas outras telas.
  */
 export function AjudaVideos() {
   return (
@@ -65,9 +74,9 @@ export function AjudaVideos() {
             resumo pra você conferir tudo antes de gastar. Essa etapa inteira é de graça.
           </Passo>
           <Passo n={2} titulo="Gerar imagem" Icone={ImageIcon}>
-            A IA desenha a cena que você montou. Custa 20 créditos. Se a imagem sair
-            estranha, você pode gerar de novo (aí cobra outra vez), então vale caprichar
-            na descrição do produto antes.
+            A IA desenha a cena que você montou. Custa {CUSTO_IMAGEM_LAB} créditos. Se a
+            imagem sair estranha, você pode gerar de novo (aí cobra outra vez), então vale
+            caprichar na descrição do produto antes.
           </Passo>
           <Passo n={3} titulo="Gerar vídeo" Icone={Video}>
             Aqui você escolhe a duração, se o influenciador vai falar e o que ele fala, e
@@ -79,9 +88,9 @@ export function AjudaVideos() {
         <Tabela
           colunas={["Duração", "Custo"]}
           linhas={[
-            ["6 segundos", "50 créditos"],
-            ["10 segundos", "70 créditos"],
-            ["15 segundos", "95 créditos"],
+            ["6 segundos", `${custoVideoLab("6s")} créditos`],
+            ["10 segundos", `${custoVideoLab("10s")} créditos`],
+            ["15 segundos", `${custoVideoLab("15s")} créditos`],
           ]}
         />
         <Texto>
@@ -173,6 +182,88 @@ export function AjudaVideos() {
         </Aviso>
 
         <Atalho href="/painel/viral-boost">Abrir o Viral Boost</Atalho>
+      </Secao>
+
+      {/* ================= EDITOR AUTOMÁTICO BASIC ================= */}
+      <Secao
+        id="editor-basico"
+        titulo="Editor automático BASIC"
+        subtitulo="A mesma montagem do PRO, numa tela só, sem passo a passo."
+      >
+        <Texto>
+          São <strong className="text-foreground">dois editores automáticos</strong> na
+          plataforma, e os dois fazem a mesma coisa no fim: pegam os vídeos e fotos que
+          você já tem e montam um vídeo no formato de celular, com legenda ou narração. A
+          diferença é só o jeito de mexer.
+        </Texto>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Cartao Icone={SlidersHorizontal} titulo="BASIC: tudo numa tela">
+            A prévia fica do lado esquerdo e todos os ajustes do lado direito. Você mexe
+            no que quiser, na ordem que quiser, e clica em{" "}
+            <strong className="text-foreground">Gerar vídeo</strong>. É o caminho de quem
+            já sabe o que quer.
+          </Cartao>
+          <Cartao Icone={Clapperboard} titulo="PRO: perguntas em 5 etapas">
+            A tela pergunta uma coisa de cada vez e termina numa linha do tempo pra você
+            aprovar cena por cena. É o caminho de quem quer ser guiado, e é onde mora a
+            parte inteligente (a IA descrever e posicionar as cenas).
+          </Cartao>
+        </div>
+
+        <Titulinho>Como montar no BASIC</Titulinho>
+        <div className="space-y-4">
+          <Passo n={1} titulo="Suba os arquivos" Icone={Upload}>
+            Vídeos e fotos do seu aparelho, pelo botão de adicionar. Cada arquivo pode ter
+            até <strong className="text-foreground">{MAX_ARQUIVO_MB} MB</strong>, e vídeo
+            com mais de <strong className="text-foreground">{MAX_VIDEO_SEG / 60} minutos</strong>{" "}
+            não entra.
+          </Passo>
+          <Passo n={2} titulo="Diga qual é o vídeo principal" Icone={Star}>
+            É o vídeo com alguém falando, que roda por baixo do começo ao fim. Marcando um
+            clipe como principal, os outros viram{" "}
+            <strong className="text-foreground">cenas de apoio</strong> e entram por cima.
+            Sem clipe principal, tudo toca em sequência.
+          </Passo>
+          <Passo n={3} titulo="Corte o que não presta" Icone={Scissors}>
+            Cada clipe tem alças nas pontas pra você escolher só o pedaço que vai usar. O
+            vídeo final pode ter até{" "}
+            <strong className="text-foreground">{MAX_VIDEO_SEG / 60} minutos</strong>, e
+            cada cena de apoio, no máximo {MAX_APOIO_SEG} segundos de arquivo.
+          </Passo>
+          <Passo n={4} titulo="Escolha o que a IA faz" Icone={Wand2}>
+            Ligue <strong className="text-foreground">É um produto?</strong> se for
+            propaganda (aí você informa nome, descrição e preço) e escolha entre{" "}
+            <strong className="text-foreground">Legenda</strong> (a IA escreve a copy e
+            queima na tela), <strong className="text-foreground">Voz narrada</strong> (a IA
+            escreve e narra) e <strong className="text-foreground">Nenhum</strong> (só a sua
+            montagem). Fora do produto aparece também{" "}
+            <strong className="text-foreground">Transcrever fala</strong>, que legenda o
+            que a pessoa do vídeo falou, com o áudio original ligado.
+          </Passo>
+          <Passo n={5} titulo="Ajuste som, texto e música" Icone={Music}>
+            Volume de cada clipe, música de fundo sua, textos que aparecem na tela e o
+            corte automático das partes sem fala. Depois é só{" "}
+            <strong className="text-foreground">Gerar vídeo</strong>.
+          </Passo>
+        </div>
+
+        <Aviso tom="dica" titulo="O que só existe no PRO">
+          Música da biblioteca da plataforma, a IA olhar as suas cenas e descrever o que
+          tem em cada uma, a IA posicionar cada cena no segundo certo da fala e a edição
+          avançada (zoom lento nas fotos, transição entre cenas e a IA escolhendo o melhor
+          pedaço de cada apoio). Se você quer isso, vá pelo PRO, logo abaixo.
+        </Aviso>
+
+        <Aviso tom="atencao" titulo="O preço é o mesmo dos dois">
+          A cobrança é do mesmo jeito nos dois editores: quando a IA escreve ou narra,
+          paga-se pelo que ela consumiu de verdade naquele vídeo, e a tela mostra só uma
+          estimativa antes. No modo{" "}
+          <strong className="text-foreground">Nenhum</strong>, que não usa IA, é um valor
+          fixo de {CREDITOS_FIXO.editorManual} créditos.
+        </Aviso>
+
+        <Atalho href="/painel/editor-basico">Abrir o Editor automático BASIC</Atalho>
       </Secao>
 
       {/* ================= EDITOR AUTOMÁTICO PRO ================= */}
@@ -290,10 +381,12 @@ export function AjudaVideos() {
           naquele vídeo (quanto maior o texto e a narração, maior o valor). Por isso a
           tela mostra só uma <strong className="text-foreground">estimativa</strong>{" "}
           antes de gerar, e o valor certo aparece no extrato quando o vídeo fica pronto.
-          No modo &quot;Nenhum&quot;, que não usa IA, a cobrança é um valor fixo de
-          processamento. Mandar a IA descrever as cenas, na etapa das mídias, custa{" "}
-          {CREDITOS_FIXO.analiseCena} crédito por cena, e é opcional: escrever você mesmo é
-          de graça.
+          No modo &quot;Nenhum&quot;, que não usa IA, a cobrança é um valor fixo de{" "}
+          {CREDITOS_FIXO.editorManual} créditos. Mandar a IA descrever as cenas, na etapa
+          das mídias, custa {CREDITOS_FIXO.analiseCena} crédito por cena, e a IA ouvir a
+          fala pra encaixar cada cena no segundo certo, na etapa de aprovação, custa
+          outro {CREDITOS_FIXO.posicionarCena} crédito por cena. As duas são opcionais:
+          escrever e arrastar você mesmo é de graça.
         </Aviso>
 
         <Atalho href="/painel/novo">Abrir o Editor automático PRO</Atalho>

@@ -4,13 +4,12 @@ import {
   Coins,
   Crown,
   FlaskConical,
-  Gauge,
   Layers,
   Medal,
   Receipt,
   ShieldCheck,
   Sparkles,
-  Wallet,
+  Trophy,
 } from "lucide-react";
 import {
   Atalho,
@@ -25,11 +24,20 @@ import {
   Titulinho,
 } from "@/components/app/ajuda-blocos";
 import { CREDITOS_FIXO } from "@/lib/precos";
-import { CUSTO_PROMPT_LAB } from "@/lib/lab-custos";
+import { CUSTO_IMAGEM_LAB, CUSTO_PROMPT_LAB, custoVideoLab } from "@/lib/lab-custos";
+import { CUSTO_AVATAR } from "@/lib/avatar-modelo";
+import { CREDITO_MENSAL_CENTAVOS } from "@/lib/creditos";
+import { NIVEIS, SIMULTANEOS_UNIVERSAL } from "@/lib/niveis";
+import { BONUS_IG_CREDITOS } from "@/lib/promos";
 
 /**
  * Grupo "Começando": o que fazer no primeiro dia, como o dinheiro funciona
- * (assinatura x crédito) e o que muda com o nível da conta.
+ * (assinatura x crédito) e o que é o nível da conta.
+ *
+ * NENHUM preço, prazo ou limite é escrito na mão aqui: tudo sai das constantes
+ * que a plataforma usa pra cobrar de verdade (`lab-custos`, `precos`,
+ * `avatar-modelo`, `creditos`, `niveis`, `promos`). A tabela desta tela já ficou
+ * meses mentindo o preço do vídeo por ter sido digitada na mão - não repita.
  */
 export function AjudaComecar() {
   return (
@@ -50,9 +58,9 @@ export function AjudaComecar() {
         <Titulinho>O caminho do primeiro dia</Titulinho>
         <div className="space-y-4">
           <Passo n={1} titulo="Comece pelo Viraliza Labs" Icone={FlaskConical}>
-            É a tela que abre sozinha quando você faz login. Ela te guia por perguntas,
-            uma de cada vez, até o vídeo ficar pronto. Não tente começar pelo Editor
-            automático: ele é pra quem já tem o vídeo gravado.
+            Ela te guia por perguntas, uma de cada vez, até o vídeo ficar pronto. Não
+            tente começar pelos editores automáticos: eles são pra quem já tem o vídeo
+            gravado.
           </Passo>
           <Passo n={2} titulo="Use um influenciador de graça no primeiro teste" Icone={Sparkles}>
             A plataforma tem 9 influenciadores prontos que todo mundo pode usar sem
@@ -108,40 +116,47 @@ export function AjudaComecar() {
 
         <Texto>
           Quem entra pela assinatura ganha{" "}
-          <strong className="text-foreground">4.000 créditos</strong> na hora, e mais{" "}
-          <strong className="text-foreground">4.000 créditos por mês</strong> a cada
-          renovação. Dá pra somar <strong className="text-foreground">+300</strong> na
-          tarefa do Instagram, e precisando de mais é só comprar pacote avulso na aba
-          Créditos.
+          <strong className="text-foreground">
+            {CREDITO_MENSAL_CENTAVOS.toLocaleString("pt-BR")} créditos
+          </strong>{" "}
+          na hora, e a mesma quantidade de novo a cada{" "}
+          <strong className="text-foreground">renovação paga</strong>. Dá pra somar{" "}
+          <strong className="text-foreground">+{BONUS_IG_CREDITOS}</strong> na tarefa do
+          Instagram, e precisando de mais é só comprar pacote avulso na aba Créditos.
         </Texto>
 
         <Titulinho>Quanto custa cada coisa</Titulinho>
         <Tabela
           colunas={["O que você faz", "Créditos"]}
           linhas={[
-            ["Imagem no Viraliza Labs ou cena do Viral Boost", "20"],
-            ["Vídeo de 6 segundos", "30"],
-            ["Vídeo de 10 segundos", "50"],
-            ["Vídeo de 15 segundos", "75"],
-            ["Vídeo com influenciador falando (6s / 10s / 15s)", "40 / 50 / 50"],
-            ["Criar um influenciador com IA", "20"],
+            ["Imagem no Viraliza Labs ou cena do Viral Boost", String(CUSTO_IMAGEM_LAB)],
+            ["Vídeo de 6 segundos", String(custoVideoLab("6s"))],
+            ["Vídeo de 10 segundos", String(custoVideoLab("10s"))],
+            ["Vídeo de 15 segundos", String(custoVideoLab("15s"))],
+            ["Criar um influenciador com IA", String(CUSTO_AVATAR)],
             ["Enviar a imagem de um influenciador pronto", "0 (de graça)"],
             ["Textos escritos pela IA (cena, fala, ficha, roteiro)", "0 (de graça)"],
             ["Gerador de prompt (a IA lê suas fotos)", String(CUSTO_PROMPT_LAB)],
-            ["Editor automático e Cortes (usando IA)", "Pelo uso real"],
+            ["Editores automáticos e Cortes (usando IA)", "Pelo uso real"],
             ["Editor automático no modo sem IA", String(CREDITOS_FIXO.editorManual)],
+            ["Criar um Corte (não usa IA)", String(CREDITOS_FIXO.editorManual)],
+            [
+              "A IA descrever ou posicionar uma cena no Editor PRO",
+              `${CREDITOS_FIXO.analiseCena} por cena`,
+            ],
             ["Marca em lote (por vídeo carimbado)", String(CREDITOS_FIXO.lote)],
             ["MapsLeads (por busca)", String(CREDITOS_FIXO.leads)],
           ]}
         />
         <Texto>
-          Vídeo com influenciador <strong className="text-foreground">sem fala</strong>{" "}
-          custa 10 créditos a menos. No Editor automático e no Cortes usando IA não tem
-          preço fixo: a cobrança sai pelo que a inteligência artificial realmente
-          consumiu naquele vídeo, e aparece detalhada no extrato. Já o que{" "}
+          O vídeo custa <strong className="text-foreground">o mesmo com ou sem o
+          influenciador falando</strong>: o que pesa é o tempo de vídeo que a IA precisa
+          gerar, não a fala. Nos editores automáticos e no Cortes usando IA não tem preço
+          fixo: a cobrança sai pelo que a inteligência artificial realmente consumiu
+          naquele vídeo, e aparece detalhada no extrato. Já o que{" "}
           <strong className="text-foreground">não usa IA</strong> (a marca em lote, o
-          MapsLeads e o editor no modo sem IA) tem valor fechado, que é só o custo de
-          processamento.
+          MapsLeads, o Criar um Corte e o editor no modo sem IA) tem valor fechado, que é
+          só o custo de processamento.
         </Texto>
 
         <Aviso tom="dica" titulo="Deu erro? Não foi cobrado">
@@ -155,27 +170,19 @@ export function AjudaComecar() {
           e fale com a gente.
         </Aviso>
 
-        <Titulinho>Comprei crédito e só entrou uma parte</Titulinho>
+        <Titulinho>Comprei crédito, quando ele entra?</Titulinho>
         <Texto>
-          Isso é normal e está certo. Toda compra de pacote entra em duas partes: uma
-          cai no saldo na hora e o resto fica reservado por{" "}
-          <strong className="text-foreground">8 dias</strong>, que é o prazo de garantia
-          da compra. Passados os 8 dias, o restante cai sozinho no seu saldo, sem você
-          precisar pedir nada.
+          Na hora em que o pagamento é confirmado, e{" "}
+          <strong className="text-foreground">por inteiro</strong>. Não existe mais
+          crédito reservado nem liberação em partes: o que você comprou já está todo no
+          saldo. Em Pix a confirmação costuma levar poucos minutos; em cartão, o prazo é
+          o da própria operadora.
         </Texto>
-        <div className="flex flex-wrap gap-3">
-          <Selo Icone={Wallet}>
-            A parte que já entrou aparece no <strong className="text-foreground">saldo</strong>
-          </Selo>
-          <Selo Icone={Clock}>
-            A parte reservada aparece como{" "}
-            <strong className="text-foreground">crédito liberando</strong>, com a data
-          </Selo>
-        </div>
         <Texto>
-          Quanto libera na hora depende do nível da sua conta (é o próximo assunto).
-          Contas mais antigas liberam mais na hora, e a conta Ouro libera quase tudo na
-          hora.
+          Se você é cliente antigo e ainda vê um{" "}
+          <strong className="text-foreground">crédito liberando</strong> com data na tela
+          de Créditos, é resto da regra antiga de garantia: ele cai sozinho naquela data,
+          sem você precisar pedir nada.
         </Texto>
 
         <Aviso tom="atencao" titulo="Saldo pendente de reembolso">
@@ -209,57 +216,67 @@ export function AjudaComecar() {
       <Secao
         id="niveis"
         titulo="Níveis da conta"
-        subtitulo="Bronze, Prata e Ouro. O nível define quantos vídeos você faz por dia."
+        subtitulo="Bronze, Prata e Ouro. É uma medalha pelo tanto que você já produziu, e só."
       >
+        <Aviso tom="dica" titulo="O nível não limita nada">
+          Ele não segura crédito, não cria teto de vídeos por dia e não muda o que você
+          pode usar. Quem pagou usa o que comprou, esteja no Bronze ou no Ouro. Se você
+          viu em algum lugar que o nível dá &quot;5 vídeos por dia&quot; ou parecido, é
+          texto antigo: essa regra acabou.
+        </Aviso>
+
         <Texto>
-          Toda conta começa no <strong className="text-foreground">Bronze</strong> e vai
-          subindo sozinha conforme você usa a plataforma. Quanto mais alto o nível,
-          maior o limite diário, mais vídeos podem ser produzidos ao mesmo tempo e mais
-          crédito comprado cai no saldo na hora.
+          A régua é uma só, e é a mais simples possível:{" "}
+          <strong className="text-foreground">quantos vídeos você já gerou</strong> na
+          plataforma. Toda conta começa no Bronze e sobe sozinha.
         </Texto>
 
         <Tabela
-          colunas={["Nível", "Vídeos por dia", "Ao mesmo tempo", "Crédito comprado"]}
+          colunas={["Nível", "Quando você chega nele"]}
           linhas={[
-            ["🥉 Bronze", "5", "1 vídeo", "Metade na hora, resto em 8 dias"],
-            ["🥈 Prata", "12", "2 vídeos", "Metade na hora, com limite maior"],
-            ["🥇 Ouro", "50", "3 vídeos", "75% na hora, sem limite"],
+            [`${NIVEIS.bronze.emoji} ${NIVEIS.bronze.rotulo}`, "Onde toda conta começa"],
+            [
+              `${NIVEIS.prata.emoji} ${NIVEIS.prata.rotulo}`,
+              `A partir de ${NIVEIS.prata.videosMin} vídeos gerados`,
+            ],
+            [
+              `${NIVEIS.ouro.emoji} ${NIVEIS.ouro.rotulo}`,
+              `A partir de ${NIVEIS.ouro.videosMin} vídeos gerados`,
+            ],
           ]}
         />
 
-        <Titulinho>Como subir de nível</Titulinho>
-        <Texto>
-          Não tem botão nem pedido: é automático. Conta que tem mais tempo de casa, que
-          entra com frequência e que continua comprando sobe sozinha, e você recebe um
-          aviso no sininho quando isso acontece. Pro nível Ouro também é preciso estar
-          com a assinatura em dia.
-        </Texto>
-
-        <Titulinho>O que faz o nível cair</Titulinho>
-        <div className="space-y-3">
-          <Problema pergunta="Pedir reembolso de uma compra">
-            A conta volta pro Bronze. Se o reembolso for cancelado, o nível volta ao que
-            era antes.
-          </Problema>
-          <Problema pergunta="Ficar muito tempo sem entrar">
-            Passando de 60 dias sem acessar, a conta desce um nível quando você voltar.
-            Depois ela sobe de novo com o uso.
-          </Problema>
-          <Problema pergunta="Deixar a assinatura vencer">
-            Quem está no Ouro cai pro Prata enquanto a assinatura estiver vencida. Seus
-            créditos continuam valendo do mesmo jeito.
-          </Problema>
-        </div>
-
         <div className="flex flex-wrap gap-3">
-          <Selo Icone={Gauge}>
-            O quanto você já usou hoje aparece no card{" "}
-            <strong className="text-foreground">Nível da conta</strong>
+          <Selo Icone={Trophy}>
+            Sobe sozinho, sem pedir nada, e o sininho avisa
+          </Selo>
+          <Selo Icone={Medal}>
+            A medalha <strong className="text-foreground">não volta atrás</strong>: quem
+            chegou no Ouro não perde
           </Selo>
           <Selo Icone={ShieldCheck}>
-            Bater o limite do dia não gasta crédito nenhum
+            Pedir reembolso ou deixar a assinatura vencer não derruba o nível
           </Selo>
-          <Selo Icone={Medal}>O limite renova todo dia à meia-noite</Selo>
+        </div>
+
+        <Titulinho>Então o que pode travar a produção?</Titulinho>
+        <div className="space-y-3">
+          <Problema pergunta="Vídeos em produção ao mesmo tempo">
+            Uma conta pode ter até{" "}
+            <strong className="text-foreground">
+              {SIMULTANEOS_UNIVERSAL} vídeos sendo produzidos ao mesmo tempo
+            </strong>
+            . Não tem nada a ver com nível: é igual pra todo mundo, porque a fila de
+            produção é compartilhada. Assim que um termina, você manda o próximo.
+          </Problema>
+          <Problema pergunta="Saldo pendente de reembolso">
+            É o único bloqueio de verdade da conta, e some assim que você compra crédito
+            de novo.
+          </Problema>
+          <Problema pergunta="Assinatura vencida">
+            Trava só a biblioteca (acervo, virais, Shopee, TikTok, Minerador e área de
+            membros). As ferramentas de produção continuam funcionando com o seu crédito.
+          </Problema>
         </div>
 
         <Atalho href="/painel/creditos">Ver o nível da minha conta</Atalho>

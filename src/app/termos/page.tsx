@@ -1,12 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PaginaLegal, Secao } from "@/components/legal/pagina-legal";
-import {
-  CREDITO_VALIDADE_DIAS,
-  EMPRESA,
-  REEMBOLSO_PRAZO_DIAS,
-  VERSAO_TERMOS,
-} from "@/lib/legal";
+import { EMPRESA, REEMBOLSO_PRAZO_DIAS, VERSAO_TERMOS } from "@/lib/legal";
 
 export const metadata: Metadata = {
   title: "Termos de Uso | Viraliza",
@@ -22,8 +17,7 @@ export default function TermosPage() {
         Estes Termos regem o uso do <b>{EMPRESA.nome}</b>, plataforma web de
         criação de conteúdo com inteligência artificial, operada por{" "}
         <b>{EMPRESA.razaoSocial}</b>, inscrita no CNPJ sob o nº{" "}
-        <b>{EMPRESA.cnpj}</b>, com endereço em <b>{EMPRESA.endereco}</b>{" "}
-        (&quot;nós&quot;, &quot;plataforma&quot;).
+        <b>{EMPRESA.cnpj}</b> (&quot;nós&quot;, &quot;plataforma&quot;).
       </p>
 
       <Secao titulo="1. Aceite">
@@ -80,14 +74,25 @@ export default function TermosPage() {
         <p>
           A plataforma dá acesso a ferramentas de criação (geração e edição de
           vídeo, imagem, voz e texto por inteligência artificial), a uma
-          biblioteca de conteúdo e a ferramentas de apoio a marketing. As
-          ferramentas disponíveis, seus limites e seus preços em créditos são os
-          informados nas telas da plataforma no momento do uso, e podem mudar.
+          biblioteca de conteúdo e a ferramentas de apoio a marketing. Hoje isso
+          inclui a geração de vídeo e imagem de propaganda, a criação de
+          personagens (também chamados de avatares ou influenciadores), os
+          editores automáticos de vídeo, o corte de vídeos, a aplicação de marca
+          em lote, a busca de contatos de empresas e as telas de conteúdo pronto.
+          As ferramentas disponíveis, seus limites e seus preços em créditos são
+          os informados nas telas da plataforma no momento do uso, e podem mudar.
         </p>
         <p>
           Parte das ferramentas depende de serviços de inteligência artificial de
           terceiros. Indisponibilidade, mudança de política ou mudança de preço
           desses serviços pode afetar o que a plataforma consegue entregar.
+        </p>
+        <p>
+          A produção acontece numa fila compartilhada, então existe um limite de
+          quantos vídeos uma mesma conta pode ter em produção ao mesmo tempo. O
+          limite vigente é informado na própria tela quando você chega nele, vale
+          igual pra todas as contas e não impede que você produza mais depois: só
+          organiza a ordem.
         </p>
       </Secao>
 
@@ -102,27 +107,28 @@ export default function TermosPage() {
           <li>
             O crédito é debitado conforme o consumo real de cada ferramenta, ou
             pelo preço fixo, quando a ferramenta tiver preço fixo anunciado na
-            tela.
+            tela. O preço de cada ferramenta em créditos aparece na tela antes de
+            você confirmar.
           </li>
           <li>
-            <b>Validade de {CREDITO_VALIDADE_DIAS} dias.</b> Cada pacote de
-            crédito comprado vale {CREDITO_VALIDADE_DIAS} dias contados da
-            compra. O crédito que sobrar num pacote depois desse prazo expira.
-            O consumo sempre sai <b>do pacote mais antigo pro mais novo</b>, pra
-            que o crédito mais perto de vencer seja usado primeiro. Avisamos você
-            antes de qualquer pacote vencer, e a data de validade de cada um
-            aparece na tela de Créditos.
+            <b>Crédito comprado entra por inteiro e não expira.</b> A compra cai
+            no saldo assim que o pagamento é confirmado, sem retenção e sem
+            liberação em partes, e o que sobrar continua na conta enquanto ela
+            existir. Se um dia passarmos a adotar prazo de validade, você será
+            avisado com antecedência e só valerá pras compras feitas depois do
+            aviso.
           </li>
           <li>
-            <b>Liberação em partes.</b> Por segurança contra fraude, parte do
-            crédito comprado pode ser liberada de forma escalonada nos primeiros
-            dias, conforme o nível da conta. O saldo total aparece no seu
-            extrato, e o que ainda não foi liberado é informado na tela.
+            <b>Cobrança só no resultado.</b> O crédito é debitado depois que a
+            geração termina. Geração que falha no meio não é cobrada, e erro
+            comprovadamente nosso é devolvido em crédito quando você reporta o
+            problema pela própria plataforma.
           </li>
           <li>
             <b>Saldo devedor.</b> Se um reembolso ou estorno for concedido depois
             de o crédito ter sido consumido, a diferença consumida vira saldo
-            devedor, e novas gerações ficam bloqueadas até a regularização.
+            devedor, e novas gerações ficam bloqueadas até a regularização. Uma
+            nova compra de crédito quita esse saldo automaticamente.
           </li>
           <li>
             Todo débito e crédito fica registrado no seu extrato dentro da
@@ -139,8 +145,16 @@ export default function TermosPage() {
             <b>continua renovando até você cancelar</b>.
           </li>
           <li>
-            A assinatura libera o acesso à biblioteca e concede uma quantidade de
-            créditos a cada período, na quantidade vigente informada na plataforma.
+            A assinatura libera o acesso à biblioteca de conteúdo e concede uma
+            quantidade de créditos a cada período pago, na quantidade vigente
+            informada na plataforma.
+          </li>
+          <li>
+            <b>A assinatura tem vencimento.</b> Cada pagamento libera um período;
+            sem a renovação, o acesso à biblioteca trava na data de vencimento
+            que aparece na tela de Assinatura. Isso não afeta o seu crédito nem o
+            que já é seu: o saldo continua valendo e os vídeos, imagens e
+            personagens que você criou continuam na conta.
           </li>
           <li>
             <b>Cancelamento:</b> pode ser feito a qualquer momento, sem multa,
@@ -264,10 +278,18 @@ export default function TermosPage() {
       <Secao titulo="12. Pagamentos">
         <p>
           As compras são processadas por processadoras de pagamento
-          independentes. Os dados do seu cartão são tratados por elas: nós não
+          independentes (hoje <b>Cakto</b> e <b>Mercado Pago</b>, conforme o
+          checkout aberto). Os dados do seu cartão são tratados por elas: nós não
           recebemos nem armazenamos número de cartão. Prazos de liberação,
           antifraude e formas de pagamento seguem as regras da processadora
           escolhida no checkout.
+        </p>
+        <p>
+          O acesso é liberado depois da confirmação do pagamento pela
+          processadora. Em Pix a confirmação costuma ser em minutos; em cartão,
+          no prazo da própria operadora. A conta é encontrada pelo{" "}
+          <b>e-mail usado na compra</b>, então comprar com um e-mail e se
+          cadastrar com outro atrasa a liberação.
         </p>
         <p>
           O direito de arrependimento de {REEMBOLSO_PRAZO_DIAS} dias e as demais

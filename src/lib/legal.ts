@@ -5,13 +5,15 @@
  * (razão social, CNPJ, e-mail de contato) e documento legal divergindo de
  * documento legal é o pior tipo de erro pra ter. Mudou aqui, mudou nos três.
  *
- * PENDENTE: enquanto QUALQUER um dos três (razão social, CNPJ, endereço) estiver
- * como PENDENTE, as três páginas mostram um aviso vermelho no topo e NÃO devem
- * ir pro ar. Preencher aqui remove o aviso das três de uma vez.
+ * PENDENTE: enquanto razão social ou CNPJ estiver como PENDENTE, as três páginas
+ * mostram um aviso vermelho no topo e NÃO devem ir pro ar. Preencher aqui remove
+ * o aviso das três de uma vez.
  *
- * Razão social e CNPJ informados pelo dono em 13/08/2026. Falta só o ENDEREÇO
- * completo da sede (o que consta no cartão CNPJ), e é ele que ainda segura o
- * aviso vermelho: documento de consumo precisa dizer onde a empresa é achável.
+ * ENDEREÇO: não existe mais neste arquivo, por decisão do dono (13/08/2026). Os
+ * documentos identificam a empresa por razão social e CNPJ, e o canal de contato
+ * é o e-mail abaixo mais o WhatsApp oficial. Quem quiser o endereço da sede acha
+ * pelo CNPJ. Se um dia for pra voltar, o campo entra aqui e nos três documentos
+ * ao mesmo tempo, nunca em um só.
  */
 
 export const PENDENTE = "PENDENTE";
@@ -23,7 +25,6 @@ type DadosEmpresa = {
   nome: string;
   razaoSocial: string;
   cnpj: string;
-  endereco: string;
   email: string;
 };
 
@@ -31,15 +32,12 @@ export const EMPRESA: DadosEmpresa = {
   nome: "Viraliza",
   razaoSocial: "RK Producoes Digitais LTDA",
   cnpj: "32.868.571/0001-39",
-  endereco: PENDENTE,
   email: "oficialonossouniverso@gmail.com",
 };
 
 /** true enquanto faltar qualquer dado de identificação da empresa. */
 export const dadosDaEmpresaPendentes =
-  EMPRESA.razaoSocial === PENDENTE ||
-  EMPRESA.cnpj === PENDENTE ||
-  EMPRESA.endereco === PENDENTE;
+  EMPRESA.razaoSocial === PENDENTE || EMPRESA.cnpj === PENDENTE;
 
 /**
  * Versão de cada documento. É o que o aceite do usuário grava junto da data:
@@ -47,25 +45,28 @@ export const dadosDaEmpresaPendentes =
  * Mudou o texto de um documento de um jeito que muda direito ou obrigação,
  * suba a versão dele e a data abaixo.
  */
-export const VERSAO_TERMOS = "1.0";
-export const VERSAO_PRIVACIDADE = "2.0";
-export const VERSAO_REEMBOLSO = "1.0";
+export const VERSAO_TERMOS = "1.1";
+export const VERSAO_PRIVACIDADE = "2.1";
+export const VERSAO_REEMBOLSO = "1.1";
 
-export const ATUALIZADO_EM = "6 de agosto de 2026";
+export const ATUALIZADO_EM = "13 de agosto de 2026";
 
 /** Prazo de arrependimento (art. 49 do CDC). */
 export const REEMBOLSO_PRAZO_DIAS = 7;
 
-/**
- * Validade de cada pacote de crédito comprado (fora da assinatura).
+/*
+ * REMOVIDA em 13/08/2026: `CREDITO_VALIDADE_DIAS` (90 dias).
  *
- * ATENÇÃO: isso está PROMETIDO nos documentos mas AINDA NÃO EXISTE em código.
- * O saldo hoje é um número só (`User.saldoCentavos`), sem pacote e sem data, e
- * crédito nenhum expira. A implementação é a tarefa 29 do `!executar.md`.
- * Enquanto ela não sair, o documento é mais generoso do que a realidade (o
- * crédito simplesmente não vence), então ninguém é prejudicado.
+ * Os documentos prometiam que cada pacote de crédito expirava em 90 dias, e isso
+ * NUNCA existiu em código: o saldo é um número só (`User.saldoCentavos`), sem
+ * pacote e sem data, e crédito nenhum vence. Ou seja, o documento avisava de uma
+ * regra contra o cliente que a plataforma não aplicava, e ainda contradizia a
+ * Central de Ajuda e o robô de suporte, que dizem "crédito não vence".
+ *
+ * Decisão do dono: documento diz o que o sistema faz. Se um dia o vencimento for
+ * implementado de verdade, o texto volta pros Termos e pra Política de Reembolso
+ * JUNTO com a subida de versão dos dois documentos, nunca depois.
  */
-export const CREDITO_VALIDADE_DIAS = 90;
 
 /**
  * Teto de consumo que ainda admite devolução: acima disso não há reembolso.

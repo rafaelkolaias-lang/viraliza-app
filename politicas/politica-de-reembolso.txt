@@ -1,12 +1,6 @@
-[AVISO INTERNO - APAGUE ESTE BLOCO ANTES DE PUBLICAR]
-Este documento ainda NAO pode ir pro ar: falta razao social, CNPJ e endereco.
-Preencha os tres campos em src/lib/legal.ts e gere este arquivo de novo:
-o aviso some sozinho e o CNPJ aparece no lugar de PENDENTE.
-[FIM DO AVISO INTERNO]
-
 Política de Reembolso
 
-Versão 1.0 | Última atualização: 6 de agosto de 2026
+Versão 1.1 | Última atualização: 13 de agosto de 2026
 
 Esta política é parte integrante dos Termos de Uso e explica quando uma compra no Viraliza pode ser devolvida, quanto volta e como pedir.
 
@@ -36,7 +30,7 @@ Exemplo com assinatura. Você usou 50% do crédito do período: voltam 50% do va
 
 Na assinatura, a devolução considera o período em curso. Períodos anteriores, já usados e encerrados, não são devolvidos.
 
-Crédito vencido não é devolvido. Cada pacote de crédito vale 90 dias contados da compra, como diz a seção Créditos dos Termos de Uso. Passado esse prazo, não há devolução do que sobrou, porque o prazo de arrependimento de 7 dias já terá se encerrado muito antes.
+O crédito comprado não tem prazo de validade, como diz a seção Créditos dos Termos de Uso. O que existe é o prazo de 7 dias pra pedir a devolução do dinheiro: passado ele, o crédito continua na sua conta e continua podendo ser usado, mas não vira mais dinheiro de volta.
 
 4. O que acontece na sua conta
 

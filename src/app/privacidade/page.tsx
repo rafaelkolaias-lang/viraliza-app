@@ -20,9 +20,9 @@ export default function PrivacidadePage() {
         <p>
           O <b>{EMPRESA.nome}</b> é uma plataforma web de criação de conteúdo com
           inteligência artificial, operada por <b>{EMPRESA.razaoSocial}</b>,
-          CNPJ <b>{EMPRESA.cnpj}</b>, com endereço em <b>{EMPRESA.endereco}</b>{" "}
-          (&quot;nós&quot;). Somos o controlador dos dados tratados aqui, nos
-          termos da Lei Geral de Proteção de Dados (Lei 13.709/2018).
+          CNPJ <b>{EMPRESA.cnpj}</b> (&quot;nós&quot;). Somos o controlador dos
+          dados tratados aqui, nos termos da Lei Geral de Proteção de Dados (Lei
+          13.709/2018).
         </p>
       </Secao>
 
@@ -56,7 +56,9 @@ export default function PrivacidadePage() {
           </li>
           <li>
             <b>Atendimento:</b> as mensagens trocadas com o suporte, no WhatsApp
-            ou dentro da plataforma.
+            ou dentro da plataforma. A conversa com o{" "}
+            <b>atendente automático</b> (o balão no canto da tela) fica guardada
+            no seu próprio navegador por 24 horas, não no nosso banco de dados.
           </li>
         </ul>
       </Secao>
@@ -75,8 +77,8 @@ export default function PrivacidadePage() {
           </li>
           <li>
             <b>Legítimo interesse:</b> prevenção a fraude, abuso e estorno
-            indevido (é o que sustenta o sistema de níveis da conta), segurança
-            da plataforma e mensuração de anúncios.
+            indevido, segurança da plataforma, controle da fila de produção e
+            mensuração de anúncios.
           </li>
           <li>
             <b>Consentimento:</b> usado somente quando pedimos de forma separada
@@ -130,10 +132,20 @@ export default function PrivacidadePage() {
             compra.
           </li>
           <li>
-            <b>Provedores de inteligência artificial</b> (Google, OpenAI,
-            ElevenLabs e outros usados pelas ferramentas): recebem o conteúdo que
-            você mandou processar. Eles não recebem os seus dados de cadastro nem
-            sabem quem você é.
+            <b>Provedores de inteligência artificial</b> (hoje <b>Google</b>,{" "}
+            <b>xAI</b>, <b>OpenAI</b> e <b>ElevenLabs</b>, além de outros que
+            venham a ser usados pelas ferramentas): recebem o conteúdo que você
+            mandou processar, como a foto do produto, a imagem do personagem, o
+            áudio e o texto do pedido. Eles não recebem os seus dados de cadastro
+            e não sabem quem você é.
+          </li>
+          <li>
+            <b>Exceção do atendente automático:</b> pra responder sobre a sua
+            conta, o robô do chat manda pro provedor de inteligência artificial o
+            seu <b>primeiro nome</b>, o saldo de créditos, a situação da
+            assinatura, a quantidade de vídeos prontos e em produção, eventual
+            saldo devedor e a tela em que você está. <b>Não</b> mandamos e-mail,
+            telefone, senha nem o identificador da sua conta.
           </li>
           <li>
             <b>Infraestrutura</b>: hospedagem, banco de dados e armazenamento dos
@@ -175,8 +187,16 @@ export default function PrivacidadePage() {
             <b>Conta e histórico de uso:</b> enquanto a conta existir.
           </li>
           <li>
-            <b>Arquivos que você enviou e conteúdo gerado:</b> enquanto a conta
-            existir ou até você apagar dentro da plataforma, o que vier antes.
+            <b>Arquivos enviados pra um trabalho de edição</b> (os vídeos e
+            fotos que você sobe pra montar um vídeo): ficam no servidor por{" "}
+            <b>até 24 horas</b> depois do trabalho terminar, só pra permitir
+            refazer ou ajustar o mesmo vídeo sem subir tudo de novo. Depois disso
+            são apagados sozinhos. Excluir o vídeo apaga na hora.
+          </li>
+          <li>
+            <b>O que você salva na plataforma</b> (personagens, cenários,
+            imagens e vídeos gerados): enquanto a conta existir ou até você
+            apagar dentro da plataforma, o que vier antes.
           </li>
           <li>
             <b>Registros de acesso:</b> 6 meses (Marco Civil da Internet).
