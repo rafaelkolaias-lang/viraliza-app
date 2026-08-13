@@ -1,5 +1,22 @@
-## Claude 1 | inicio: 2026-08-05 19:35
+## Claude 1 | inicio: 2026-08-13
 - ocioso
+- NOTA (Claude 1, 13/08/2026): grafico de Financas agora abre em "Separado" com
+  4 linhas (assinaturas, creditos, reemb. assinaturas, reemb. creditos). O
+  reembolso passou a herdar o tipo da venda (`ehCredito`), o que conserta as
+  abas Assinaturas/Creditos, que mostravam a linha de reembolso inteira. Os dois
+  reembolsos sao vermelhos e o de credito e TRACEJADO: cor quente nova ao lado
+  do vermelho reprova em daltonismo. Arquivos: src/lib/financas.ts,
+  src/components/app/grafico-vendas.tsx.
+- NOTA (Claude 1, 13/08/2026): Central de Ajuda e os 3 documentos legais foram
+  revisados de ponta a ponta. A Ajuda nao tem mais NENHUM numero digitado a mao
+  (tudo interpolado das constantes), ganhou a secao do Editor automatico BASIC e
+  perdeu tudo que a plataforma deixou de fazer (quarentena de 8 dias, teto diario
+  por nivel, simultaneos por nivel). Nos documentos: saiu o endereco da empresa
+  (com ele saiu a tarja vermelha das 3 paginas) e saiu a promessa de que credito
+  vence em 90 dias, que nunca existiu em codigo. Versoes novas: Termos 1.1,
+  Privacidade 2.1, Reembolso 1.1. O `suporte-base.ts` foi junto (regra do topo do
+  `ajuda-indice.ts`) e teve 1 preco errado corrigido (marca em lote dizia 50, e
+  sao 5). Detalhes no `!projeto.md`.
 - NOTA (Claude 1): tela /painel/inicio REFEITA, agora e o catalogo da plataforma
   inteira. O catalogo (lista de cartoes) mora em `src/components/app/inicio-hub.tsx`
   e e o UNICO lugar a mexer quando entrar ferramenta nova: a `inicio/page.tsx` so

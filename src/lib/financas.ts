@@ -199,7 +199,7 @@ export type DiaVenda = {
   receitaCentavos: number; // bruto pago pelos clientes
   receitaLiquidaCentavos: number; // LÍQUIDO recebido (após taxa) - linha verde
   reembolsos: number;
-  reembolsoCentavos: number; // perdido em reembolso/chargeback (linha vermelha)
+  reembolsoCentavos: number; // perdido em reembolso/chargeback (soma dos dois tipos)
   // detalhamento por tipo de venda (assinatura x pacote de crédito)
   vendasAssinatura: number;
   receitaAssinaturaCentavos: number;
@@ -207,6 +207,13 @@ export type DiaVenda = {
   vendasCredito: number;
   receitaCreditoCentavos: number;
   receitaLiquidaCreditoCentavos: number;
+  // o MESMO corte por tipo, do lado do reembolso (13/08/2026). Sem isso o
+  // gráfico filtrado por Créditos mostrava a linha de reembolso INTEIRA, com o
+  // estorno de assinatura dentro: o dono via prejuízo em cima do tipo errado.
+  reembolsosAssinatura: number;
+  reembolsoAssinaturaCentavos: number;
+  reembolsosCredito: number;
+  reembolsoCreditoCentavos: number;
 };
 
 export type VendaLinha = {
@@ -240,6 +247,11 @@ export type PainelFinancas = {
     reembolsos: number;
     reembolsoCentavos: number; // perda bruta: o que saiu em reembolso/chargeback
     reembolsoLiquidoCentavos: number; // perda líquida (o líquido das vendas estornadas)
+    // perda separada por tipo (mesma conta acima, cortada em assinatura x crédito)
+    reembolsosAssinatura: number;
+    reembolsoLiquidoAssinaturaCentavos: number;
+    reembolsosCredito: number;
+    reembolsoLiquidoCreditoCentavos: number;
     receitaFinalCentavos: number; // bruto − reembolsos
     receitaFinalLiquidaCentavos: number; // LÍQUIDO − reembolsos (o que sobra pra você)
     clientes: number; // e-mails distintos que pagaram
@@ -300,6 +312,10 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
       reembolsos: 0,
       reembolsoCentavos: 0,
       reembolsoLiquidoCentavos: 0,
+      reembolsosAssinatura: 0,
+      reembolsoLiquidoAssinaturaCentavos: 0,
+      reembolsosCredito: 0,
+      reembolsoLiquidoCreditoCentavos: 0,
       receitaFinalCentavos: 0,
       receitaFinalLiquidaCentavos: 0,
       clientes: 0,
@@ -370,6 +386,10 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
       vendasCredito: number;
       receitaCreditoCentavos: number;
       receitaLiquidaCreditoCentavos: number;
+      reembolsosAssinatura: number;
+      reembolsoAssinaturaCentavos: number;
+      reembolsosCredito: number;
+      reembolsoCreditoCentavos: number;
     }
   >();
   for (let i = 0; i < nDias; i++) {
@@ -386,6 +406,10 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
       vendasCredito: 0,
       receitaCreditoCentavos: 0,
       receitaLiquidaCreditoCentavos: 0,
+      reembolsosAssinatura: 0,
+      reembolsoAssinaturaCentavos: 0,
+      reembolsosCredito: 0,
+      reembolsoCreditoCentavos: 0,
     });
   }
 
@@ -397,6 +421,10 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
   let periodoReembolsos = 0;
   let periodoReembolsoCentavos = 0;
   let periodoReembolsoLiquido = 0;
+  let periodoReembolsosAssinatura = 0;
+  let periodoReembolsoLiquidoAssinatura = 0;
+  let periodoReembolsosCredito = 0;
+  let periodoReembolsoLiquidoCredito = 0;
   let periodoPagasAssinatura = 0;
   let periodoReceitaAssinatura = 0;
   let periodoLiquidoAssinatura = 0;
@@ -459,6 +487,19 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
         periodoReembolsos++;
         periodoReembolsoCentavos += bruto;
         periodoReembolsoLiquido += v.liquidoCentavos;
+        // mesmo corte da venda: o estorno herda o tipo do produto que foi
+        // vendido, senão as abas Assinaturas/Créditos mostram a perda do outro
+        if (v.ehCredito) {
+          b.reembolsosCredito++;
+          b.reembolsoCreditoCentavos += bruto;
+          periodoReembolsosCredito++;
+          periodoReembolsoLiquidoCredito += v.liquidoCentavos;
+        } else {
+          b.reembolsosAssinatura++;
+          b.reembolsoAssinaturaCentavos += bruto;
+          periodoReembolsosAssinatura++;
+          periodoReembolsoLiquidoAssinatura += v.liquidoCentavos;
+        }
       }
     }
 
@@ -505,6 +546,10 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
     vendasCredito: v.vendasCredito,
     receitaCreditoCentavos: v.receitaCreditoCentavos,
     receitaLiquidaCreditoCentavos: v.receitaLiquidaCreditoCentavos,
+    reembolsosAssinatura: v.reembolsosAssinatura,
+    reembolsoAssinaturaCentavos: v.reembolsoAssinaturaCentavos,
+    reembolsosCredito: v.reembolsosCredito,
+    reembolsoCreditoCentavos: v.reembolsoCreditoCentavos,
   }));
 
   const [gastos, anuncios] = await Promise.all([gastosPromise, anunciosPromise]);
@@ -523,6 +568,10 @@ export async function getPainelFinancas(diasFiltro?: number): Promise<PainelFina
       reembolsos: periodoReembolsos,
       reembolsoCentavos: periodoReembolsoCentavos,
       reembolsoLiquidoCentavos: periodoReembolsoLiquido,
+      reembolsosAssinatura: periodoReembolsosAssinatura,
+      reembolsoLiquidoAssinaturaCentavos: periodoReembolsoLiquidoAssinatura,
+      reembolsosCredito: periodoReembolsosCredito,
+      reembolsoLiquidoCreditoCentavos: periodoReembolsoLiquidoCredito,
       receitaFinalCentavos: periodoReceita - periodoReembolsoCentavos,
       receitaFinalLiquidaCentavos: receitaFinalLiquida,
       clientes: clientesPagos.size,

@@ -19,23 +19,37 @@ export type DiaVendaGrafico = {
   vendasCredito: number;
   receitaCreditoCentavos: number;
   receitaLiquidaCreditoCentavos: number;
+  reembolsosAssinatura: number;
+  reembolsoAssinaturaCentavos: number;
+  reembolsosCredito: number;
+  reembolsoCreditoCentavos: number;
 };
 
 const brl = (centavos: number) =>
   (centavos / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-/** modos de visualização: unificado, separado por tipo, ou um tipo só */
-type Modo = "total" | "separado" | "assinatura" | "credito";
+/** modos de visualização: separado por tipo (padrão), unificado, ou um tipo só */
+type Modo = "separado" | "total" | "assinatura" | "credito";
 
 const MODOS: { v: Modo; label: string }[] = [
-  { v: "total", label: "Total" },
   { v: "separado", label: "Separado" },
+  { v: "total", label: "Total" },
   { v: "assinatura", label: "Assinaturas" },
   { v: "credito", label: "Créditos" },
 ];
 
-/** Uma linha desenhável do gráfico. As classes ficam escritas por extenso
- *  (Tailwind não gera CSS de classe montada em string). */
+/**
+ * Uma linha desenhável do gráfico. As classes ficam escritas por extenso
+ * (Tailwind não gera CSS de classe montada em string).
+ *
+ * `tracejada` é o que separa os DOIS reembolsos sem inventar uma quarta cor.
+ * Motivo (13/08/2026): a cor tem que dizer o TIPO (verde = assinatura, violeta =
+ * crédito) e o vermelho tem que continuar dizendo "saiu dinheiro". Uma segunda
+ * cor quente pro reembolso de crédito (laranja, âmbar, rosa) não passa no teste
+ * de daltonismo ao lado do vermelho - em deuteranopia as duas viram a mesma
+ * linha. Então o vermelho é um só e o traço separa os dois, com a legenda e o
+ * balãozinho do dia dizendo qual é qual.
+ */
 type Serie = {
   id: string;
   label: string;
@@ -44,25 +58,31 @@ type Serie = {
   stroke: string;
   width: number;
   dot: string;
+  tracejada?: boolean;
 };
 
+/* As três cores passaram no validador de paleta (6 checagens, incluindo
+ * separação em deuteranopia/tritanopia) contra o fundo do card, que é
+ * `oklch(0.2 0.006 250)`. O verde é o 600 e não o 500 de propósito: o 500 fica
+ * claro demais pro fundo e rouba a atenção das outras linhas. Mexeu na cor,
+ * rode o validador de novo antes de subir. */
 const S_TOTAL: Serie = {
   id: "total",
   label: "Você recebe",
   get: (d) => d.receitaLiquidaCentavos,
   qtd: (d) => d.vendas,
-  stroke: "stroke-emerald-500",
+  stroke: "stroke-emerald-600",
   width: 1.5,
-  dot: "border-emerald-500 group-hover/dia:bg-emerald-500",
+  dot: "border-emerald-600 group-hover/dia:bg-emerald-600",
 };
 const S_ASSINATURA: Serie = {
   id: "assinatura",
   label: "Assinaturas",
   get: (d) => d.receitaLiquidaAssinaturaCentavos,
   qtd: (d) => d.vendasAssinatura,
-  stroke: "stroke-emerald-500",
+  stroke: "stroke-emerald-600",
   width: 1.5,
-  dot: "border-emerald-500 group-hover/dia:bg-emerald-500",
+  dot: "border-emerald-600 group-hover/dia:bg-emerald-600",
 };
 const S_CREDITO: Serie = {
   id: "credito",
@@ -82,30 +102,55 @@ const S_REEMBOLSO: Serie = {
   width: 1,
   dot: "border-red-500 group-hover/dia:bg-red-500",
 };
+const S_REEMBOLSO_ASSINATURA: Serie = {
+  id: "reembolso-assinatura",
+  label: "Reemb. assinaturas",
+  get: (d) => d.reembolsoAssinaturaCentavos,
+  qtd: (d) => d.reembolsosAssinatura,
+  stroke: "stroke-red-500",
+  width: 1,
+  dot: "border-red-500 group-hover/dia:bg-red-500",
+};
+const S_REEMBOLSO_CREDITO: Serie = {
+  id: "reembolso-credito",
+  label: "Reemb. créditos",
+  get: (d) => d.reembolsoCreditoCentavos,
+  qtd: (d) => d.reembolsosCredito,
+  stroke: "stroke-red-500",
+  width: 1,
+  dot: "border-red-500 group-hover/dia:bg-red-500",
+  tracejada: true,
+};
 
 /** legenda do cabeçalho: barrinha colorida de cada série visível */
 const COR_LEGENDA: Record<string, string> = {
-  total: "bg-emerald-500",
-  assinatura: "bg-emerald-500",
+  total: "bg-emerald-600",
+  assinatura: "bg-emerald-600",
   credito: "bg-violet-500",
   reembolso: "bg-red-500",
+  "reembolso-assinatura": "bg-red-500",
+  "reembolso-credito": "bg-red-500",
 };
 
 const SERIES_DO_MODO: Record<Modo, Serie[]> = {
+  // padrão: as 4 linhas, 2 do que entra e 2 do que voltou
+  separado: [S_ASSINATURA, S_CREDITO, S_REEMBOLSO_ASSINATURA, S_REEMBOLSO_CREDITO],
   total: [S_TOTAL, S_REEMBOLSO],
-  separado: [S_ASSINATURA, S_CREDITO, S_REEMBOLSO],
-  assinatura: [S_ASSINATURA, S_REEMBOLSO],
-  credito: [S_CREDITO, S_REEMBOLSO],
+  // filtrado por tipo: só o reembolso DAQUELE tipo entra
+  assinatura: [S_ASSINATURA, S_REEMBOLSO_ASSINATURA],
+  credito: [S_CREDITO, S_REEMBOLSO_CREDITO],
 };
 
-/** Gráfico de LINHAS por dia (SVG puro, sem lib): verde = vendas (receita
- *  líquida), violeta = pacotes de crédito no modo separado, vermelho =
- *  reembolsos. O seletor no cabeçalho alterna entre o total unificado, as duas
- *  linhas separadas (assinatura x crédito) ou um tipo só. Eixo Y em R$ na
- *  direita, bolinhas nos pontos e tooltip animado no hover com o detalhamento
- *  de cada dia. */
+/** Gráfico de LINHAS por dia (SVG puro, sem lib). A cor diz o TIPO (verde =
+ *  assinatura, violeta = crédito, vermelho = dinheiro que voltou) e o traço diz
+ *  qual dos dois reembolsos é (cheio = assinatura, tracejado = crédito).
+ *
+ *  Abre no modo "Separado", com as 4 linhas: o que entrou de assinatura, o que
+ *  entrou de crédito e o reembolso de cada um. O "Total" continua ali pra quem
+ *  quer só as duas linhas somadas. Eixo Y em R$ na direita, bolinhas nos pontos
+ *  e tooltip animado no hover com o detalhamento de cada dia. */
 export function GraficoVendas({ dias }: { dias: DiaVendaGrafico[] }) {
-  const [modo, setModo] = useState<Modo>("total");
+  const [modo, setModo] = useState<Modo>("separado");
   const series = SERIES_DO_MODO[modo];
 
   const max = Math.max(1, ...dias.flatMap((d) => series.map((s) => s.get(d))));
@@ -156,8 +201,17 @@ export function GraficoVendas({ dias }: { dias: DiaVendaGrafico[] }) {
               const qtd = dias.reduce((acc, d) => acc + s.qtd(d), 0);
               return (
                 <span key={s.id} className="flex items-center gap-1.5">
-                  <span className={`inline-block h-0.5 w-4 rounded ${COR_LEGENDA[s.id]}`} />
-                  {s.label} {s.id === "reembolso" ? brl(total) : `${brl(total)} (${qtd})`}
+                  {/* barrinha da legenda: tracejada quando a linha é tracejada,
+                      senão as duas de reembolso ficariam idênticas aqui */}
+                  {s.tracejada ? (
+                    <span className="inline-flex w-4 shrink-0 items-center gap-[2px]">
+                      <span className={`h-0.5 flex-1 rounded ${COR_LEGENDA[s.id]}`} />
+                      <span className={`h-0.5 flex-1 rounded ${COR_LEGENDA[s.id]}`} />
+                    </span>
+                  ) : (
+                    <span className={`inline-block h-0.5 w-4 rounded ${COR_LEGENDA[s.id]}`} />
+                  )}
+                  {s.label} {brl(total)} ({qtd})
                 </span>
               );
             })}
@@ -213,6 +267,7 @@ export function GraficoVendas({ dias }: { dias: DiaVendaGrafico[] }) {
                 fill="none"
                 className={s.stroke}
                 strokeWidth={s.width}
+                strokeDasharray={s.tracejada ? "4 3" : undefined}
                 vectorEffect="non-scaling-stroke"
                 strokeLinejoin="round"
                 strokeLinecap="round"
@@ -236,26 +291,49 @@ export function GraficoVendas({ dias }: { dias: DiaVendaGrafico[] }) {
                   />
                 ))}
 
-                {/* tooltip animado: detalhamento do dia (sempre com os 2 tipos) */}
-                <div className="pointer-events-none absolute left-1/2 top-1 z-10 w-max -translate-x-1/2 translate-y-1 rounded-lg border border-border bg-popover px-3 py-2 text-xs opacity-0 shadow-lg transition-all duration-150 group-hover/dia:translate-y-0 group-hover/dia:opacity-100">
+                {/* tooltip animado: detalhamento do dia. Sempre com os 4
+                    números, mesmo quando o modo esconde alguma linha - é aqui
+                    que se responde "esse reembolso foi de quê?". A cor mora na
+                    bolinha, não no texto: número em cor de série fica difícil de
+                    ler em cima do popover. */}
+                <div className="pointer-events-none absolute left-1/2 top-1 z-10 w-max -translate-x-1/2 translate-y-1 space-y-0.5 rounded-lg border border-border bg-popover px-3 py-2 text-xs opacity-0 shadow-lg transition-all duration-150 group-hover/dia:translate-y-0 group-hover/dia:opacity-100">
                   <p className="mb-1 font-semibold text-foreground">
                     {d.label} · {brl(d.receitaLiquidaCentavos)} · {d.vendas} venda
                     {d.vendas === 1 ? "" : "s"}
                   </p>
-                  <p className="flex items-center gap-1.5 text-emerald-500">
-                    <span className="inline-block size-1.5 rounded-full bg-emerald-500" />
-                    Assinaturas {brl(d.receitaLiquidaAssinaturaCentavos)} · {d.vendasAssinatura}{" "}
-                    venda{d.vendasAssinatura === 1 ? "" : "s"}
+                  <p className="flex items-center gap-1.5 text-muted-foreground">
+                    <span className="inline-block size-1.5 rounded-full bg-emerald-600" />
+                    Assinaturas{" "}
+                    <b className="font-medium text-foreground">
+                      {brl(d.receitaLiquidaAssinaturaCentavos)}
+                    </b>{" "}
+                    · {d.vendasAssinatura} venda{d.vendasAssinatura === 1 ? "" : "s"}
                   </p>
-                  <p className="flex items-center gap-1.5 text-violet-500">
+                  <p className="flex items-center gap-1.5 text-muted-foreground">
                     <span className="inline-block size-1.5 rounded-full bg-violet-500" />
-                    Créditos {brl(d.receitaLiquidaCreditoCentavos)} · {d.vendasCredito} venda
-                    {d.vendasCredito === 1 ? "" : "s"}
+                    Créditos{" "}
+                    <b className="font-medium text-foreground">
+                      {brl(d.receitaLiquidaCreditoCentavos)}
+                    </b>{" "}
+                    · {d.vendasCredito} venda{d.vendasCredito === 1 ? "" : "s"}
                   </p>
-                  <p className="flex items-center gap-1.5 text-red-500">
+                  <p className="flex items-center gap-1.5 text-muted-foreground">
                     <span className="inline-block size-1.5 rounded-full bg-red-500" />
-                    −{brl(d.reembolsoCentavos)} · {d.reembolsos} reembolso
-                    {d.reembolsos === 1 ? "" : "s"}
+                    Reemb. assinaturas{" "}
+                    <b className="font-medium text-foreground">
+                      −{brl(d.reembolsoAssinaturaCentavos)}
+                    </b>{" "}
+                    · {d.reembolsosAssinatura}
+                  </p>
+                  <p className="flex items-center gap-1.5 text-muted-foreground">
+                    <span className="inline-flex w-1.5 shrink-0 items-center">
+                      <span className="h-px w-full bg-red-500" />
+                    </span>
+                    Reemb. créditos{" "}
+                    <b className="font-medium text-foreground">
+                      −{brl(d.reembolsoCreditoCentavos)}
+                    </b>{" "}
+                    · {d.reembolsosCredito}
                   </p>
                 </div>
               </div>
