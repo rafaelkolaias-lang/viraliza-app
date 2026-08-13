@@ -28,12 +28,12 @@ export type DiaVendaGrafico = {
 const brl = (centavos: number) =>
   (centavos / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-/** modos de visualização: separado por tipo (padrão), unificado, ou um tipo só */
-type Modo = "separado" | "total" | "assinatura" | "credito";
+/** modos de visualização: unificado (padrão), separado por tipo, ou um tipo só */
+type Modo = "total" | "separado" | "assinatura" | "credito";
 
 const MODOS: { v: Modo; label: string }[] = [
-  { v: "separado", label: "Separado" },
   { v: "total", label: "Total" },
+  { v: "separado", label: "Separado" },
   { v: "assinatura", label: "Assinaturas" },
   { v: "credito", label: "Créditos" },
 ];
@@ -145,12 +145,13 @@ const SERIES_DO_MODO: Record<Modo, Serie[]> = {
  *  assinatura, violeta = crédito, vermelho = dinheiro que voltou) e o traço diz
  *  qual dos dois reembolsos é (cheio = assinatura, tracejado = crédito).
  *
- *  Abre no modo "Separado", com as 4 linhas: o que entrou de assinatura, o que
- *  entrou de crédito e o reembolso de cada um. O "Total" continua ali pra quem
- *  quer só as duas linhas somadas. Eixo Y em R$ na direita, bolinhas nos pontos
- *  e tooltip animado no hover com o detalhamento de cada dia. */
+ *  Abre no "Total" (dono, 13/08/2026), com as duas linhas somadas. O
+ *  "Separado" mostra as 4: o que entrou de assinatura, o que entrou de crédito
+ *  e o reembolso de cada um. Eixo Y em R$ na direita, bolinhas nos pontos e
+ *  tooltip animado no hover com o detalhamento de cada dia (o balãozinho traz
+ *  os 4 números em qualquer modo). */
 export function GraficoVendas({ dias }: { dias: DiaVendaGrafico[] }) {
-  const [modo, setModo] = useState<Modo>("separado");
+  const [modo, setModo] = useState<Modo>("total");
   const series = SERIES_DO_MODO[modo];
 
   const max = Math.max(1, ...dias.flatMap((d) => series.map((s) => s.get(d))));
@@ -188,52 +189,57 @@ export function GraficoVendas({ dias }: { dias: DiaVendaGrafico[] }) {
 
   return (
     <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
+      {/* CABEÇALHO EM DUAS FAIXAS, e isso é de propósito: o seletor fica preso
+          à faixa do título e a legenda mora numa faixa só dela, embaixo. Antes
+          os dois dividiam a mesma linha, então trocar de modo mudava a
+          quantidade de itens da legenda, a legenda mudava de largura e os
+          botões PULAVAM de lugar embaixo do dedo de quem tinha acabado de
+          clicar. Botão que se move sozinho não volta pra mesma linha. */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-sm font-semibold">
           <TrendingUp className="size-4 text-primary" />
           Vendas por dia
         </h2>
-        <div className="flex flex-wrap items-center gap-3">
-          {/* totais das séries visíveis */}
-          <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-            {series.map((s) => {
-              const total = dias.reduce((acc, d) => acc + s.get(d), 0);
-              const qtd = dias.reduce((acc, d) => acc + s.qtd(d), 0);
-              return (
-                <span key={s.id} className="flex items-center gap-1.5">
-                  {/* barrinha da legenda: tracejada quando a linha é tracejada,
-                      senão as duas de reembolso ficariam idênticas aqui */}
-                  {s.tracejada ? (
-                    <span className="inline-flex w-4 shrink-0 items-center gap-[2px]">
-                      <span className={`h-0.5 flex-1 rounded ${COR_LEGENDA[s.id]}`} />
-                      <span className={`h-0.5 flex-1 rounded ${COR_LEGENDA[s.id]}`} />
-                    </span>
-                  ) : (
-                    <span className={`inline-block h-0.5 w-4 rounded ${COR_LEGENDA[s.id]}`} />
-                  )}
-                  {s.label} {brl(total)} ({qtd})
-                </span>
-              );
-            })}
-          </div>
-          {/* seletor de modo (total x separado x um tipo só) */}
-          <div className="flex gap-1 rounded-lg border border-border p-1">
-            {MODOS.map((m) => (
-              <button
-                key={m.v}
-                type="button"
-                onClick={() => setModo(m.v)}
-                className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                  modo === m.v
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-muted"
-                }`}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
+        {/* seletor de modo (total x separado x um tipo só) */}
+        <div className="flex shrink-0 gap-1 rounded-lg border border-border p-1">
+          {MODOS.map((m) => (
+            <button
+              key={m.v}
+              type="button"
+              onClick={() => setModo(m.v)}
+              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                modo === m.v
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              {m.label}
+            </button>
+          ))}
         </div>
+      </div>
+
+      {/* totais das séries visíveis */}
+      <div className="mt-3 flex min-h-5 flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        {series.map((s) => {
+          const total = dias.reduce((acc, d) => acc + s.get(d), 0);
+          const qtd = dias.reduce((acc, d) => acc + s.qtd(d), 0);
+          return (
+            <span key={s.id} className="flex items-center gap-1.5">
+              {/* barrinha da legenda: tracejada quando a linha é tracejada,
+                  senão as duas de reembolso ficariam idênticas aqui */}
+              {s.tracejada ? (
+                <span className="inline-flex w-4 shrink-0 items-center gap-[2px]">
+                  <span className={`h-0.5 flex-1 rounded ${COR_LEGENDA[s.id]}`} />
+                  <span className={`h-0.5 flex-1 rounded ${COR_LEGENDA[s.id]}`} />
+                </span>
+              ) : (
+                <span className={`inline-block h-0.5 w-4 rounded ${COR_LEGENDA[s.id]}`} />
+              )}
+              {s.label} {brl(total)} ({qtd})
+            </span>
+          );
+        })}
       </div>
 
       <div className="mt-5 flex">
