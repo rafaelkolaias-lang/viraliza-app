@@ -11,8 +11,14 @@ import type { LinkTela } from "@/lib/suporte-conversas";
  * de tudo que a pessoa digitar por conta própria.
  *
  * Os preços NÃO são escritos na mão: vêm das mesmas constantes que a plataforma
- * usa pra cobrar. `garantiaDias` chega de fora porque mora em `lib/niveis.ts`,
+ * usa pra cobrar. `creditoMensal` chega de fora porque mora em `lib/creditos.ts`,
  * que é server-only; quem passa é o layout do painel.
+ *
+ * O atalho "Comprei crédito e só entrou uma parte" saiu daqui em 13/08/2026: ele
+ * ocupava a primeira vaga pra explicar a quarentena de crédito, que morreu em
+ * 11/08/2026 (ver `creditarCompra`, que credita integral). Entrou no lugar a
+ * dúvida que o modelo 2 em 1 realmente gera, e que a base do robô já marca como
+ * "a mais comum".
  *
  * As linhas em branco são o que separa os balões (ver `partirResposta`).
  *
@@ -26,16 +32,16 @@ export type Pronta = {
   links: LinkTela[];
 };
 
-export function respostasProntas(garantiaDias: number): Pronta[] {
+export function respostasProntas(creditoMensal: number): Pronta[] {
   return [
     {
-      pergunta: "Comprei crédito e só entrou uma parte",
+      pergunta: "Qual a diferença entre assinatura e crédito?",
       resposta:
-        "Hoje toda compra cai 100% no saldo na hora da confirmação do pagamento.\n\n" +
-        `Se a sua compra foi antiga e aparece um "crédito liberando" com data, é o resto da regra antiga de garantia de ${garantiaDias} dias: ele cai sozinho na data mostrada, sem precisar pedir. Pelos botões abaixo você confere o saldo e o extrato.`,
+        "São duas coisas separadas. A ASSINATURA libera a biblioteca: acervo de cortes, vídeos virais, produtos da Shopee e do TikTok, Minerador e área de membros. Ela vence e precisa renovar todo mês.\n\n" +
+        `O CRÉDITO é o que paga cada imagem e cada vídeo que a IA gera. Assinando você já ganha ${creditoMensal.toLocaleString("pt-BR")} créditos na hora, e mais ${creditoMensal.toLocaleString("pt-BR")} a cada renovação paga. O que sobrar fica na conta e não vence. Pelos botões abaixo você vê sua assinatura e seu saldo.`,
       links: [
+        { rota: "/painel/assinatura", nome: "Assinatura" },
         { rota: "/painel/creditos", nome: "Créditos" },
-        { rota: "/painel/extrato", nome: "Extrato" },
       ],
     },
     {

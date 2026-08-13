@@ -139,15 +139,15 @@ function Digitando() {
 }
 
 export function SuporteChat({
-  garantiaDias,
+  creditoMensal,
   aberto,
   onFechar,
 }: {
-  garantiaDias: number;
+  creditoMensal: number;
   aberto: boolean;
   onFechar: () => void;
 }) {
-  const prontas = respostasProntas(garantiaDias);
+  const prontas = respostasProntas(creditoMensal);
   /** a tela em que a pessoa está: vai junto da pergunta pro robô saber responder
    *  "como faço isso aqui?" (ver `lib/suporte-usuario.ts`) */
   const pathname = usePathname();

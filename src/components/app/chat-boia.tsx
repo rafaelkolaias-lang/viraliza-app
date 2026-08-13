@@ -28,11 +28,11 @@ import { SuporteChat } from "@/components/app/suporte-chat";
 type Painel = "suporte" | "equipe";
 
 export function ChatBoia({
-  garantiaDias,
+  creditoMensal,
   /** admin não tem "falar com a equipe" (a equipe é ele): nem poll, nem seletor */
   comEquipe,
 }: {
-  garantiaDias: number;
+  creditoMensal: number;
   comEquipe: boolean;
 }) {
   const [painel, setPainel] = useState<Painel | null>(null);
@@ -97,7 +97,7 @@ export function ChatBoia({
   return (
     <>
       <SuporteChat
-        garantiaDias={garantiaDias}
+        creditoMensal={creditoMensal}
         aberto={painel === "suporte"}
         onFechar={() => setPainel(null)}
       />

@@ -2,16 +2,11 @@ import { AppFrame } from "@/components/app/app-frame";
 import { ChatBoia } from "@/components/app/chat-boia";
 import { requireUser } from "@/lib/dal";
 import { tocarPresenca } from "@/lib/presenca";
-import {
-  JANELA_GARANTIA_DIAS,
-  getDividaCentavos,
-  getNivelBadge,
-  tocarAtividadeENivel,
-} from "@/lib/niveis";
+import { getDividaCentavos, getNivelBadge, tocarAtividadeENivel } from "@/lib/niveis";
 import { presoCentavos } from "@/lib/liberacao-creditos";
 import { avisosAtivosPara } from "@/lib/notificacoes";
 import { getStatusBonusIg } from "@/lib/bonus-instagram";
-import { getCarteira, totalEntradas } from "@/lib/creditos";
+import { CREDITO_MENSAL_CENTAVOS, getCarteira, totalEntradas } from "@/lib/creditos";
 
 export default async function AppLayout({
   children,
@@ -61,9 +56,9 @@ export default async function AppLayout({
       {/* UMA boia no canto de baixo pros dois chats: o robô de ajuda (sempre) e
           a conversa com a equipe (só se o admin abriu). Eram dois botões
           empilhados até 12/08/2026 - o porquê da junção está no chat-boia.tsx.
-          A janela de garantia vem daqui porque `lib/niveis` é server-only e as
-          respostas prontas do robô citam esse prazo. */}
-      <ChatBoia garantiaDias={JANELA_GARANTIA_DIAS} comEquipe={user.role !== "admin"} />
+          O crédito da assinatura vem daqui porque `lib/creditos` é server-only e
+          a resposta pronta "assinatura x crédito" cita esse número. */}
+      <ChatBoia creditoMensal={CREDITO_MENSAL_CENTAVOS} comEquipe={user.role !== "admin"} />
     </AppFrame>
   );
 }
